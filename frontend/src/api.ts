@@ -193,7 +193,7 @@ export const api = {
 
   audioPlayback(
     sessionId: string, token: string, audioAssetId: string, clientPlayId: string,
-    eventType: "started" | "completed" | "interrupted",
+    eventType: "prepared" | "started" | "completed" | "interrupted",
   ) {
     return request<{ submitted: boolean; playNumber?: number; maxPlays?: number | null; audioUrl?: string }>(
       `/v1/sessions/${sessionId}/audio/${audioAssetId}/playback`,

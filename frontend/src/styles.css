@@ -31,7 +31,12 @@ button { cursor: pointer; }
 }
 
 .exam-shell { min-height: 100vh; background: #f4f7fb; }
-.question-copy { white-space: pre-wrap; line-height: 1.9; word-break: keep-all; }
+.exam-angular .rounded-md,
+.exam-angular .rounded-lg,
+.exam-angular .rounded-xl,
+.exam-angular .rounded-2xl,
+.exam-angular .rounded-3xl { border-radius: 4px !important; }
+.question-copy { white-space: pre-wrap; line-height: 1.75; word-break: keep-all; }
 .choice-button { transition: border-color .16s ease, background-color .16s ease, transform .16s ease; }
 .choice-button:hover { transform: translateY(-1px); }
 .focus-ring:focus-visible { outline: 3px solid rgba(21, 95, 204, .25); outline-offset: 3px; }

@@ -51,6 +51,36 @@ describe("public API", () => {
     );
   });
 
+  it("accepts audio preparation without recording a started event", async () => {
+    const recordAudioPlayback = vi.fn().mockResolvedValue({
+      submitted: false,
+      playNumber: 1,
+      audioUrl: "https://example.com/audio.mp3",
+    });
+    const repository = { recordAudioPlayback } as unknown as TopikRepository;
+    const app = await buildApp(repository);
+    repositories.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/sessions/10000000-0000-4000-8000-000000000001/audio/20000000-0000-4000-8000-000000000001/playback",
+      headers: { authorization: "Bearer session-token" },
+      payload: {
+        clientPlayId: "30000000-0000-4000-8000-000000000001",
+        eventType: "prepared",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(recordAudioPlayback).toHaveBeenCalledWith({
+      sessionId: "10000000-0000-4000-8000-000000000001",
+      audioAssetId: "20000000-0000-4000-8000-000000000001",
+      clientPlayId: "30000000-0000-4000-8000-000000000001",
+      eventType: "prepared",
+      token: "session-token",
+    });
+  });
+
   it("preserves Fastify client errors instead of returning 500", async () => {
     const repository = { submitSession: vi.fn() } as unknown as TopikRepository;
     const app = await buildApp(repository);

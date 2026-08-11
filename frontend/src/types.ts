@@ -57,6 +57,7 @@ export interface IncorrectQuestion extends Question {
 }
 
 export interface Results {
+  examId: string;
   sessionId: string;
   titleId: string;
   titleKo: string;

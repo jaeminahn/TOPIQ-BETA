@@ -119,7 +119,7 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const { sessionId, audioAssetId } = audioParams.parse(request.params);
     const body = z.object({
       clientPlayId: z.string().uuid(),
-      eventType: z.enum(["started", "completed", "interrupted"]),
+      eventType: z.enum(["prepared", "started", "completed", "interrupted"]),
     }).parse(request.body);
     return repository.recordAudioPlayback({
       sessionId, audioAssetId, token: requireToken(request.headers.authorization), ...body,

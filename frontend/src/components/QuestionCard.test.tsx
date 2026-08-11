@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { I18nProvider } from "../i18n";
 import type { Question } from "../types";
 import { QuestionCard } from "./QuestionCard";
 
@@ -21,11 +23,15 @@ const baseQuestion: Question = {
 };
 
 const makeQuestion = (input: Partial<Question>): Question => ({ ...baseQuestion, ...input });
+const renderWithI18n = (ui: ReactElement) => {
+  localStorage.setItem("unigate.topik.locale", "ko");
+  return render(ui, { wrapper: I18nProvider });
+};
 
 describe("QuestionCard", () => {
   it("uses the grammar fallback instruction and records a choice", async () => {
     const onAnswer = vi.fn();
-    render(<QuestionCard question={baseQuestion} onAnswer={onAnswer} />);
+    renderWithI18n(<QuestionCard question={baseQuestion} onAnswer={onAnswer} />);
     expect(screen.getByText("( )에 들어갈 말로 가장 알맞은 것을 고르십시오.")).toBeInTheDocument();
     expect(screen.getByTestId("blank-marker")).toBeInTheDocument();
     await userEvent.click(screen.getByText("불러서"));
@@ -33,7 +39,7 @@ describe("QuestionCard", () => {
   });
 
   it("does not render a flattened stem when structured fields exist", () => {
-    render(<QuestionCard question={makeQuestion({
+    renderWithI18n(<QuestionCard question={makeQuestion({
       itemType: "content_match",
       stem: "분리된 지문 분리된 질문",
       passage: "분리된 지문",
@@ -45,7 +51,7 @@ describe("QuestionCard", () => {
   });
 
   it("renders a matching highlight inline and an unmatched highlight as a fallback", () => {
-    const { rerender } = render(<QuestionCard question={makeQuestion({
+    const { rerender } = renderWithI18n(<QuestionCard question={makeQuestion({
       itemType: "similar_expression",
       stem: "식당을 찾고자 지도를 꺼냈다.",
       highlightText: "찾고자",
@@ -63,7 +69,7 @@ describe("QuestionCard", () => {
   });
 
   it("renders sequence rows, an insertion sentence, a headline, and a paired label", () => {
-    const { rerender } = render(<QuestionCard question={makeQuestion({
+    const { rerender } = renderWithI18n(<QuestionCard question={makeQuestion({
       itemType: "sentence_order",
       passage: "(가) 첫 번째 문장\n(나) 두 번째 문장\n(다) 세 번째 문장\n(라) 네 번째 문장",
       questionPrompt: "순서에 맞게 배열하십시오.",
@@ -118,7 +124,7 @@ describe("QuestionCard", () => {
     ];
 
     for (const [itemType, layout] of cases) {
-      const { unmount } = render(<QuestionCard question={makeQuestion({
+      const { unmount } = renderWithI18n(<QuestionCard question={makeQuestion({
         itemType,
         passage: itemType === "grammar_blank" || itemType === "similar_expression" ? "" : "구조화된 문제 지문",
         auxiliaryText: itemType === "sentence_insertion" ? "주어진 문장" : "",
@@ -131,13 +137,13 @@ describe("QuestionCard", () => {
   });
 
   it("marks the correct option in result mode", () => {
-    render(<QuestionCard question={{ ...baseQuestion, selectedOption: 1 }} disabled showResult={{ correctAnswer: 2 }} />);
+    renderWithI18n(<QuestionCard question={{ ...baseQuestion, selectedOption: 1 }} disabled showResult={{ correctAnswer: 2 }} />);
     expect(screen.getByText("불러서").closest("button")).toHaveClass("border-emerald-400");
   });
 
   it("renders listening image choices without exposing descriptions and shows transcripts only when supplied", async () => {
     const onAnswer = vi.fn();
-    render(<QuestionCard question={makeQuestion({
+    renderWithI18n(<QuestionCard question={makeQuestion({
       section: "listening",
       itemType: "visual_scene",
       stem: "",
@@ -147,9 +153,10 @@ describe("QuestionCard", () => {
       transcript: [{ speaker: "여자", text: "결과에서만 보이는 대본입니다." }],
     })} onAnswer={onAnswer} />);
     expect(screen.getAllByRole("img")).toHaveLength(4);
+    expect(screen.getByRole("radiogroup")).toHaveClass("grid-cols-2");
     for (const image of screen.getAllByRole("img")) {
-      expect(image).toHaveClass("max-w-full", "object-contain");
-      expect(image.parentElement).toHaveClass("min-w-0", "overflow-hidden");
+      expect(image).toHaveClass("max-h-40", "sm:max-h-48", "max-w-[220px]", "object-contain");
+      expect(image.parentElement).toHaveClass("min-w-0", "max-w-[220px]", "overflow-hidden");
       expect(image.closest("button")).toHaveClass("min-w-0", "overflow-hidden");
     }
     expect(screen.getByText("듣기 대본")).toBeInTheDocument();
@@ -158,10 +165,26 @@ describe("QuestionCard", () => {
   });
 
   it("labels paired listening questions as common listening", () => {
-    render(<QuestionCard question={makeQuestion({
+    renderWithI18n(<QuestionCard question={makeQuestion({
       section: "listening", itemType: "paired_21_22", stem: "", passage: "",
       questionPrompt: "들은 내용과 같은 것을 고르십시오.",
     })} />);
     expect(screen.getByText("21~22번 공통 듣기")).toBeInTheDocument();
+  });
+
+  it("hides timed transcripts and lets practice users expand them", async () => {
+    const question = makeQuestion({
+      section: "listening",
+      transcript: [{ speaker: "남자", text: "연습용 대본입니다." }],
+    });
+    const { rerender } = renderWithI18n(<QuestionCard question={question} transcriptMode="hidden" />);
+    expect(screen.queryByText("연습용 대본입니다.")).not.toBeInTheDocument();
+
+    rerender(<QuestionCard question={question} transcriptMode="collapsible" />);
+    expect(screen.queryByText("연습용 대본입니다.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "대본 보기" }));
+    expect(screen.getByText("연습용 대본입니다.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /대본 숨기기/ }));
+    expect(screen.queryByText("연습용 대본입니다.")).not.toBeInTheDocument();
   });
 });

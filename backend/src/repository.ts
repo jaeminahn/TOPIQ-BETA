@@ -463,7 +463,7 @@ export class TopikRepository {
     token: string;
     audioAssetId: string;
     clientPlayId: string;
-    eventType: "started" | "completed" | "interrupted";
+    eventType: "prepared" | "started" | "completed" | "interrupted";
   }) {
     const client = await begin();
     try {
@@ -489,6 +489,26 @@ export class TopikRepository {
       );
       const audio = asset.rows[0];
       if (!audio) throw notFound("Audio asset not found in this session");
+
+      if (input.eventType === "prepared") {
+        const count = await client.query<{ count: string }>(
+          `SELECT COUNT(DISTINCT client_play_id)::text count FROM topik_app.audio_playback_events
+            WHERE session_id=$1 AND audio_asset_id=$2 AND event_type='started'`,
+          [input.sessionId, input.audioAssetId],
+        );
+        const nextPlayNumber = Number(count.rows[0]?.count ?? 0) + 1;
+        if (session.mode === "timed" && nextPlayNumber > audio.repeat_count) {
+          throw new AppError(409, "AUDIO_REPLAY_LIMIT", "The listening replay limit has been reached");
+        }
+        await client.query("COMMIT");
+        const audioUrl = await new SupabaseStorage().signedAudioUrl(audio.storage_path);
+        return {
+          submitted: false,
+          playNumber: nextPlayNumber,
+          maxPlays: session.mode === "timed" ? audio.repeat_count : null,
+          audioUrl,
+        };
+      }
 
       let playNumber: number;
       const started = await client.query<{ play_number: number }>(
@@ -519,9 +539,7 @@ export class TopikRepository {
         [randomUUID(),input.clientPlayId,input.sessionId,input.audioAssetId,input.eventType,playNumber],
       );
       await client.query("COMMIT");
-      if (input.eventType !== "started") return { submitted: false, playNumber };
-      const audioUrl = await new SupabaseStorage().signedAudioUrl(audio.storage_path);
-      return { submitted: false, playNumber, maxPlays: session.mode === "timed" ? audio.repeat_count : null, audioUrl };
+      return { submitted: false, playNumber, maxPlays: session.mode === "timed" ? audio.repeat_count : null };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -644,6 +662,7 @@ export class TopikRepository {
       [sessionId],
     );
     return {
+      examId: session.mock_test_id,
       sessionId,
       titleId: session.title_id,
       titleKo: session.title_ko,
