@@ -1,4 +1,4 @@
-import type { AdminListeningGroup, AdminListeningMockTest, AdminReadingItem, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Locale, Results, TestSession, TtsJob, TtsStyle } from "./types";
+import type { AdminListeningGroup, AdminListeningMockTest, AdminReadingItem, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Locale, Results, TestSession, TtsJob, TtsStyle } from "./types";
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -72,6 +72,15 @@ export const adminApi = {
   readingItems(token: string, filters: { setId?: string; search?: string } = {}) {
     const query = new URLSearchParams(Object.entries(filters).filter((entry): entry is [string, string] => Boolean(entry[1])));
     return request<{ items: AdminReadingItem[] }>(`/v1/admin/reading/items${query.size ? `?${query}` : ""}`, { headers: auth(token) });
+  },
+  readingSets(token: string) {
+    return request<{ sets: AdminReadingSet[] }>("/v1/admin/reading/sets", { headers: auth(token) });
+  },
+  publishReadingSet(token: string, setId: string, setVersion: number) {
+    return request<{ mockTestId: string; slug: string; round: number | null; published: boolean; created: boolean }>(
+      `/v1/admin/reading/sets/${setId}/versions/${setVersion}/publish`,
+      { method: "POST", headers: auth(token) },
+    );
   },
   responseSessions(token: string, filters: { section?: string; correctness?: string; page?: number; pageSize?: number } = {}) {
     const query = new URLSearchParams();
