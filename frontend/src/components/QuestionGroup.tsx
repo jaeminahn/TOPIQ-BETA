@@ -30,7 +30,7 @@ export function QuestionGroup({
       data-testid="question-group"
       className={isReading ? "grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,.95fr)] lg:items-start" : "min-w-0 space-y-3"}
     >
-      <div className={isReading ? "min-w-0 rounded-3xl border border-gray-300 bg-white p-6 shadow-sm lg:sticky lg:top-16" : "min-w-0 px-1 py-0.5"}>
+      <div className={isReading ? "min-w-0 rounded-2xl border border-gray-300 bg-white p-6 lg:sticky lg:top-16" : "min-w-0 px-1 py-0.5"}>
         <SharedQuestionMaterial question={sharedQuestion} highlights={highlights} transcriptMode={transcriptMode} />
       </div>
       <div className="min-w-0 space-y-3">

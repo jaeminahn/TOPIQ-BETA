@@ -30,21 +30,6 @@ body { margin: 0; min-width: 320px; min-height: 100vh; font-family: "SUIT Variab
 button, input { font: inherit; }
 button { cursor: pointer; }
 
-.brand-grid {
-  background-image:
-    linear-gradient(rgba(45, 94, 197, .055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(45, 94, 197, .055) 1px, transparent 1px);
-  background-size: 36px 36px;
-  mask-image: linear-gradient(to bottom, black, transparent 85%);
-}
-
-.hero-glow {
-  background:
-    radial-gradient(circle at 16% 22%, rgba(91, 127, 255, .24), transparent 30%),
-    radial-gradient(circle at 86% 12%, rgba(155, 176, 255, .2), transparent 27%),
-    linear-gradient(135deg, #f7f9ff 0%, #ffffff 48%, #f0f5ff 100%);
-}
-
 .exam-shell { min-height: 100vh; background: #F3F4F6; }
 .exam-angular .rounded-md,
 .exam-angular .rounded-lg,
@@ -52,9 +37,8 @@ button { cursor: pointer; }
 .exam-angular .rounded-2xl,
 .exam-angular .rounded-3xl { border-radius: 4px !important; }
 .question-copy { white-space: pre-wrap; line-height: 1.75; word-break: keep-all; font-family: "KoPubWorld Batang", "Batang", "Noto Serif KR", serif; }
-.choice-button { transition: border-color .16s ease, background-color .16s ease, transform .16s ease; }
-.choice-button:hover { transform: translateY(-1px); }
-.focus-ring:focus-visible { outline: 3px solid rgba(45, 94, 197, .25); outline-offset: 3px; }
+.choice-button { transition: border-color .16s ease, background-color .16s ease; }
+.focus-ring:focus-visible { outline: 2px solid rgba(45, 94, 197, .25); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }

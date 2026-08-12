@@ -61,14 +61,14 @@ export function QuestionNavigatorDialog({
   return (
     <div
       data-testid="question-dialog-backdrop"
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-3 backdrop-blur-[2px] sm:p-6"
+      className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-6"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="question-dialog-title" aria-describedby="question-dialog-summary" className="flex max-h-[min(720px,calc(100dvh-24px))] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="question-dialog-title" aria-describedby="question-dialog-summary" className="flex max-h-[min(720px,calc(100dvh-24px))] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white">
         <div className="flex items-start justify-between gap-4 border-b border-gray-300 px-4 py-4 sm:px-6">
           <div>
-            <h2 id="question-dialog-title" className="flex items-center gap-2 text-lg font-extrabold text-gray-900"><Grid3X3 className="size-5 text-primary" />{t("allQuestions")}</h2>
-            <p id="question-dialog-summary" className="mt-1 text-sm font-bold text-gray-500">{t("answered")} {answered} · {t("unanswered")} {questions.length - answered}</p>
+            <h2 id="question-dialog-title" className="flex items-center gap-2 text-lg font-semibold text-gray-900"><Grid3X3 className="size-5 text-primary" />{t("allQuestions")}</h2>
+            <p id="question-dialog-summary" className="mt-1 text-sm font-medium text-gray-500">{t("answered")} {answered} · {t("unanswered")} {questions.length - answered}</p>
           </div>
           <button ref={closeRef} type="button" onClick={onClose} aria-label={t("close")} className="focus-ring grid size-11 shrink-0 place-items-center rounded-xl text-gray-500 hover:bg-gray-100"><X className="size-5" /></button>
         </div>
@@ -85,7 +85,7 @@ export function QuestionNavigatorDialog({
                   aria-current={current ? "step" : undefined}
                   aria-label={`${t("question")} ${question.itemOrder}, ${current ? t("currentQuestion") : complete ? t("answered") : t("unanswered")}`}
                   onClick={() => { onSelect(question.itemOrder); onClose(); }}
-                  className={`focus-ring grid aspect-square min-h-11 place-items-center rounded-xl border text-sm font-black transition ${current ? "border-primary bg-primary text-white shadow-sm" : complete ? "border-primary-100 bg-primary-50 text-primary" : "border-gray-300 bg-white text-gray-500 hover:border-primary-200 hover:bg-primary-50/50"}`}
+                  className={`focus-ring grid aspect-square min-h-11 place-items-center rounded-xl border text-sm font-semibold transition ${current ? "border-primary bg-primary text-white" : complete ? "border-primary-100 bg-primary-50 text-primary" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400 hover:bg-gray-50"}`}
                 >
                   {question.itemOrder}
                 </button>
@@ -94,11 +94,11 @@ export function QuestionNavigatorDialog({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-300 bg-gray-50 px-4 py-3 text-xs font-bold text-gray-600 sm:px-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-300 bg-gray-50 px-4 py-3 text-xs font-medium text-gray-600 sm:px-6">
           <span className="flex items-center gap-1.5"><span className="size-3 rounded bg-primary" />{t("currentQuestion")}</span>
           <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" />{t("answered")}</span>
           <span className="flex items-center gap-1.5"><Circle className="size-3.5 text-gray-400" />{t("unanswered")}</span>
-          <button type="button" onClick={onClose} className="focus-ring ml-auto min-h-11 rounded-xl border border-gray-300 bg-white px-4 text-sm font-extrabold text-gray-700 hover:bg-gray-100">{t("close")}</button>
+          <button type="button" onClick={onClose} className="focus-ring ml-auto min-h-11 rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-100">{t("close")}</button>
         </div>
       </div>
     </div>

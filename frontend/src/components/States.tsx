@@ -19,10 +19,10 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
       <span className="mb-4 grid size-11 place-items-center rounded-xl bg-red-50 text-red-600">
         <AlertCircle className="size-6" />
       </span>
-      <p className="text-lg font-bold text-gray-900">{message}</p>
+      <p className="text-lg font-semibold text-gray-900">{message}</p>
       <div className="mt-5 flex gap-2">
-        {retry && <button onClick={retry} className="min-h-11 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-dark">{t("retry")}</button>}
-        <Link to="/" className="flex min-h-11 items-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-100">{t("home")}</Link>
+        {retry && <button onClick={retry} className="min-h-11 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark">{t("retry")}</button>}
+        <Link to="/" className="flex min-h-11 items-center rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100">{t("home")}</Link>
       </div>
     </div>
   );
