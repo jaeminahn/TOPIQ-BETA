@@ -22,7 +22,7 @@ function RichQuestionText({ text, highlights }: { text: string; highlights: stri
         <mark
           key={`${part}-${index}`}
           data-testid="inline-highlight"
-          className="rounded bg-amber-100 px-1 font-bold text-amber-950 underline decoration-2 decoration-amber-500 underline-offset-4"
+          className="rounded bg-primary-50 px-1 font-bold text-primary-dark underline decoration-2 decoration-primary underline-offset-4"
         >
           {part}
         </mark>
@@ -33,7 +33,7 @@ function RichQuestionText({ text, highlights }: { text: string; highlights: stri
         <span
           key={`blank-${index}`}
           data-testid="blank-marker"
-          className="mx-1 inline-flex min-w-16 items-center justify-center rounded-lg border-2 border-dashed border-[#155fcc]/45 bg-blue-50 px-3 py-0.5 font-extrabold text-[#155fcc]"
+          className="mx-1 inline-flex min-w-16 items-center justify-center rounded-lg border-2 border-dashed border-primary/45 bg-primary-50 px-3 py-0.5 font-extrabold text-primary"
         >
           ( )
         </span>
@@ -46,8 +46,8 @@ function RichQuestionText({ text, highlights }: { text: string; highlights: stri
 function HighlightFallback({ highlight }: { highlight: string }) {
   if (!highlight) return null;
   return (
-    <div data-testid="highlight-fallback" className="mt-3 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold leading-6 text-amber-950">
-      <Quote className="mt-1 size-4 shrink-0 text-amber-600" />
+    <div data-testid="highlight-fallback" className="mt-3 flex gap-2.5 rounded-xl border border-primary-100 bg-primary-50 p-3 text-sm font-bold leading-6 text-primary-dark">
+      <Quote className="mt-1 size-4 shrink-0 text-primary" />
       <span>{highlight}</span>
     </div>
   );
@@ -63,22 +63,22 @@ function BodyText({
   showFallback?: boolean;
 }) {
   const { body, layout, auxiliary, groupLabel } = presentation;
-  if (!body && !auxiliary) return groupLabel ? <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#155fcc]"><FileText className="size-3.5" />{groupLabel}</div> : null;
+  if (!body && !auxiliary) return groupLabel ? <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1.5 text-xs font-black text-primary"><FileText className="size-3.5" />{groupLabel}</div> : null;
   const unmatchedHighlights = highlights.filter((highlight) => highlight && !body.includes(highlight));
   let content: ReactNode;
 
   if (layout === "headline") {
     content = (
-      <div data-testid="headline-body" className="rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-white px-5 py-6 text-center shadow-sm sm:px-7">
-        <p className="question-copy text-lg font-black leading-8 text-slate-900 sm:text-xl">{body}</p>
+      <div data-testid="headline-body" className="rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-white px-5 py-6 text-center shadow-sm sm:px-7">
+        <p className="question-copy text-lg font-black leading-8 text-gray-900 sm:text-xl">{body}</p>
       </div>
     );
   } else if (layout === "sequence") {
     const rows = body.split(/\n+/).map((row) => row.trim()).filter(Boolean);
     content = (
-      <div data-testid="sequence-body" className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4">
+      <div data-testid="sequence-body" className="space-y-2 rounded-2xl border border-gray-300 bg-gray-50 p-3 sm:p-4">
         {rows.map((row, index) => (
-          <div key={`${row}-${index}`} className="question-copy rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[15px] font-medium text-slate-800 shadow-sm sm:text-base">
+          <div key={`${row}-${index}`} className="question-copy rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-[15px] font-medium text-gray-800 shadow-sm sm:text-base">
             <RichQuestionText text={row} highlights={highlights} />
           </div>
         ))}
@@ -87,30 +87,30 @@ function BodyText({
   } else if (layout === "insertion") {
     content = (
       <div data-testid="insertion-body" className="space-y-3">
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 sm:p-5">
-          <p className="mb-2 text-xs font-black tracking-[0.12em] text-[#155fcc]">주어진 문장</p>
-          <p className="question-copy font-bold text-slate-900">{auxiliary}</p>
+        <div className="rounded-xl border border-primary-100 bg-primary-50 p-4 sm:p-5">
+          <p className="mb-2 text-xs font-black tracking-[0.12em] text-primary">주어진 문장</p>
+          <p className="question-copy font-bold text-gray-900">{auxiliary}</p>
         </div>
-        <div className="question-copy rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-[15px] text-slate-800 sm:p-5 sm:text-base">
+        <div className="question-copy rounded-2xl border border-gray-300 bg-gray-50 p-4 text-[15px] text-gray-800 sm:p-5 sm:text-base">
           <RichQuestionText text={body} highlights={highlights} />
         </div>
       </div>
     );
   } else if (layout === "material") {
     content = (
-      <div data-testid="material-body" className="question-copy rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,#f5f9ff,#fff)] p-4 text-[15px] font-semibold text-slate-800 shadow-sm sm:p-5 sm:text-base">
+      <div data-testid="material-body" className="question-copy rounded-2xl border border-primary-100 bg-[linear-gradient(135deg,#f5f9ff,#fff)] p-4 text-[15px] font-semibold text-gray-800 shadow-sm sm:p-5 sm:text-base">
         <RichQuestionText text={body} highlights={highlights} />
       </div>
     );
   } else if (layout === "inline") {
     content = (
-      <div data-testid="inline-body" className="question-copy rounded-2xl border border-slate-200 bg-slate-50/80 px-5 py-5 text-center text-lg font-bold leading-8 text-slate-900 sm:px-6 sm:py-6 sm:text-xl">
+      <div data-testid="inline-body" className="question-copy rounded-2xl border border-gray-300 bg-gray-50 px-5 py-5 text-center text-lg font-bold leading-8 text-gray-900 sm:px-6 sm:py-6 sm:text-xl">
         <RichQuestionText text={body} highlights={highlights} />
       </div>
     );
   } else {
     content = (
-      <div data-testid="passage-body" className="question-copy rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-[15px] text-slate-800 sm:p-5 sm:text-base">
+      <div data-testid="passage-body" className="question-copy rounded-2xl border border-gray-300 bg-gray-50 p-4 text-[15px] text-gray-800 sm:p-5 sm:text-base">
         <RichQuestionText text={body} highlights={highlights} />
       </div>
     );
@@ -119,7 +119,7 @@ function BodyText({
   return (
     <div>
       {groupLabel && (
-        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-[#155fcc]">
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1.5 text-xs font-black text-primary">
           <FileText className="size-3.5" />
           {groupLabel}
         </div>
@@ -139,19 +139,19 @@ function TranscriptBlock({ question, mode }: { question: Question; mode: Transcr
 
   if (mode === "collapsible" && !expanded) {
     return (
-      <button type="button" onClick={() => setExpanded(true)} className="focus-ring mt-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-2.5 text-sm font-extrabold text-[#155fcc]">
+      <button type="button" onClick={() => setExpanded(true)} className="focus-ring mt-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-2.5 text-sm font-extrabold text-primary hover:bg-primary-100">
         {t("showTranscript")}<ChevronDown className="size-4" />
       </button>
     );
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+    <div className="mt-3 rounded-xl border border-primary-100 bg-primary-50/60 p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-xs font-black tracking-[.12em] text-[#155fcc]">{t("transcript")}</p>
-        {mode === "collapsible" && <button type="button" onClick={() => setExpanded(false)} className="focus-ring flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-extrabold text-[#155fcc]">{t("hideTranscript")}<ChevronUp className="size-4" /></button>}
+        <p className="text-xs font-black tracking-[.12em] text-primary">{t("transcript")}</p>
+        {mode === "collapsible" && <button type="button" onClick={() => setExpanded(false)} className="focus-ring flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-extrabold text-primary hover:bg-primary-100">{t("hideTranscript")}<ChevronUp className="size-4" /></button>}
       </div>
-      <div className="space-y-1.5">{question.transcript.map((turn, index) => <p key={index} className="question-copy text-sm text-slate-700"><b className={turn.speaker === "여자" ? "text-rose-600" : "text-blue-700"}>{turn.speaker}</b> {turn.text}</p>)}</div>
+      <div className="space-y-1.5">{question.transcript.map((turn, index) => <p key={index} className="question-copy text-sm text-gray-700"><b className={turn.speaker === "여자" ? "text-red-500" : "text-primary"}>{turn.speaker}</b> {turn.text}</p>)}</div>
     </div>
   );
 }
@@ -201,16 +201,16 @@ function ChoiceList({
             onClick={() => onAnswer?.(option)}
             className={`choice-button focus-ring flex min-h-12 min-w-0 items-start gap-3 overflow-hidden rounded-xl border px-3 py-3 text-left sm:px-4 ${
               correct
-                ? "border-emerald-400 bg-emerald-50"
+                ? "border-green-500 bg-green-50"
                 : selected
-                  ? "border-[#155fcc] bg-blue-50 shadow-[0_0_0_1px_#155fcc]"
-                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40"
+                  ? "border-primary bg-primary-50 shadow-[0_0_0_1px_#2D5EC5]"
+                  : "border-gray-300 bg-white hover:border-primary-200 hover:bg-primary-50/40"
             } disabled:cursor-default`}
           >
-            <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-sm font-bold ${selected ? "border-[#155fcc] bg-[#155fcc] text-white" : correct ? "border-emerald-500 bg-emerald-500 text-white" : "border-slate-300 text-slate-500"}`}>
+            <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-sm font-bold ${selected ? "border-primary bg-primary text-white" : correct ? "border-green-500 bg-green-500 text-white" : "border-gray-300 text-gray-500"}`}>
               {correct ? <Check className="size-4" /> : choiceLabels[index]}
             </span>
-            {visual.imageUrl ? <span className="mx-auto block min-w-0 w-full max-w-[220px] flex-1 overflow-hidden rounded-xl bg-slate-50"><img src={visual.imageUrl} alt={`선택지 ${option}`} className="mx-auto block h-auto max-h-40 w-full max-w-[220px] object-contain sm:max-h-48" /></span> : <span className="question-copy min-w-0 flex-1 pt-0.5 text-[15px] font-medium text-slate-800 sm:text-base">{choice}</span>}
+            {visual.imageUrl ? <span className="mx-auto block min-w-0 w-full max-w-[220px] flex-1 overflow-hidden rounded-xl bg-gray-50"><img src={visual.imageUrl} alt={`선택지 ${option}`} className="mx-auto block h-auto max-h-40 w-full max-w-[220px] object-contain sm:max-h-48" /></span> : <span className="question-copy min-w-0 flex-1 pt-0.5 text-[15px] font-medium text-gray-800 sm:text-base">{choice}</span>}
           </button>
         );
       })}
@@ -239,12 +239,12 @@ export function QuestionCard({
   const grouped = variant === "group-item";
   const unmatchedHighlight = grouped && question.highlightText && !sharedText.includes(question.highlightText) ? question.highlightText : "";
   return (
-    <article data-question-variant={variant} className={`rounded-2xl border border-slate-200 bg-white p-4 ${grouped ? "shadow-sm sm:p-5" : "shadow-[0_12px_36px_rgba(31,48,77,0.06)] sm:p-5 lg:p-6"}`}>
-      <div className={`${grouped ? "mb-3 pb-3" : "mb-4 pb-4"} flex items-start gap-3 border-b border-slate-100`}>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-[#155fcc] text-xs font-extrabold text-white">
+    <article data-question-variant={variant} className={`rounded-3xl border border-gray-300 bg-white p-6 ${grouped ? "shadow-sm" : "shadow-[0_12px_36px_rgba(31,48,77,0.06)]"}`}>
+      <div className={`${grouped ? "mb-3 pb-3" : "mb-4 pb-4"} flex items-start gap-3 border-b border-gray-100`}>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs font-extrabold text-white">
           {question.testPosition}
         </span>
-        <h1 className="question-copy pt-0.5 text-base font-extrabold text-slate-900 sm:text-lg">
+        <h1 className="pt-0.5 text-base font-extrabold text-gray-900 sm:text-lg">
           {presentation.instruction}
         </h1>
       </div>

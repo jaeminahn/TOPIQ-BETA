@@ -48,9 +48,9 @@ describe("LandingPage", () => {
     const rounds = await screen.findAllByTestId("exam-round");
     expect(rounds).toHaveLength(2);
     expect(rounds[0]).toHaveAttribute("data-round", "1");
-    expect(rounds[0]).toHaveClass("border-blue-100", "bg-blue-50/60");
+    expect(rounds[0]).toHaveClass("border-primary-100", "bg-primary-50/60");
     expect(rounds[1]).toHaveAttribute("data-round", "2");
-    expect(rounds[1]).toHaveClass("border-violet-100", "bg-violet-50/60");
+    expect(rounds[1]).toHaveClass("border-primary-100", "bg-primary-50/40");
     expect(within(rounds[0]).getByText("읽기 1회")).toBeInTheDocument();
     expect(within(rounds[0]).getByText("듣기 1회")).toBeInTheDocument();
     expect(within(rounds[1]).getByText("읽기 2회")).toBeInTheDocument();
