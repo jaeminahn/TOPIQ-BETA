@@ -111,6 +111,20 @@ export interface AdminReadingItem {
   correctAnswer: number | null; explanation: string; contentJson: Record<string, unknown>;
 }
 
+export type AdminReadingSetBlockReason =
+  | "SET_NOT_REVIEWED"
+  | "SET_NOT_PUBLISHED"
+  | "ITEM_COUNT_INVALID"
+  | "ITEMS_INVALID";
+
+export interface AdminReadingSet {
+  setId: string; setVersion: number; setSequence: number; createdAt: string;
+  reviewStatus: string; publishedAt: string | null; itemCount: number; validItemCount: number;
+  mockTestId: string | null; slug: string | null; titleKo: string | null;
+  mockTestPublished: boolean | null; round: number | null; readyToPublish: boolean;
+  blockingReasons: AdminReadingSetBlockReason[];
+}
+
 export interface AdminResponseSession {
   sessionId: string; userId: string; mockTestTitle: string; mode: ExamMode; status: "submitted";
   startedAt: string; submittedAt: string; score: number; maxScore: number; rating: number | null;

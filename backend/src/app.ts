@@ -19,6 +19,7 @@ const itemParams = sessionParams.extend({ itemOrder: z.coerce.number().int().min
 const audioParams = sessionParams.extend({ audioAssetId: z.string().uuid() });
 const listeningItemParams = z.object({ itemId: z.string().uuid(), itemVersion: z.coerce.number().int().positive() });
 const listeningSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
+const readingSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const listeningGroupParams = listeningSetParams.extend({ leaderItemId: z.string().uuid() });
 const visualParams = listeningItemParams.extend({ optionNumber: z.coerce.number().int().min(1).max(4) });
 const mockTestParams = z.object({ mockTestId: z.string().uuid() });
@@ -186,6 +187,17 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
       search: z.string().trim().max(100).optional(),
     }).parse(request.query);
     return { items: await adminRepository.listReadingItems(query.setId, query.search) };
+  });
+
+  app.get("/v1/admin/reading/sets", async (request) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    return { sets: await adminRepository.listReadingSets() };
+  });
+
+  app.post("/v1/admin/reading/sets/:setId/versions/:setVersion/publish", async (request) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    const { setId, setVersion } = readingSetParams.parse(request.params);
+    return adminRepository.publishReadingSet(setId, setVersion);
   });
 
   app.get("/v1/admin/responses/sessions", async (request) => {
