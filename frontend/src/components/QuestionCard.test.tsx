@@ -138,7 +138,7 @@ describe("QuestionCard", () => {
 
   it("marks the correct option in result mode", () => {
     renderWithI18n(<QuestionCard question={{ ...baseQuestion, selectedOption: 1 }} disabled showResult={{ correctAnswer: 2 }} />);
-    expect(screen.getByText("불러서").closest("button")).toHaveClass("border-emerald-400");
+    expect(screen.getByText("불러서").closest("button")).toHaveClass("border-green-500");
   });
 
   it("renders listening image choices without exposing descriptions and shows transcripts only when supplied", async () => {

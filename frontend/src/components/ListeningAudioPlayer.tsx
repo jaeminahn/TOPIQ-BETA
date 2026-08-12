@@ -121,21 +121,21 @@ export function ListeningAudioPlayer({
           : t("audioReady");
 
   return (
-    <section className="mb-3 rounded-xl border border-blue-100 bg-white px-3 py-2.5 shadow-sm sm:px-4">
+    <section className="mb-3 rounded-xl border border-primary-100 bg-white px-3 py-2.5 shadow-sm sm:px-4">
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-blue-50 text-[#155fcc]"><Headphones className="size-5" /></span>
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-50 text-primary"><Headphones className="size-5" /></span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-black uppercase tracking-[.12em] text-[#155fcc]">{t("listening")}</p>
-          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold text-slate-700">
-            {status === "loading" && <LoaderCircle className="size-4 animate-spin text-[#155fcc]" />}
-            {status === "playing" && <Volume2 className="size-4 animate-pulse text-[#155fcc]" />}
+          <p className="text-[11px] font-black uppercase tracking-[.12em] text-primary">{t("listening")}</p>
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold text-gray-700">
+            {status === "loading" && <LoaderCircle className="size-4 animate-spin text-primary" />}
+            {status === "playing" && <Volume2 className="size-4 animate-pulse text-primary" />}
             <span>{statusLabel}</span>
-            {status !== "waiting" && <><span className="text-slate-300">·</span><span className="text-xs text-slate-500">{mode === "timed" ? t("audioAutoPlay") : t("audioFreeReplay")}</span></>}
+            {status !== "waiting" && <><span className="text-gray-300">·</span><span className="text-xs text-gray-500">{mode === "timed" ? t("audioAutoPlay") : t("audioFreeReplay")}</span></>}
           </p>
         </div>
-        {mode === "timed" ? <div className="ml-auto flex items-center gap-2"><span className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-black text-slate-600">{Math.min(displayPlayIndex, repeatCount)} / {repeatCount}</span>{(status === "blocked" || status === "error") && <button onClick={() => void (src && audioRef.current ? audioRef.current.play().catch(() => undefined) : start())} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-[#155fcc] px-4 py-2 text-sm font-black text-white"><Play className="size-4" /> {t("audioPlay")}</button>}</div> : <button onClick={() => void start()} disabled={status === "loading"} className="focus-ring ml-auto flex min-h-11 items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-black text-[#155fcc] disabled:opacity-50">{src ? <RotateCcw className="size-4" /> : <Play className="size-4" />} {src ? t("audioReplay") : t("audioPlay")}</button>}
+        {mode === "timed" ? <div className="ml-auto flex items-center gap-2"><span className="rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-black text-gray-600">{Math.min(displayPlayIndex, repeatCount)} / {repeatCount}</span>{(status === "blocked" || status === "error") && <button onClick={() => void (src && audioRef.current ? audioRef.current.play().catch(() => undefined) : start())} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-black text-white hover:bg-primary-dark"><Play className="size-4" /> {t("audioPlay")}</button>}</div> : <button onClick={() => void start()} disabled={status === "loading"} className="focus-ring ml-auto flex min-h-11 items-center gap-2 rounded-xl border border-primary-100 bg-primary-50 px-4 py-2 text-sm font-black text-primary disabled:opacity-50 hover:bg-primary-100">{src ? <RotateCcw className="size-4" /> : <Play className="size-4" />} {src ? t("audioReplay") : t("audioPlay")}</button>}
       </div>
-      {message && <p role="status" className="mt-2 text-sm font-bold text-amber-700">{message}</p>}
+      {message && <p role="status" className="mt-2 text-sm font-bold text-orange-500">{message}</p>}
       <audio ref={audioRef} src={src || undefined} controls={mode === "practice"} onPlaying={confirmStarted} onEnded={() => void ended()} className={mode === "practice" && src ? "mt-2 h-10 w-full" : "hidden"} />
     </section>
   );
