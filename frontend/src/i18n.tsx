@@ -168,16 +168,10 @@ type I18nContextValue = { locale: Locale; setLocale: (locale: Locale) => void; t
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() =>
-    localStorage.getItem("unigate.topik.locale") === "ko" ? "ko" : "id",
-  );
+  const [locale] = useState<Locale>("ko");
   const value = useMemo<I18nContextValue>(() => ({
     locale,
-    setLocale(next) {
-      localStorage.setItem("unigate.topik.locale", next);
-      document.documentElement.lang = next;
-      setLocaleState(next);
-    },
+    setLocale() {},
     t: (key) => messages[locale][key],
   }), [locale]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
