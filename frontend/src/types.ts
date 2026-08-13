@@ -79,6 +79,14 @@ export interface AdminSummary {
 export interface AdminListeningTarget {
   itemId: string; itemVersion: number; position: number; itemType: string; questionPrompt: string;
   visualOptionCount: number; visualReadyCount: number;
+  visualOptions: AdminVisualOption[];
+}
+
+export interface AdminVisualOption {
+  optionNumber: number; description: string; imagePrompt: string; chartSpec: Record<string, unknown> | null;
+  visualAssetId: string | null; imageUrl: string | null;
+  generationStatus: "queued" | "processing" | "succeeded" | "failed" | null;
+  generationError: string | null;
 }
 
 export interface AdminListeningGroup {
@@ -97,6 +105,17 @@ export interface TtsJob {
 export interface AdminListeningMockTest {
   mockTestId: string; titleKo: string; published: boolean; setId: string; setVersion: number;
   itemCount: number; audioReady: number; visualRequired: number; visualReady: number;
+}
+
+export type AdminListeningSetBlockReason = "SET_NOT_REVIEWED" | "SET_NOT_PUBLISHED" | "ITEM_COUNT_INVALID" | "ITEMS_INVALID";
+
+export interface AdminListeningSet {
+  setId: string; setVersion: number; setSequence: number; createdAt: string;
+  reviewStatus: string; publishedAt: string | null; itemCount: number; validItemCount: number;
+  audioReady: number; visualRequired: number; visualReady: number;
+  mockTestId: string | null; slug: string | null; titleKo: string | null;
+  mockTestPublished: boolean | null; round: number | null;
+  readyToRegister: boolean; readyToPublish: boolean; blockingReasons: AdminListeningSetBlockReason[];
 }
 
 export interface TtsStyle {

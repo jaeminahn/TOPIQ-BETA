@@ -72,4 +72,11 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("ON DELETE SET NULL");
     expect(sql).toContain("INSERT INTO topik_app.tts_generation_job_targets");
   });
+
+  it("defines asynchronous listening visual generation jobs", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/005_admin_listening_visual_generation.sql"), "utf8");
+    expect(sql).toContain("topik_app.visual_generation_jobs");
+    expect(sql).toContain("visual_generation_jobs_active_option_idx");
+    expect(sql).toContain("prompt_snapshot JSONB");
+  });
 });

@@ -29,6 +29,9 @@ const envSchema = z.object({
   GOOGLE_TTS_FEMALE_VOICE: z.string().default("Aoede"),
   GOOGLE_TTS_MALE_VOICE: z.string().default("Charon"),
   TTS_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
+  GOOGLE_CLOUD_LOCATION: z.string().default("us-central1"),
+  GOOGLE_IMAGE_MODEL: z.string().default("imagen-4.0-generate-001"),
+  VISUAL_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(12).optional(),
 });
@@ -60,6 +63,13 @@ export const config = {
     femaleVoice: parsed.GOOGLE_TTS_FEMALE_VOICE,
     maleVoice: parsed.GOOGLE_TTS_MALE_VOICE,
     workerEnabled: parsed.TTS_WORKER_ENABLED === "true",
+  },
+  googleImage: {
+    projectId: parsed.GOOGLE_CLOUD_PROJECT_ID,
+    credentialsJson: parsed.GOOGLE_CLOUD_CREDENTIALS_JSON,
+    location: parsed.GOOGLE_CLOUD_LOCATION,
+    model: parsed.GOOGLE_IMAGE_MODEL,
+    workerEnabled: parsed.VISUAL_WORKER_ENABLED === "true",
   },
   adminBootstrap: { email: parsed.ADMIN_EMAIL, password: parsed.ADMIN_PASSWORD },
 } as const;

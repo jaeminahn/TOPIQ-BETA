@@ -1,4 +1,4 @@
-import type { AdminListeningGroup, AdminListeningMockTest, AdminReadingItem, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Locale, Results, TestSession, TtsJob, TtsStyle } from "./types";
+import type { AdminListeningGroup, AdminListeningMockTest, AdminListeningSet, AdminReadingItem, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Locale, Results, TestSession, TtsJob, TtsStyle } from "./types";
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -102,6 +102,12 @@ export const adminApi = {
   },
   jobs(token: string) { return request<{ jobs: TtsJob[] }>("/v1/admin/tts/jobs", { headers: auth(token) }); },
   mockTests(token: string) { return request<{ mockTests: AdminListeningMockTest[] }>("/v1/admin/listening/mock-tests", { headers: auth(token) }); },
+  listeningSets(token: string) { return request<{ sets: AdminListeningSet[] }>("/v1/admin/listening/sets", { headers: auth(token) }); },
+  registerListeningSet(token: string, setId: string, setVersion: number) {
+    return request<{ mockTestId: string; slug: string; round: number | null; published: boolean; created: boolean }>(
+      `/v1/admin/listening/sets/${setId}/versions/${setVersion}/register`, { method: "POST", headers: auth(token) },
+    );
+  },
   audioUrl(token: string, audioAssetId: string) {
     return request<{ audioUrl: string }>(`/v1/admin/listening/audio/${audioAssetId}/url`, { headers: auth(token) });
   },
@@ -137,6 +143,22 @@ export const adminApi = {
     return request<{ visualAssetId: string; url: string }>(`/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}`, {
       method: "POST", headers: auth(token), body: form,
     });
+  },
+  generateVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, forceRegenerate = false) {
+    return request<{ queued: boolean; jobId: string | null }>(`/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}/generate`, {
+      method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }),
+    });
+  },
+  generateSetVisuals(token: string, setId: string, setVersion: number, forceRegenerate = false) {
+    return request<{ queued: number; jobIds: string[] }>(`/v1/admin/listening/sets/${setId}/versions/${setVersion}/visuals/generate`, {
+      method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }),
+    });
+  },
+  deleteVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, visualAssetId: string) {
+    return request<{ deleted: boolean; storageDeleted: boolean }>(
+      `/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}/assets/${visualAssetId}`,
+      { method: "DELETE", headers: auth(token) },
+    );
   },
   publish(token: string, mockTestId: string, published: boolean) {
     return request<{ published: boolean }>(`/v1/admin/listening/mock-tests/${mockTestId}/publish`, {
