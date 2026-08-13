@@ -39,3 +39,9 @@ services:
         value: Charon
       - key: TTS_WORKER_ENABLED
         value: "true"
+      - key: GOOGLE_IMAGE_LOCATION
+        value: global
+      - key: GOOGLE_IMAGE_MODEL
+        value: gemini-2.5-flash-image
+      - key: VISUAL_WORKER_ENABLED
+        value: "true"

@@ -20,6 +20,69 @@ export function buildTopikImagePrompt(prompt: string) {
   ].join(" ");
 }
 
+type GeminiImagePart = {
+  text?: string;
+  inlineData?: { data?: string; mimeType?: string };
+};
+
+type GeminiImageResponse = {
+  candidates?: Array<{
+    content?: { parts?: GeminiImagePart[] };
+    finishReason?: string;
+    finishMessage?: string;
+  }>;
+  promptFeedback?: { blockReason?: string; blockReasonMessage?: string };
+  error?: { message?: string };
+};
+
+export function buildGoogleImageEndpoint(projectId: string, location: string, model: string) {
+  const host = location === "global"
+    ? "aiplatform.googleapis.com"
+    : `${location}-aiplatform.googleapis.com`;
+  return `https://${host}/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
+}
+
+export function buildGeminiImageRequest(prompt: string) {
+  return {
+    contents: [{
+      role: "USER",
+      parts: [{ text: buildTopikImagePrompt(prompt) }],
+    }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      candidateCount: 1,
+      imageConfig: { aspectRatio: "4:3" },
+    },
+  };
+}
+
+function imageExtension(mimeType: string) {
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/webp") return "webp";
+  return "png";
+}
+
+export function extractGeminiImage(body: GeminiImageResponse) {
+  const candidate = body.candidates?.[0];
+  const image = candidate?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData;
+  if (image?.data) {
+    const mimeType = image.mimeType ?? "image/png";
+    return { data: Buffer.from(image.data, "base64"), mimeType, extension: imageExtension(mimeType) };
+  }
+
+  const providerMessage = body.error?.message
+    ?? body.promptFeedback?.blockReasonMessage
+    ?? candidate?.finishMessage;
+  const reason = body.promptFeedback?.blockReason ?? candidate?.finishReason;
+  const text = candidate?.content?.parts?.find((part) => part.text)?.text;
+  const detail = providerMessage ?? reason ?? text;
+  throw new AppError(
+    502,
+    "IMAGE_PROVIDER_FAILED",
+    detail ? `Google Gemini image generation returned no image: ${detail}` : "Google Gemini image generation returned no image",
+  );
+}
+
 export class GoogleImageClient {
   async generate(prompt: string) {
     const { projectId, location, model } = config.googleImage;
@@ -31,24 +94,17 @@ export class GoogleImageClient {
     });
     const client = await auth.getClient();
     const headers = await client.getRequestHeaders();
-    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:predict`;
+    const endpoint = buildGoogleImageEndpoint(projectId, location, model);
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" },
-      body: JSON.stringify({
-        instances: [{ prompt: buildTopikImagePrompt(prompt) }],
-        parameters: { sampleCount: 1, aspectRatio: "4:3", outputOptions: { mimeType: "image/png" }, addWatermark: true },
-      }),
+      body: JSON.stringify(buildGeminiImageRequest(prompt)),
     });
-    const body = await response.json() as {
-      predictions?: Array<{ bytesBase64Encoded?: string; mimeType?: string }>;
-      error?: { message?: string };
-    };
-    const prediction = body.predictions?.[0];
-    if (!response.ok || !prediction?.bytesBase64Encoded) {
+    const body = await response.json() as GeminiImageResponse;
+    if (!response.ok) {
       throw new AppError(502, "IMAGE_PROVIDER_FAILED", body.error?.message ?? "Google Vertex image generation failed");
     }
-    return { data: Buffer.from(prediction.bytesBase64Encoded, "base64"), mimeType: prediction.mimeType ?? "image/png", extension: "png" };
+    return extractGeminiImage(body);
   }
 }
 
