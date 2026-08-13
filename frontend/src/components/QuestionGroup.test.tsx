@@ -23,7 +23,6 @@ const makeQuestion = (itemOrder: number, input: Partial<Question> = {}): Questio
 });
 
 function renderGroup(questions: Question[], onAnswer = vi.fn(), transcriptMode: "visible" | "collapsible" | "hidden" = "hidden") {
-  localStorage.setItem("unigate.topik.locale", "ko");
   return {
     onAnswer,
     ...render(<QuestionGroup questions={questions} transcriptMode={transcriptMode} onAnswer={onAnswer} />, { wrapper: I18nProvider }),

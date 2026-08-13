@@ -1,12 +1,9 @@
-export type Locale = "id" | "ko";
 export type ExamMode = "timed" | "practice";
 
 export interface Exam {
   id: string;
   slug: string;
-  titleId: string;
   titleKo: string;
-  descriptionId: string;
   descriptionKo: string;
   durationSeconds: number;
   questionCount: number;
@@ -47,7 +44,7 @@ export interface TestSession {
   submittedAt: string | null;
   resultsUnlocked: boolean;
   serverTime: string;
-  exam: { slug: string; titleId: string; titleKo: string };
+  exam: { slug: string; titleKo: string };
   questions: Question[];
 }
 
@@ -59,7 +56,6 @@ export interface IncorrectQuestion extends Question {
 export interface Results {
   examId: string;
   sessionId: string;
-  titleId: string;
   titleKo: string;
   score: number;
   maxScore: number;

@@ -43,7 +43,6 @@ function Harness({ onSelect = vi.fn() }: { onSelect?: (order: number) => void })
 
 describe("QuestionNavigatorDialog", () => {
   it("opens accessibly, shows states, and returns focus after Escape", async () => {
-    localStorage.setItem("unigate.topik.locale", "ko");
     render(<Harness />);
     const trigger = screen.getByRole("button", { name: "전체 문제 열기" });
     await userEvent.click(trigger);
@@ -61,7 +60,6 @@ describe("QuestionNavigatorDialog", () => {
   });
 
   it("selects a question, closes on the backdrop, and normalizes paired movement", async () => {
-    localStorage.setItem("unigate.topik.locale", "ko");
     const onSelect = vi.fn();
     render(<Harness onSelect={onSelect} />);
     await userEvent.click(screen.getByRole("button", { name: "전체 문제 열기" }));

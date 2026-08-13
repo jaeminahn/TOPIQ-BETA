@@ -15,10 +15,7 @@ vi.mock("../api", () => ({
 }));
 
 const playbackMock = vi.mocked(api.audioPlayback);
-const renderWithI18n = (ui: ReactElement) => {
-  localStorage.setItem("unigate.topik.locale", "ko");
-  return render(ui, { wrapper: I18nProvider });
-};
+const renderWithI18n = (ui: ReactElement) => render(ui, { wrapper: I18nProvider });
 
 describe("ListeningAudioPlayer", () => {
   beforeEach(() => {

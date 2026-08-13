@@ -5,7 +5,6 @@ import { COMPLETED_RESULTS_KEY, readCompletedResults, saveCompletedResult } from
 const result = (input: Partial<Results> = {}): Results => ({
   examId: "exam-reading-1",
   sessionId: "session-new",
-  titleId: "Reading 1",
   titleKo: "읽기 1회",
   score: 82,
   maxScore: 100,

@@ -1,7 +1,7 @@
 import {
   Activity, AudioLines, BookOpen, CheckCircle2, ChevronDown, Clock3, Database,
   Headphones, Home, Image, LayoutDashboard, LoaderCircle, LogOut,
-  MessageSquareText, Play, RefreshCw, Settings2, ShieldCheck, Trash2,
+  MessageSquareText, Play, RefreshCw, Settings2, Trash2,
   Users, XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -41,8 +41,7 @@ function AdminLogin({ onReady }: { onReady: (token: string) => void }) {
   return (
     <main className="grid min-h-screen place-items-center bg-gray-100 p-5">
       <form onSubmit={(event) => void submit(event)} className="w-full max-w-md rounded-2xl border border-gray-300 bg-white p-8 sm:p-10">
-        <div className="grid size-13 place-items-center rounded-2xl bg-primary text-white"><ShieldCheck className="size-7" /></div>
-        <p className="mt-7 text-xs font-semibold tracking-[.16em] text-primary">UNIGATE TOPIK ADMIN</p>
+        <p className="text-xs font-semibold tracking-[.16em] text-primary">UNIGATE TOPIK ADMIN</p>
         <h1 className="mt-2 text-3xl font-semibold text-gray-900">관리자 로그인</h1>
         <label className="mt-8 block text-sm font-semibold text-gray-700">이메일<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="focus-ring mt-2 w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 font-medium text-gray-900 outline-none focus:border-primary" /></label>
         <label className="mt-4 block text-sm font-semibold text-gray-700">비밀번호<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="focus-ring mt-2 w-full rounded-xl border-2 border-gray-200 px-4 py-3.5 font-medium text-gray-900 outline-none focus:border-primary" /></label>

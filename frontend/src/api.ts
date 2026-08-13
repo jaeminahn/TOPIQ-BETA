@@ -1,4 +1,4 @@
-import type { AdminListeningGroup, AdminListeningMockTest, AdminListeningSet, AdminReadingItem, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Locale, Results, TestSession, TtsJob, TtsStyle } from "./types";
+import type { AdminListeningGroup, AdminListeningMockTest, AdminListeningSet, AdminReadingItem, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, Exam, ExamMode, Results, TestSession, TtsJob, TtsStyle } from "./types";
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -242,7 +242,7 @@ export const api = {
   feedback(
     sessionId: string,
     token: string,
-    input: { rating: number; locale: Locale; email?: string; marketingConsent: boolean },
+    input: { rating: number; locale: "ko"; email?: string; marketingConsent: boolean },
   ) {
     return request<{ resultsUnlocked: boolean; emailSubscribed: boolean }>(
       `/v1/sessions/${sessionId}/feedback`,

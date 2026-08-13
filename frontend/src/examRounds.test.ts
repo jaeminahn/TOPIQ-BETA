@@ -5,9 +5,7 @@ import { groupExamsByRound } from "./examRounds";
 const exam = (slug: string, section: Exam["section"]): Exam => ({
   id: slug,
   slug,
-  titleId: slug,
   titleKo: slug,
-  descriptionId: "description",
   descriptionKo: "설명",
   durationSeconds: 3600,
   questionCount: 50,

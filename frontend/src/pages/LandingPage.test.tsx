@@ -14,16 +14,15 @@ vi.mock("../api", () => ({
 }));
 
 const exams: Exam[] = [
-  { id: "reading-2", slug: "topik-reading-2", titleId: "Membaca 2", titleKo: "읽기 2회", descriptionId: "Latihan membaca", descriptionKo: "읽기 연습", durationSeconds: 4200, questionCount: 50, maxScore: 100, section: "reading" },
-  { id: "listening-1", slug: "topik-listening-1", titleId: "Mendengar 1", titleKo: "듣기 1회", descriptionId: "Latihan mendengar", descriptionKo: "듣기 연습", durationSeconds: 3600, questionCount: 50, maxScore: 100, section: "listening" },
-  { id: "reading-1", slug: "topik-reading-1", titleId: "Membaca 1", titleKo: "읽기 1회", descriptionId: "Latihan membaca", descriptionKo: "읽기 연습", durationSeconds: 4200, questionCount: 50, maxScore: 100, section: "reading" },
-  { id: "listening-2", slug: "topik-listening-2", titleId: "Mendengar 2", titleKo: "듣기 2회", descriptionId: "Latihan mendengar", descriptionKo: "듣기 연습", durationSeconds: 3600, questionCount: 50, maxScore: 100, section: "listening" },
+  { id: "reading-2", slug: "topik-reading-2", titleKo: "읽기 2회", descriptionKo: "읽기 연습", durationSeconds: 4200, questionCount: 50, maxScore: 100, section: "reading" },
+  { id: "listening-1", slug: "topik-listening-1", titleKo: "듣기 1회", descriptionKo: "듣기 연습", durationSeconds: 3600, questionCount: 50, maxScore: 100, section: "listening" },
+  { id: "reading-1", slug: "topik-reading-1", titleKo: "읽기 1회", descriptionKo: "읽기 연습", durationSeconds: 4200, questionCount: 50, maxScore: 100, section: "reading" },
+  { id: "listening-2", slug: "topik-listening-2", titleKo: "듣기 2회", descriptionKo: "듣기 연습", durationSeconds: 3600, questionCount: 50, maxScore: 100, section: "listening" },
 ];
 
 describe("LandingPage", () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem("unigate.topik.locale", "ko");
     localStorage.setItem(COMPLETED_RESULTS_KEY, JSON.stringify({
       "reading-1": { examId: "reading-1", sessionId: "completed-session", score: 82, maxScore: 100, submittedAt: "2026-08-11T12:00:00.000Z" },
     }));

@@ -22,7 +22,7 @@ function formatTime(seconds: number) {
 
 export function TestPage() {
   const { sessionId } = useParams();
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { token, session, setSession, error, loading, reload } = useSession(sessionId);
   const [currentOrder, setCurrentOrder] = useState(() => Number(sessionStorage.getItem(`unigate.topik.position.${sessionId}`)) || 1);
@@ -103,7 +103,7 @@ export function TestPage() {
       <div className="sticky top-0 z-10 border-b border-primary-100 bg-primary text-white">
         <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-            <span>{locale === "id" ? session.exam.titleId : session.exam.titleKo}</span>
+            <span>{session.exam.titleKo}</span>
             <span className="hidden rounded-full px-2.5 py-0.5 text-[11px] sm:inline">{answered} / {session.questions.length}</span>
           </div>
           <div className="ml-3 flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-primary">

@@ -12,7 +12,7 @@ export function Header({ compact = false }: { compact?: boolean }) {
             alt="UNIGATE"
             className="h-5 w-auto sm:h-6"
           />
-          <span className="hidden border-l border-gray-300 pl-2.5 text-[9px] font-semibold tracking-[0.12em] text-gray-500 sm:block">TOPIK LAB</span>
+          <span className="hidden border-l border-gray-300 pl-2.5 text-[9px] font-semibold tracking-[0.12em] text-gray-500 sm:block">TOPIQ</span>
         </Link>
       </div>
     </header>

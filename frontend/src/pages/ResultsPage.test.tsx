@@ -18,7 +18,6 @@ vi.mock("../api", () => ({
 const unlockedResult: Results = {
   examId: "reading-1",
   sessionId: "completed-session",
-  titleId: "Membaca 1",
   titleKo: "읽기 1회",
   score: 86,
   maxScore: 100,
@@ -30,7 +29,6 @@ const unlockedResult: Results = {
 describe("ResultsPage", () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem("unigate.topik.locale", "ko");
     vi.mocked(getSessionToken).mockReturnValue("result-token");
     vi.mocked(api.results).mockResolvedValue(unlockedResult);
   });
