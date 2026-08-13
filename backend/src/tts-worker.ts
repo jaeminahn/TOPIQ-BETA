@@ -49,6 +49,8 @@ export class TtsWorker {
     try {
       let job: Job | null;
       while ((job = await this.claim())) await this.process(job);
+    } catch (error) {
+      console.error("TTS worker polling failed", error);
     } finally { this.running = false; }
   }
 

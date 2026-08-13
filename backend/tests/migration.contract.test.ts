@@ -1,8 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { isAcceptedAppliedMigration } from "../src/migrate.js";
 
 describe("topik_app migration contract", () => {
+  it("accepts only the known production checksums for legacy migrations", () => {
+    expect(isAcceptedAppliedMigration(
+      "002_admin_listening.sql",
+      "f48dd01b46b3832f2521a7c5f2e8f90f02cb0462ce789f42ec7662e7f12a7098",
+      "current-checksum",
+    )).toBe(true);
+    expect(isAcceptedAppliedMigration("005_admin_listening_visual_generation.sql", "old", "current"))
+      .toBe(false);
+  });
+
   it("defines the required analytics tables, fields, and fixed mock sets", async () => {
     const sql = await readFile(resolve(process.cwd(), "migrations/001_topik_app.sql"), "utf8");
 

@@ -1,9 +1,11 @@
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { pool } from "./db.js";
+import { runMigrations } from "./migrate.js";
 import { ttsWorker } from "./tts-worker.js";
 import { visualWorker } from "./visual-worker.js";
 
+await runMigrations();
 const app = await buildApp();
 
 async function shutdown(signal: string) {

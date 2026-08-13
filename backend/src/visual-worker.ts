@@ -52,6 +52,8 @@ export class VisualWorker {
     try {
       let job: VisualJob | null;
       while ((job = await this.claim())) await this.process(job);
+    } catch (error) {
+      console.error("Visual worker polling failed", error);
     } finally { this.running = false; }
   }
 
