@@ -59,4 +59,23 @@ describe("LandingPage", () => {
     await userEvent.click(scoreButton);
     await waitFor(() => expect(screen.getByText("결과 목적지")).toBeInTheDocument());
   });
+
+  it("switches the public site to English and persists the selection", async () => {
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/"]}>
+          <LandingPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+
+    await screen.findAllByTestId("exam-round");
+    await userEvent.click(screen.getByRole("button", { name: "English" }));
+
+    expect(screen.getByRole("heading", { name: "Find out where you stand in TOPIK II." })).toBeInTheDocument();
+    expect(screen.getByText("TOPIK II Reading Mock Test 1")).toBeInTheDocument();
+    expect(screen.getAllByText("A 50-question TOPIK II listening mock test.")).toHaveLength(2);
+    expect(localStorage.getItem("unigate.topik.locale")).toBe("en");
+    expect(document.documentElement.lang).toBe("en");
+  });
 });

@@ -1,4 +1,3 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Grid3X3, Save, TimerOff } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
@@ -9,16 +8,13 @@ import { QuestionCard } from "../components/QuestionCard";
 import { normalizeQuestionOrder } from "../components/questionNavigation";
 import { ListeningAudioPlayer } from "../components/ListeningAudioPlayer";
 import { ErrorState, LoadingState } from "../components/States";
+import { ExamTimerBar } from "../components/test/ExamTimerBar";
+import { QuestionProgress } from "../components/test/QuestionProgress";
+import { TestNavigation } from "../components/test/TestNavigation";
 import { useActiveTime } from "../hooks/useActiveTime";
+import { useExamCountdown } from "../hooks/useExamCountdown";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
-
-function formatTime(seconds: number) {
-  const safe = Math.max(0, seconds);
-  const minutes = Math.floor(safe / 60);
-  const rest = safe % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
-}
 
 export function TestPage() {
   const { sessionId } = useParams();
@@ -27,7 +23,6 @@ export function TestPage() {
   const { token, session, setSession, error, loading, reload } = useSession(sessionId);
   const [currentOrder, setCurrentOrder] = useState(() => Number(sessionStorage.getItem(`unigate.topik.position.${sessionId}`)) || 1);
   const [saveError, setSaveError] = useState(false);
-  const [remaining, setRemaining] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [activeOrder, setActiveOrder] = useState(currentOrder);
   const [navigatorOpen, setNavigatorOpen] = useState(false);
@@ -42,6 +37,7 @@ export function TestPage() {
   }, [current, session]);
   const lastDisplayOrder = displayQuestions.at(-1)?.itemOrder ?? currentOrder;
   const audioQuestion = displayQuestions.find((question) => question.audioAssetId) ?? current;
+  const remaining = useExamCountdown(session);
   useActiveTime(sessionId ?? "", token ?? "", activeOrder, Boolean(session && token && current && session.status === "in_progress"));
 
   const displayStartOrder = displayQuestions[0]?.itemOrder ?? currentOrder;
@@ -51,16 +47,7 @@ export function TestPage() {
     if (!session) return;
     if (session.status === "submitted") {
       navigate(session.resultsUnlocked ? `/session/${session.sessionId}/results` : `/session/${session.sessionId}/feedback`, { replace: true });
-      return;
     }
-    if (session.mode === "timed" && session.expiresAt) {
-      const offset = Date.now() - new Date(session.serverTime).getTime();
-      const tick = () => setRemaining(Math.max(0, Math.ceil((new Date(session.expiresAt!).getTime() + offset - Date.now()) / 1000)));
-      tick();
-      const interval = window.setInterval(tick, 1000);
-      return () => window.clearInterval(interval);
-    }
-    setRemaining(null);
   }, [navigate, session]);
 
   useEffect(() => {
@@ -100,25 +87,11 @@ export function TestPage() {
   return (
     <div className="exam-shell exam-angular bg-gray-100 pb-20">
       <Header compact />
-      <div className="sticky top-0 z-10 border-b border-primary-100 bg-primary text-white">
-        <div className="mx-auto flex h-12 max-w-5xl items-center justify-between px-4 sm:px-8">
-          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-            <span>{session.exam.titleKo}</span>
-            <span className="hidden rounded-full px-2.5 py-0.5 text-[11px] sm:inline">{answered} / {session.questions.length}</span>
-          </div>
-          <div className="ml-3 flex shrink-0 items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-primary">
-            {remaining === null ? <TimerOff className="size-4" /> : <Clock3 className="size-4" />}
-            <span>{remaining === null ? t("practiceMode") : `${t("timeLeft")} ${formatTime(remaining)}`}</span>
-          </div>
-        </div>
-      </div>
+      <ExamTimerBar title={session.exam.titleKo} remaining={remaining} />
 
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-5">
         <div className="min-w-0">
-          <div className="mb-3 flex items-center justify-between px-1 text-xs font-semibold text-gray-500 sm:text-sm">
-            <span>{t("question")} {displayQuestions.length > 1 ? `${displayQuestions[0].itemOrder}~${lastDisplayOrder}` : current.itemOrder} / {session.questions.length}</span>
-            <span className="flex items-center gap-2"><Save className="size-4 text-green-500" /> {t("answered")} {answered}</span>
-          </div>
+          <QuestionProgress firstOrder={displayQuestions[0]?.itemOrder ?? current.itemOrder} lastOrder={lastDisplayOrder} total={session.questions.length} answered={answered} />
           {current.section === "listening" && audioQuestion?.audioAssetId && <ListeningAudioPlayer key={audioQuestion.audioAssetId} sessionId={sessionId} token={token} audioAssetId={audioQuestion.audioAssetId} repeatCount={audioQuestion.repeatCount ?? 1} mode={session.mode} />}
           {current.itemType.startsWith("paired_") ? (
             <QuestionGroup
@@ -136,17 +109,7 @@ export function TestPage() {
         </div>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-gray-500/30 bg-white">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4 sm:px-8">
-          <button disabled={displayStartOrder === 1} onClick={() => go(displayStartOrder - 1)} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-35 sm:px-4"><ArrowLeft className="size-4" /> <span className="hidden sm:inline">{t("previous")}</span></button>
-          <button ref={navigatorButtonRef} type="button" onClick={() => setNavigatorOpen(true)} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-primary-100 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary-100 sm:px-5"><Grid3X3 className="size-4" />{t("allQuestions")}</button>
-          {lastDisplayOrder < session.questions.length ? (
-            <button onClick={() => go(lastDisplayOrder + 1)} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark">{t("next")} <ArrowRight className="size-4" /></button>
-          ) : (
-            <button onClick={() => navigate(`/session/${sessionId}/review`)} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark"><CheckCircle2 className="size-4" /> {t("review")}</button>
-          )}
-        </div>
-      </div>
+      <TestNavigation firstOrder={displayStartOrder} lastOrder={lastDisplayOrder} total={session.questions.length} navigatorButtonRef={navigatorButtonRef} onPrevious={() => go(displayStartOrder - 1)} onOpenNavigator={() => setNavigatorOpen(true)} onNext={() => go(lastDisplayOrder + 1)} onReview={() => navigate(`/session/${sessionId}/review`)} />
       <QuestionNavigatorDialog
         open={navigatorOpen}
         questions={session.questions}

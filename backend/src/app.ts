@@ -139,7 +139,7 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const body = z
       .object({
         rating: z.number().int().min(1).max(5),
-        locale: z.enum(["id", "ko"]),
+        locale: z.enum(["id", "ko", "en"]),
         email: z.string().trim().email().max(320).optional(),
         marketingConsent: z.boolean().default(false),
       })

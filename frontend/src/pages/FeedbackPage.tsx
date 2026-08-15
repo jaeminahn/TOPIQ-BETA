@@ -9,7 +9,7 @@ import { useI18n } from "../i18n";
 
 export function FeedbackPage() {
   const { sessionId } = useParams();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [rating, setRating] = useState(0);
@@ -34,7 +34,7 @@ export function FeedbackPage() {
     try {
       await api.feedback(sessionId, token, {
         rating,
-        locale: "ko",
+        locale,
         email: email || undefined,
         marketingConsent: Boolean(email),
       });

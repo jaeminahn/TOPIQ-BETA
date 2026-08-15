@@ -1,9 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isAcceptedAppliedMigration } from "../src/migrate.js";
+import { isAcceptedAppliedMigration, migrationChecksum } from "../src/migrate.js";
 
 describe("topik_app migration contract", () => {
+  it("calculates the same checksum for LF and CRLF checkouts", () => {
+    expect(migrationChecksum("SELECT 1;\r\nSELECT 2;\r\n"))
+      .toBe(migrationChecksum("SELECT 1;\nSELECT 2;\n"));
+  });
+
   it("accepts only the known production checksums for legacy migrations", () => {
     expect(isAcceptedAppliedMigration(
       "002_admin_listening.sql",
@@ -89,5 +94,12 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("topik_app.visual_generation_jobs");
     expect(sql).toContain("visual_generation_jobs_active_option_idx");
     expect(sql).toContain("prompt_snapshot JSONB");
+  });
+
+  it("adds English to feedback and subscription locales", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/006_english_locale.sql"), "utf8");
+    expect(sql).toContain("attempt_feedback_locale_check");
+    expect(sql).toContain("email_subscriptions_locale_check");
+    expect(sql).toContain("'id', 'ko', 'en'");
   });
 });

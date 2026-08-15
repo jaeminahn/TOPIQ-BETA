@@ -13,6 +13,13 @@ const acceptedLegacyChecksums: Readonly<Record<string, readonly string[]>> = {
   "004_admin_response_audio_groups.sql": ["7edb58d8435cfdc7505c78cd17256613efce2c4009c861b8c4fc0a5f7b5555e4"],
 };
 
+export function migrationChecksum(sql: string) {
+  // Git stores migration files with LF, while Windows checkouts may use CRLF.
+  // Line-ending differences do not change the SQL and must not invalidate an
+  // already-applied migration.
+  return createHash("sha256").update(sql.replace(/\r\n/g, "\n")).digest("hex");
+}
+
 export function isAcceptedAppliedMigration(file: string, recorded: string | null | undefined, current: string) {
   if (!recorded || recorded === current) return true;
   return acceptedLegacyChecksums[file]?.includes(recorded.trim()) ?? false;
@@ -38,7 +45,7 @@ export async function runMigrations() {
 
     for (const file of files) {
       const sql = await readFile(resolve(migrationDir, file), "utf8");
-      const checksum = createHash("sha256").update(sql).digest("hex");
+      const checksum = migrationChecksum(sql);
       const existing = await client.query<{ checksum: string | null }>(
         "SELECT checksum FROM topik_app.schema_migrations WHERE version = $1",
         [file],

@@ -50,4 +50,20 @@ describe("ResultsPage", () => {
       score: 86,
     }));
   });
+
+  it("localizes the result summary and exam title in English", async () => {
+    render(
+      <I18nProvider locale="en">
+        <MemoryRouter initialEntries={["/session/completed-session/results"]}>
+          <Routes>
+            <Route path="/session/:sessionId/results" element={<ResultsPage />} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("Mock Test Results")).toBeInTheDocument();
+    expect(screen.getByText("TOPIK II Reading Mock Test 1")).toBeInTheDocument();
+    expect(screen.getByText("Excellent! You answered every question correctly.")).toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-export type Locale = "id" | "ko";
+export type Locale = "id" | "ko" | "en";
 export type ExamMode = "timed" | "practice";
 export type SessionStatus = "in_progress" | "submitted";
 export type ResponseEventType =

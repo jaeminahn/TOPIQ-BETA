@@ -51,6 +51,29 @@ describe("public API", () => {
     );
   });
 
+  it("accepts English as the feedback locale", async () => {
+    const saveFeedback = vi.fn().mockResolvedValue({ resultsUnlocked: true, emailSubscribed: false });
+    const repository = { saveFeedback } as unknown as TopikRepository;
+    const app = await buildApp(repository);
+    repositories.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/sessions/10000000-0000-4000-8000-000000000001/feedback",
+      headers: { authorization: "Bearer session-token" },
+      payload: { rating: 5, locale: "en", marketingConsent: false },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(saveFeedback).toHaveBeenCalledWith({
+      sessionId: "10000000-0000-4000-8000-000000000001",
+      token: "session-token",
+      rating: 5,
+      locale: "en",
+      marketingConsent: false,
+    });
+  });
+
   it("accepts audio preparation without recording a started event", async () => {
     const recordAudioPlayback = vi.fn().mockResolvedValue({
       submitted: false,
