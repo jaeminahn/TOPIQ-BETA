@@ -16,7 +16,7 @@ describe("ListeningAdminPanel",()=>{
   it("shows listening rounds before loading a selected round",async()=>{
     render(<ListeningAdminPanel token="token" sets={[linked,pending]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
     expect(screen.getAllByTestId("listening-set-card")).toHaveLength(2);
-    await userEvent.click(within(screen.getAllByTestId("listening-set-card")[0]!).getByRole("button",{name:"회차 열기"}));
+    await userEvent.click(within(screen.getAllByTestId("listening-set-card")[0]!).getByRole("button",{name:"문항 보기"}));
     await waitFor(()=>expect(adminApi.listeningItems).toHaveBeenCalledWith("token",{setId:linked.setId}));
     expect(screen.getByRole("heading",{name:"듣기 1회 · 문항 관리"})).toBeInTheDocument();
   });
@@ -24,8 +24,16 @@ describe("ListeningAdminPanel",()=>{
   it("registers a detected SQL set as a draft round",async()=>{
     const changed=vi.fn().mockResolvedValue(undefined);
     render(<ListeningAdminPanel token="token" sets={[pending]} onSetsChanged={changed} onError={vi.fn()}/>);
-    await userEvent.click(screen.getByRole("button",{name:/회차 생성/}));
+    await userEvent.click(screen.getByRole("button",{name:/비공개 회차 생성/}));
     await waitFor(()=>expect(adminApi.registerListeningSet).toHaveBeenCalledWith("token",pending.setId,1));
     expect(changed).toHaveBeenCalled();
+  });
+
+  it("uses the shared round labels and status presentation",()=>{
+    render(<ListeningAdminPanel token="token" sets={[linked,pending]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
+    expect(screen.getByText("등록 회차 1")).toBeInTheDocument();
+    expect(screen.getByText("새 세트 1")).toBeInTheDocument();
+    expect(screen.getByText("공개")).toBeInTheDocument();
+    expect(screen.getByText("미등록")).toBeInTheDocument();
   });
 });

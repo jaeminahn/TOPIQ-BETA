@@ -46,9 +46,19 @@ describe("ReadingAdminPanel", () => {
 
     await waitFor(() => expect(adminApi.readingItems).toHaveBeenCalledWith("admin-token", { setId: linkedSet.setId }));
     expect(await screen.findAllByText("첫 번째 읽기 문제")).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "읽기 1회 · 개별 문항" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "읽기 1회 · 문항 관리" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "회차 목록" }));
     expect(screen.getAllByTestId("reading-set-card")).toHaveLength(2);
+  });
+
+  it("uses the shared round labels and status presentation", () => {
+    render(<ReadingAdminPanel token="admin-token" sets={[linkedSet, pendingSet]} busy="" onPublish={vi.fn()} onError={vi.fn()} />);
+
+    expect(screen.getByText("등록 회차 1")).toBeInTheDocument();
+    expect(screen.getByText("새 세트 1")).toBeInTheDocument();
+    expect(screen.getByText("공개")).toBeInTheDocument();
+    expect(screen.getByText("미등록")).toBeInTheDocument();
+    expect(screen.getAllByText("유효")).toHaveLength(2);
   });
 
   it("publishes a ready unlinked set from its card", async () => {

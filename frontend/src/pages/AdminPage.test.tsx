@@ -43,4 +43,18 @@ describe("AdminPage", () => {
     expect(screen.getByRole("heading", { name: "응시 세션별 사용자 응답" })).toBeInTheDocument();
     expect(adminApi.dashboard).toHaveBeenCalledWith("admin-token");
   });
+
+  it("shows the complete response data guide from the admin navigation", async () => {
+    render(<MemoryRouter><AdminPage /></MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "서비스 요약" });
+    await userEvent.click(screen.getByRole("button", { name: "응답 데이터 안내" }));
+
+    expect(screen.getByRole("heading", { name: "응답 데이터 저장 안내" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "문항 행동 이벤트" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "듣기 음원 재생" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "이메일 수신 동의" })).toBeInTheDocument();
+    expect(screen.getByText(/원본 접근 토큰은 데이터베이스에 저장하지 않고/)).toBeInTheDocument();
+    expect(screen.getByText(/이메일 수신 동의는 세션 연결만 해제하고 유지/)).toBeInTheDocument();
+  });
 });

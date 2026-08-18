@@ -1,4 +1,4 @@
-import type { ExamMode, TranscriptTurn } from "./public";
+import type { ExamMode, Question, TranscriptTurn } from "./public";
 
 export interface AdminSummary {
   totalItems: number; totalVersions: number; readingVersions: number; listeningVersions: number;
@@ -81,4 +81,5 @@ export interface AdminResponseObservation {
   selectedOption: number | null; correctAnswer: number; isCorrect: boolean; responseTimeMs: number; skipped: boolean;
   timedOut: boolean; answerChanged: boolean; policyVersion: string; createdAt: string;
   mode: ExamMode; score: number | null; rating: number | null;
+  question: Question; explanation: string;
 }

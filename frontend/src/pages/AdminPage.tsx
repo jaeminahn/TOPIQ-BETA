@@ -1,4 +1,4 @@
-import { BookOpen, Headphones, Home, LayoutDashboard, LogOut, MessageSquareText, RefreshCw } from "lucide-react";
+import { BookOpen, Database, Headphones, Home, LayoutDashboard, LogOut, MessageSquareText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api";
@@ -8,16 +8,18 @@ import { AdminResponsesPanel, type DeleteDialog } from "../components/admin/Admi
 import { ListeningAdminPanel } from "../components/admin/ListeningAdminPanel";
 import { ReadingAdminPanel } from "../components/admin/ReadingAdminPanel";
 import { ResponseDeleteDialog } from "../components/admin/ResponseDeleteDialog";
+import { ResponseDataGuide } from "../components/admin/ResponseDataGuide";
 import { supabase } from "../supabase";
 import type { AdminListeningSet, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, TtsJob } from "../types";
 
-type AdminTab = "overview" | "listening" | "reading" | "responses";
+type AdminTab = "overview" | "listening" | "reading" | "responses" | "response-guide";
 
 const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "요약", icon: LayoutDashboard },
   { id: "listening", label: "듣기 문항", icon: Headphones },
   { id: "reading", label: "읽기 문항", icon: BookOpen },
   { id: "responses", label: "사용자 응답", icon: MessageSquareText },
+  { id: "response-guide", label: "응답 데이터 안내", icon: Database },
 ];
 
 export function AdminPage() {
@@ -157,7 +159,8 @@ export function AdminPage() {
         {tab === "overview" && summary && <AdminOverview summary={summary} jobs={jobs} />}
         {tab === "listening" && <ListeningAdminPanel token={token} sets={listeningSets} onError={setError} onSetsChanged={loadListeningSets} />}
         {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
-        {tab === "responses" && <AdminResponsesPanel sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
+        {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
+        {tab === "response-guide" && <ResponseDataGuide />}
       </main>
       {deleteDialog && <ResponseDeleteDialog dialog={deleteDialog} selectedCount={selectedSessions.size} confirmation={deleteConfirmation} busy={Boolean(busy)} onConfirmationChange={setDeleteConfirmation} onCancel={() => { setDeleteDialog(null); setDeleteConfirmation(""); }} onConfirm={() => void confirmDeletion()} />}
     </div>

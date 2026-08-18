@@ -4,6 +4,7 @@ import { pool } from "./db.js";
 import { AppError, notFound } from "./errors.js";
 import type { TtsStyle } from "./google-tts.js";
 import { config } from "./config.js";
+import { sanitizeQuestion } from "./domain.js";
 
 export class AdminRepository {
   async dashboard() {
@@ -544,18 +545,57 @@ export class AdminRepository {
               iv.correct_answer AS "correctAnswer", ro.is_correct AS "isCorrect",
               ro.response_time_ms AS "responseTimeMs", ro.skipped, ro.timed_out AS "timedOut",
               ro.answer_changed AS "answerChanged", ro.policy_version AS "policyVersion",
-              ro.created_at AS "createdAt", s.mode, s.score, af.rating
+              ro.created_at AS "createdAt", s.mode, s.score, af.rating,
+              iv.stem AS "questionStem", iv.choices AS "questionChoices",
+              iv.content_json AS "questionContent", iv.explanation,
+              iab.audio_asset_id AS "audioAssetId",
+              COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'number', iva.option_number, 'imageUrl', iva.storage_url
+              ) ORDER BY iva.option_number)
+                FROM topik_app.item_visual_assets iva
+               WHERE iva.item_id=ro.item_id AND iva.item_version=ro.item_version AND iva.is_current), '[]'::jsonb) AS "visualAssets"
          FROM topik_app.response_observations ro
          JOIN topik_app.session_items si ON si.session_id=ro.session_id AND si.item_order=ro.item_order
          JOIN topik_bank.item_versions iv ON iv.item_id=ro.item_id AND iv.item_version=ro.item_version
          JOIN topik_app.sessions s ON s.session_id=ro.session_id
          JOIN topik_app.mock_tests mt ON mt.mock_test_id=s.mock_test_id
          LEFT JOIN topik_app.attempt_feedback af ON af.session_id=s.session_id
+         LEFT JOIN topik_app.item_audio_bindings iab
+           ON iab.item_id=ro.item_id AND iab.item_version=ro.item_version AND iab.is_current
         WHERE ro.session_id=$1 ORDER BY ro.item_order`,
       [sessionId],
     );
     if (!result.rowCount) throw notFound("Response session not found");
-    return { responses: result.rows };
+    return {
+      responses: result.rows.map((row) => {
+        const {
+          questionStem,
+          questionChoices,
+          questionContent,
+          audioAssetId,
+          visualAssets,
+          ...response
+        } = row;
+        return {
+          ...response,
+          explanation: typeof row.explanation === "string" ? row.explanation : "",
+          question: sanitizeQuestion({
+            item_order: row.itemOrder,
+            section: row.section,
+            test_position: row.testPosition,
+            item_id: row.itemId,
+            item_version: row.itemVersion,
+            item_type: row.itemType,
+            stem: questionStem,
+            choices: questionChoices,
+            content_json: questionContent,
+            audio_asset_id: audioAssetId,
+            visual_assets: visualAssets,
+            selected_option: row.selectedOption,
+          }, { includeTranscript: true }),
+        };
+      }),
+    };
   }
 
   async deleteResponseSessions(adminUserId: string, sessionIds: string[] | "all") {
