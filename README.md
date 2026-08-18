@@ -2,7 +2,7 @@
 
 `topik.unigate.kr`용 TOPIK II 읽기·듣기 모의고사입니다.
 
-- 프론트엔드: React, Vite, TypeScript, Tailwind CSS, SUIT
+- 프론트엔드: React, Vite, TypeScript, Tailwind CSS, Pretendard
 - 백엔드: Fastify, TypeScript, PostgreSQL
 - 인증·스토리지: Supabase Auth + Supabase Storage
 - 음성: Google Cloud Gemini 2.5 Flash TTS
