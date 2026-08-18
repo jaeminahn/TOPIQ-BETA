@@ -12,17 +12,16 @@ export function Header({ compact = false, showLanguageSwitch = true }: { compact
             alt="UNIGATE"
             className="h-5 w-auto sm:h-6"
           />
-          <span className="hidden border-l border-gray-300 pl-2.5 text-[9px] font-semibold tracking-[0.12em] text-gray-500 sm:block">TOPIQ</span>
         </Link>
         {showLanguageSwitch && (
-          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="group" aria-label={t("language")}>
+          <div className="flex items-center rounded-full border border-gray-200 bg-gray-50 p-1" role="group" aria-label={t("language")}>
             {(["ko", "en"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setLocale(value)}
                 aria-pressed={locale === value}
-                className={`focus-ring min-h-7 rounded-md px-2 text-[10px] font-semibold transition ${locale === value ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+                className={`focus-ring min-h-7 rounded-full px-3.5 text-xs font-semibold transition-all duration-200 ${locale === value ? "bg-white text-primary shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-800"}`}
               >
                 {value === "ko" ? t("korean") : t("english")}
               </button>

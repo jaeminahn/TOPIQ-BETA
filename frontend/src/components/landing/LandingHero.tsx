@@ -7,7 +7,7 @@ export function LandingHero() {
     <section className="bg-gray-50">
       <div className="mx-auto grid max-w-5xl items-center gap-6 px-4 pb-8 pt-6 sm:px-8 lg:grid-cols-[1.1fr_.9fr] lg:gap-12">
         <div>
-          <h1 className="max-w-3xl text-[28px] font-semibold leading-[1.2] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">{t("heroTitle")}</h1>
+          <h1 className="max-w-3xl whitespace-pre-line text-[28px] font-semibold leading-[1.2] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">{t("heroTitle")}</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">{t("heroBody")}</p>
           <a href="#tests" className="focus-ring mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark">{t("chooseTest")} <ArrowRight className="size-4" /></a>
         </div>
