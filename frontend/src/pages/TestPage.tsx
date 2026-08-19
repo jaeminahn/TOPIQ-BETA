@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import { clearActiveSession, positionStorageKey, updateActivePosition } from "../activeSessions";
+import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
 import { Header } from "../components/Header";
 import { QuestionGroup } from "../components/QuestionGroup";
 import { QuestionNavigatorDialog } from "../components/QuestionNavigatorDialog";
@@ -13,15 +15,17 @@ import { QuestionProgress } from "../components/test/QuestionProgress";
 import { TestNavigation } from "../components/test/TestNavigation";
 import { useActiveTime } from "../hooks/useActiveTime";
 import { useExamCountdown } from "../hooks/useExamCountdown";
+import { useExitGuard } from "../hooks/useExitGuard";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
+import { localizedExamTitle } from "../examLocalization";
 
 export function TestPage() {
   const { sessionId } = useParams();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { token, session, setSession, error, loading, reload } = useSession(sessionId);
-  const [currentOrder, setCurrentOrder] = useState(() => Number(sessionStorage.getItem(`unigate.topik.position.${sessionId}`)) || 1);
+  const [currentOrder, setCurrentOrder] = useState(() => Number(localStorage.getItem(positionStorageKey(sessionId ?? ""))) || 1);
   const [saveError, setSaveError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [activeOrder, setActiveOrder] = useState(currentOrder);
@@ -38,7 +42,9 @@ export function TestPage() {
   const lastDisplayOrder = displayQuestions.at(-1)?.itemOrder ?? currentOrder;
   const audioQuestion = displayQuestions.find((question) => question.audioAssetId) ?? current;
   const remaining = useExamCountdown(session);
-  useActiveTime(sessionId ?? "", token ?? "", activeOrder, Boolean(session && token && current && session.status === "in_progress"));
+  const activeTime = useActiveTime(sessionId ?? "", token ?? "", activeOrder, Boolean(session && token && current && session.status === "in_progress"));
+  const allowedPath = useCallback((pathname: string) => pathname === `/session/${sessionId}/review`, [sessionId]);
+  const exitGuard = useExitGuard(Boolean(session && session.status === "in_progress" && !submitting), allowedPath);
 
   const displayStartOrder = displayQuestions[0]?.itemOrder ?? currentOrder;
   useEffect(() => { setActiveOrder(displayStartOrder); }, [currentOrder, displayStartOrder]);
@@ -46,6 +52,7 @@ export function TestPage() {
   useEffect(() => {
     if (!session) return;
     if (session.status === "submitted") {
+      clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
       navigate(session.resultsUnlocked ? `/session/${session.sessionId}/results` : `/session/${session.sessionId}/feedback`, { replace: true });
     }
   }, [navigate, session]);
@@ -64,7 +71,7 @@ export function TestPage() {
 
   const go = (order: number) => {
     const bounded = normalizeQuestionOrder(session.questions, order);
-    sessionStorage.setItem(`unigate.topik.position.${sessionId}`, String(bounded));
+    updateActivePosition(session.exam.id ?? session.exam.slug, sessionId, bounded);
     setCurrentOrder(bounded);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -77,7 +84,7 @@ export function TestPage() {
     });
     setActiveOrder(itemOrder);
     try {
-      const result = await api.answer(sessionId, token, itemOrder, selectedOption, 0);
+      const result = await api.answer(sessionId, token, itemOrder, selectedOption, activeTime?.takeDuration() ?? 0);
       if (result.submitted) navigate(`/session/${sessionId}/feedback`, { replace: true });
     } catch {
       setSaveError(true);
@@ -87,7 +94,7 @@ export function TestPage() {
   return (
     <div className="exam-shell exam-angular bg-gray-100 pb-20">
       <Header compact />
-      <ExamTimerBar title={session.exam.titleKo} remaining={remaining} />
+      <ExamTimerBar title={localizedExamTitle(session.exam.titleKo, locale, { slug: session.exam.slug, titleEn: session.exam.titleEn })} remaining={remaining} />
 
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-5">
         <div className="min-w-0">
@@ -118,6 +125,7 @@ export function TestPage() {
         onClose={closeNavigator}
         onSelect={go}
       />
+      <ExitConfirmationDialog open={exitGuard.blocked} variant="test" answered={answered} total={session.questions.length} onStay={exitGuard.stay} onLeave={() => { activeTime?.flush("hidden"); exitGuard.leave(); }} />
     </div>
   );
 }

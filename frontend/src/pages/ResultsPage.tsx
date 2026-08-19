@@ -3,11 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ApiError, api, getSessionToken } from "../api";
 import { saveCompletedResult } from "../completedResults";
 import { Header } from "../components/Header";
+import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
 import { IncorrectReview } from "../components/results/IncorrectReview";
 import { ResultsSummary } from "../components/results/ResultsSummary";
 import { ErrorState, LoadingState } from "../components/States";
 import { useI18n } from "../i18n";
 import type { Results } from "../types";
+import { useExitGuard } from "../hooks/useExitGuard";
 
 export function ResultsPage() {
   const { sessionId } = useParams();
@@ -17,6 +19,8 @@ export function ResultsPage() {
   const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const denyPath = useCallback(() => false, []);
+  const exitGuard = useExitGuard(Boolean(results), denyPath);
 
   const load = useCallback(async () => {
     if (!sessionId || !token) return setLoading(false);
@@ -49,6 +53,7 @@ export function ResultsPage() {
         <ResultsSummary results={results} />
         <IncorrectReview results={results} />
       </main>
+      <ExitConfirmationDialog open={exitGuard.blocked} variant="results" onStay={exitGuard.stay} onLeave={exitGuard.leave} />
     </div>
   );
 }

@@ -1,8 +1,10 @@
-import { BookOpen, CheckCircle2, CircleAlert, FileCheck2, LoaderCircle, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { BookOpen, CheckCircle2, CircleAlert, FileCheck2, LoaderCircle, Pencil, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../api";
 import type { AdminReadingItem, AdminReadingSet, AdminReadingSetBlockReason } from "../../types";
 import { AdminRoundCard, AdminRoundDetailHeader, AdminRoundEmpty, AdminRoundListHeader, AdminRoundLoading, AdminRoundSearch } from "./AdminRoundUi";
+import { AdminQuestionEditorDialog } from "./AdminQuestionEditorDialog";
+import { AdminPublishDialog } from "./AdminPublishDialog";
 
 const blockReasonLabels: Record<AdminReadingSetBlockReason, string> = {
   SET_NOT_REVIEWED: "세트 검토 미완료",
@@ -16,18 +18,30 @@ export function ReadingAdminPanel({
   sets,
   busy,
   onPublish,
+  onTogglePublish = async () => undefined,
+  onSetsChanged = async () => undefined,
   onError,
 }: {
   token: string;
   sets: AdminReadingSet[];
   busy: string;
   onPublish: (set: AdminReadingSet) => Promise<void>;
+  onTogglePublish?: (set: AdminReadingSet) => Promise<void>;
+  onSetsChanged?: () => Promise<void>;
   onError: (message: string) => void;
 }) {
   const [selectedSet, setSelectedSet] = useState<AdminReadingSet | null>(null);
   const [items, setItems] = useState<AdminReadingItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<AdminReadingItem | null>(null);
+  const [publishConfirm, setPublishConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!selectedSet) return;
+    const refreshed = sets.find((set) => set.setId === selectedSet.setId && set.setVersion === selectedSet.setVersion);
+    if (refreshed) setSelectedSet(refreshed);
+  }, [sets, selectedSet?.setId, selectedSet?.setVersion]);
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -83,12 +97,14 @@ export function ReadingAdminPanel({
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-7">
-      <AdminRoundDetailHeader eyebrow="READING BANK" title={`${selectedSet.round !== null ? `읽기 ${selectedSet.round}회` : "새 읽기 세트"} · 문항 관리`} summary={`문항 ${selectedSet.itemCount}/50 · 유효 ${selectedSet.validItemCount}/50 · 세트 v${selectedSet.setVersion}`} onBack={() => { setSelectedSet(null); setItems([]); setSearch(""); }} actions={<AdminRoundSearch value={search} onChange={setSearch} placeholder="번호·유형·본문 검색" />} />
+      <AdminRoundDetailHeader eyebrow="READING BANK" title={`${selectedSet.round !== null ? `읽기 ${selectedSet.round}회` : "새 읽기 세트"} · 문항 관리`} summary={`문항 ${selectedSet.itemCount}/50 · 유효 ${selectedSet.validItemCount}/50 · 세트 v${selectedSet.setVersion}`} onBack={() => { setSelectedSet(null); setItems([]); setSearch(""); }} actions={<><AdminRoundSearch value={search} onChange={setSearch} placeholder="번호·유형·본문 검색" />{selectedSet.mockTestId && <button type="button" disabled={Boolean(busy)} onClick={() => setPublishConfirm(true)} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold ${selectedSet.mockTestPublished ? "border-red-200 text-red-700" : "border-green-200 text-green-700"}`}>{selectedSet.mockTestPublished ? "비공개 전환" : "시험 공개"}</button>}</>} />
 
       {loadingItems ? <AdminRoundLoading /> : <div className="mt-6 space-y-3">
-        {visibleItems.map((item) => <details key={`${item.setId}-${item.position}`} className="rounded-2xl border border-gray-200 p-4 open:border-primary-100 open:bg-primary-50"><summary className="flex cursor-pointer list-none items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-sm font-semibold text-white">{item.position}</span><span className="min-w-0 flex-1"><b className="block truncate text-sm">{item.stem}</b><span className="text-xs font-semibold text-gray-400">{item.itemType}</span></span><span className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold">정답 {item.correctAnswer ?? "—"}</span></summary><div className="mt-5 grid gap-5 border-t border-gray-200 pt-5 lg:grid-cols-2"><div><p className="whitespace-pre-wrap text-sm font-medium leading-7">{item.stem}</p><ol className="mt-4 space-y-2">{item.choices.map((choice, index) => <li key={index} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${item.correctAnswer === index + 1 ? "border-green-200 bg-green-50" : "border-gray-200 bg-white"}`}>{index + 1}. {choice}</li>)}</ol></div><div className="rounded-2xl bg-white p-5"><p className="text-xs font-semibold text-primary">해설</p><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{item.explanation || "등록된 해설이 없습니다."}</p></div></div></details>)}
+        {visibleItems.map((item) => <details key={`${item.setId}-${item.position}`} className="rounded-2xl border border-gray-200 p-4 open:border-primary-100 open:bg-primary-50"><summary className="flex cursor-pointer list-none items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-sm font-semibold text-white">{item.position}</span><span className="min-w-0 flex-1"><b className="block truncate text-sm">{item.stem}</b><span className="text-xs font-semibold text-gray-400">{item.itemType}</span></span><span className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-semibold">정답 {item.correctAnswer ?? "—"}</span></summary><div className="mt-5 grid gap-5 border-t border-gray-200 pt-5 lg:grid-cols-2"><div><p className="whitespace-pre-wrap text-sm font-medium leading-7">{item.stem}</p><ol className="mt-4 space-y-2">{item.choices.map((choice, index) => <li key={index} className={`rounded-xl border px-4 py-3 text-sm font-semibold ${item.correctAnswer === index + 1 ? "border-green-200 bg-green-50" : "border-gray-200 bg-white"}`}>{index + 1}. {choice}</li>)}</ol></div><div className="rounded-2xl bg-white p-5"><div className="flex items-center justify-between"><p className="text-xs font-semibold text-primary">해설</p><button type="button" onClick={() => setEditing(item)} className="flex min-h-10 items-center gap-1 rounded-lg border border-primary-100 px-3 text-xs font-semibold text-primary"><Pencil className="size-3" /> 문제 수정</button></div><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{item.explanation || "등록된 해설이 없습니다."}</p></div></div></details>)}
         {!visibleItems.length && <AdminRoundEmpty>표시할 문항이 없습니다.</AdminRoundEmpty>}
       </div>}
+      {editing && <AdminQuestionEditorDialog token={token} section="reading" setId={editing.setId} setVersion={editing.setVersion} question={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setSelectedSet(null); setItems([]); void onSetsChanged(); }} />}
+      <AdminPublishDialog open={publishConfirm} publishing={!selectedSet.mockTestPublished} busy={Boolean(busy)} onClose={() => setPublishConfirm(false)} onConfirm={() => { void onTogglePublish(selectedSet).finally(() => setPublishConfirm(false)); }} />
     </section>
   );
 }

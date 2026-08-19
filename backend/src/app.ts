@@ -25,6 +25,7 @@ const listeningGroupParams = listeningSetParams.extend({ leaderItemId: z.string(
 const visualParams = listeningItemParams.extend({ optionNumber: z.coerce.number().int().min(1).max(4) });
 const visualAssetParams = visualParams.extend({ visualAssetId: z.string().uuid() });
 const mockTestParams = z.object({ mockTestId: z.string().uuid() });
+const questionSetRevisionParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const adminAudioParams = z.object({ audioAssetId: z.string().uuid() });
 const ttsStyleSchema = z.object({
   speakingRate: z.number().finite().min(0.75).max(1.25).default(1),
@@ -134,12 +135,17 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     return repository.submitSession(sessionId, requireToken(request.headers.authorization));
   });
 
+  app.post("/v1/sessions/:sessionId/abandon", async (request) => {
+    const { sessionId } = sessionParams.parse(request.params);
+    return repository.abandonSession(sessionId, requireToken(request.headers.authorization));
+  });
+
   app.post("/v1/sessions/:sessionId/feedback", async (request) => {
     const { sessionId } = sessionParams.parse(request.params);
     const body = z
       .object({
         rating: z.number().int().min(1).max(5),
-        locale: z.enum(["id", "ko", "en"]),
+        locale: z.enum(["ko", "en"]),
         email: z.string().trim().email().max(320).optional(),
         marketingConsent: z.boolean().default(false),
       })
@@ -328,8 +334,10 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
       mimeType: file.mimetype, byteSize: data.length,
     });
     for (const replaced of result.replacedAssets) {
-      await new SupabaseStorage().removeObject(replaced.storage_bucket,replaced.storage_path);
-      await adminRepository.removeSupersededVisualAsset(replaced.visual_asset_id);
+      await adminRepository.removeSupersededVisualAsset(
+        replaced.visual_asset_id,
+        (bucket, path) => new SupabaseStorage().removeObject(bucket, path),
+      );
     }
     return reply.code(201).send(result);
   });
@@ -363,6 +371,31 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const { mockTestId } = mockTestParams.parse(request.params);
     const body = z.object({ published: z.boolean() }).parse(request.body);
     return adminRepository.publishMockTest(mockTestId, body.published);
+  });
+
+  app.put("/v1/admin/mock-tests/:mockTestId/publish", async (request) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    const { mockTestId } = mockTestParams.parse(request.params);
+    const body = z.object({ published: z.boolean() }).parse(request.body);
+    return adminRepository.publishMockTest(mockTestId, body.published);
+  });
+
+  app.post("/v1/admin/question-sets/:setId/versions/:setVersion/revisions", async (request, reply) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    const { setId, setVersion } = questionSetRevisionParams.parse(request.params);
+    const body = z.object({
+      revisions: z.array(z.object({
+        position: z.number().int().min(1).max(50),
+        itemId: z.string().uuid(),
+        itemVersion: z.number().int().positive(),
+        stem: z.string().max(20_000),
+        choices: z.array(z.string().max(5_000)).max(4),
+        correctAnswer: z.number().int().min(1).max(4),
+        explanation: z.string().max(20_000),
+        contentJson: z.record(z.string(), z.unknown()),
+      })).min(1).max(50),
+    }).parse(request.body);
+    return reply.code(201).send(await adminRepository.reviseQuestionSet(setId, setVersion, body.revisions));
   });
 
   app.setNotFoundHandler((_request, reply) => {

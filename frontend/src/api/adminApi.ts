@@ -7,6 +7,7 @@ import type {
   AdminResponseObservation,
   AdminResponseSession,
   AdminSummary,
+  AdminQuestionRevision,
   TtsJob,
   TtsStyle,
 } from "../types";
@@ -175,17 +176,28 @@ export const adminApi = {
   },
 
   deleteVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, visualAssetId: string) {
-    return request<{ deleted: boolean; storageDeleted: boolean }>(
+    return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained?: boolean }>(
       `/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}/assets/${visualAssetId}`,
       { method: "DELETE", headers: auth(token) },
     );
   },
 
   publish(token: string, mockTestId: string, published: boolean) {
-    return request<{ published: boolean }>(`/v1/admin/listening/mock-tests/${mockTestId}/publish`, {
+    return request<{ published: boolean }>(`/v1/admin/mock-tests/${mockTestId}/publish`, {
       method: "PUT",
       headers: auth(token),
       body: JSON.stringify({ published }),
+    });
+  },
+
+  reviseQuestionSet(token: string, setId: string, setVersion: number, revisions: AdminQuestionRevision[]) {
+    return request<{
+      setId: string; setVersion: number; mockTestIds: string[]; published: false;
+      revisions: Array<{ position: number; itemId: string; itemVersion: number }>;
+    }>(`/v1/admin/question-sets/${setId}/versions/${setVersion}/revisions`, {
+      method: "POST",
+      headers: auth(token),
+      body: JSON.stringify({ revisions }),
     });
   },
 };

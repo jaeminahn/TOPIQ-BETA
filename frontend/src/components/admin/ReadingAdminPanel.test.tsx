@@ -70,4 +70,15 @@ describe("ReadingAdminPanel", () => {
     await userEvent.click(within(pendingCard).getByRole("button", { name: /홈페이지에 추가/ }));
     expect(onPublish).toHaveBeenCalledWith(pendingSet);
   });
+
+  it("confirms before making a published round private", async () => {
+    const onTogglePublish = vi.fn().mockResolvedValue(undefined);
+    render(<ReadingAdminPanel token="admin-token" sets={[linkedSet]} busy="" onPublish={vi.fn()} onTogglePublish={onTogglePublish} onError={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
+    await userEvent.click(await screen.findByRole("button", { name: "비공개 전환" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("이 회차를 비공개로 전환할까요?")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "비공개 전환" }));
+    await waitFor(() => expect(onTogglePublish).toHaveBeenCalledWith(linkedSet));
+  });
 });

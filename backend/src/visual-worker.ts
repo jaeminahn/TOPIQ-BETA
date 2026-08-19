@@ -77,8 +77,10 @@ export class VisualWorker {
         mimeType:generated.mimeType,byteSize:generated.data.length,
       });
       for (const replaced of bound.replacedAssets) {
-        await storage.removeObject(replaced.storage_bucket,replaced.storage_path);
-        await this.repository.removeSupersededVisualAsset(replaced.visual_asset_id);
+        await this.repository.removeSupersededVisualAsset(
+          replaced.visual_asset_id,
+          (bucket, path) => storage.removeObject(bucket, path),
+        );
       }
       await pool.query(
         `UPDATE topik_app.visual_generation_jobs SET status='succeeded',visual_asset_id=$2,

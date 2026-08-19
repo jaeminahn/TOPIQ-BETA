@@ -1,12 +1,15 @@
 import { AlertTriangle, ArrowLeft, CheckCircle2, Send } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Header } from "../components/Header";
+import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
 import { ErrorState, LoadingState } from "../components/States";
 import { localizedExamTitle } from "../examLocalization";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
+import { useExitGuard } from "../hooks/useExitGuard";
+import { positionStorageKey } from "../activeSessions";
 
 export function ReviewPage() {
   const { sessionId } = useParams();
@@ -15,6 +18,8 @@ export function ReviewPage() {
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const allowedPath = useCallback((pathname: string) => pathname === `/session/${sessionId}` || pathname === `/session/${sessionId}/feedback`, [sessionId]);
+  const exitGuard = useExitGuard(Boolean(session && session.status === "in_progress" && !submitting), allowedPath);
 
   if (!sessionId || !token) return <><Header compact /><ErrorState message={t("sessionMissing")} /></>;
   if (loading) return <div className="min-h-screen bg-gray-100"><Header compact /><LoadingState /></div>;
@@ -43,7 +48,7 @@ export function ReviewPage() {
         <div className="rounded-2xl border border-gray-300 bg-white p-6">
           <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold text-primary">{localizedExamTitle(session.exam.titleKo, locale, { slug: session.exam.slug })}</p>
+              <p className="text-xs font-semibold text-primary">{localizedExamTitle(session.exam.titleKo, locale, { slug: session.exam.slug, titleEn: session.exam.titleEn })}</p>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">{t("reviewTitle")}</h1>
               <p className="mt-2 text-sm leading-6 text-gray-600">{t("reviewBody")}</p>
             </div>
@@ -55,7 +60,7 @@ export function ReviewPage() {
 
           <div className="mt-5 grid max-w-2xl grid-cols-5 gap-1.5 sm:grid-cols-10">
             {session.questions.map((question) => (
-              <button key={question.itemOrder} onClick={() => { sessionStorage.setItem(`unigate.topik.position.${sessionId}`, String(question.itemOrder)); navigate(`/session/${sessionId}`); }} className={`focus-ring relative grid aspect-square min-h-11 place-items-center rounded-lg border text-xs font-medium ${question.selectedOption !== null ? "border-gray-200 bg-gray-50 text-gray-700" : "border-orange-200 bg-orange-50 text-orange-700"}`}>
+              <button key={question.itemOrder} onClick={() => { localStorage.setItem(positionStorageKey(sessionId), String(question.itemOrder)); navigate(`/session/${sessionId}`); }} className={`focus-ring relative grid aspect-square min-h-11 place-items-center rounded-lg border text-xs font-medium ${question.selectedOption !== null ? "border-gray-200 bg-gray-50 text-gray-700" : "border-orange-200 bg-orange-50 text-orange-700"}`}>
                 {question.itemOrder}
                 {question.selectedOption !== null && <CheckCircle2 className="absolute right-1 top-1 size-3 text-gray-500" />}
               </button>
@@ -76,6 +81,7 @@ export function ReviewPage() {
           </div>
         </div>
       </main>
+      <ExitConfirmationDialog open={exitGuard.blocked} variant="test" answered={session.questions.length - unanswered.length} total={session.questions.length} onStay={exitGuard.stay} onLeave={exitGuard.leave} />
     </div>
   );
 }

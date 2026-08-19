@@ -8,7 +8,7 @@ const groups = [
     icon: KeyRound,
     title: "익명 사용자와 응시 세션",
     description: "계정 대신 임시 사용자 UUID로 한 번의 응시 흐름을 구분합니다.",
-    fields: ["사용자·세션 UUID", "시험과 실전/연습 모드", "시작·만료·제출·최근 접속 시각", "진행 상태, 점수, 만점, 시간 초과 제출 여부"],
+    fields: ["사용자·세션 UUID", "시험과 실전/연습 모드", "시작·만료·제출·폐기·최근 접속 시각", "진행·제출·다시하기 폐기 상태, 점수, 만점, 시간 초과 제출 여부"],
   },
   {
     icon: Database,
@@ -85,6 +85,7 @@ export function ResponseDataGuide() {
       </div>
 
       <p className="mt-5 flex items-center gap-2 text-xs font-medium text-gray-400"><Clock3 className="size-4" />문항 응답 시간은 문항별 활성 시간 이벤트를 합산해 제출 시 최종 확정합니다.</p>
+      <p className="mt-2 text-xs font-medium text-gray-400">다시하기로 폐기된 세션은 이어하기와 채점 대상에서 제외되지만, 진행 당시 답안 상태와 행동 이벤트는 운영 분석을 위해 보존됩니다.</p>
     </section>
   );
 }

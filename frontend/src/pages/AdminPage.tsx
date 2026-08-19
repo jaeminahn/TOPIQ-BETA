@@ -95,6 +95,16 @@ export function AdminPage() {
     }
   }, [token]);
 
+  const loadReadingSets = useCallback(async () => {
+    if (!token) return;
+    try {
+      const result = await adminApi.readingSets(token);
+      setReadingSets(result.sets);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "읽기 회차를 불러오지 못했습니다.");
+    }
+  }, [token]);
+
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!token || !jobs.some((job) => job.status === "queued" || job.status === "processing")) return;
@@ -158,7 +168,7 @@ export function AdminPage() {
         {error && <p className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
         {tab === "overview" && summary && <AdminOverview summary={summary} jobs={jobs} />}
         {tab === "listening" && <ListeningAdminPanel token={token} sets={listeningSets} onError={setError} onSetsChanged={loadListeningSets} />}
-        {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
+        {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onSetsChanged={loadReadingSets} onTogglePublish={(set) => action(`toggle-reading-${set.setId}-${set.setVersion}`, () => adminApi.publish(token, set.mockTestId!, !set.mockTestPublished))} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
         {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
         {tab === "response-guide" && <ResponseDataGuide />}
       </main>

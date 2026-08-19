@@ -17,11 +17,12 @@ type SessionRow = {
   user_id: string;
   mock_test_id: string;
   mode: ExamMode;
-  status: "in_progress" | "submitted";
+  status: "in_progress" | "submitted" | "abandoned";
   access_token_hash: string;
   started_at: Date;
   expires_at: Date | null;
   submitted_at: Date | null;
+  abandoned_at: Date | null;
   results_unlocked_at: Date | null;
   score: number | null;
   max_score: number;
@@ -203,8 +204,8 @@ async function finalizeIfExpired(sessionId: string, token: string) {
 export class TopikRepository {
   async listExams() {
     const result = await pool.query(
-      `SELECT mock_test_id AS "id", slug, title_id AS "titleId", title_ko AS "titleKo",
-              description_id AS "descriptionId", description_ko AS "descriptionKo",
+      `SELECT mock_test_id AS "id", slug, title_en AS "titleEn", title_ko AS "titleKo",
+              description_en AS "descriptionEn", description_ko AS "descriptionKo",
               duration_seconds AS "durationSeconds", question_count AS "questionCount",
               max_score AS "maxScore", mts.section
          FROM topik_app.mock_tests mt
@@ -297,10 +298,10 @@ export class TopikRepository {
     await finalizeIfExpired(sessionId, token);
     const sessionResult = await pool.query<SessionRow & {
       slug: string;
-      title_id: string;
+      title_en: string;
       title_ko: string;
     }>(
-      `SELECT s.*, m.slug, m.title_id, m.title_ko
+      `SELECT s.*, m.slug, m.title_en, m.title_ko
          FROM topik_app.sessions s
          JOIN topik_app.mock_tests m ON m.mock_test_id = s.mock_test_id
         WHERE s.session_id = $1`,
@@ -309,6 +310,7 @@ export class TopikRepository {
     const session = sessionResult.rows[0];
     if (!session) throw notFound("Session not found");
     assertToken(session, token);
+    if (session.status === "abandoned") throw sessionClosed();
 
     const questions = await pool.query<QuestionRow>(
       `SELECT si.item_order, si.section, si.test_position, si.item_id, si.item_version,
@@ -344,7 +346,7 @@ export class TopikRepository {
       submittedAt: session.submitted_at?.toISOString() ?? null,
       resultsUnlocked: session.results_unlocked_at !== null,
       serverTime: new Date().toISOString(),
-      exam: { slug: session.slug, titleId: session.title_id, titleKo: session.title_ko },
+      exam: { id: session.mock_test_id, slug: session.slug, titleEn: session.title_en, titleKo: session.title_ko },
       questions: questions.rows.map((row) => sanitizeQuestion(row)),
     };
   }
@@ -551,11 +553,38 @@ export class TopikRepository {
     try {
       const session = await loadSession(client, sessionId, true);
       assertToken(session, token);
+      if (session.status === "abandoned") throw sessionClosed();
       if (session.status === "in_progress") {
         await finalizeInTransaction(client, session, isExpired(session));
       }
       await client.query("COMMIT");
       return { status: "submitted", resultsLocked: true };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async abandonSession(sessionId: string, token: string) {
+    const client = await begin();
+    try {
+      const session = await loadSession(client, sessionId, true);
+      assertToken(session, token);
+      if (session.status === "submitted") {
+        throw new AppError(409, "SESSION_ALREADY_SUBMITTED", "A submitted session cannot be abandoned");
+      }
+      if (session.status === "in_progress") {
+        await client.query(
+          `UPDATE topik_app.sessions
+              SET status='abandoned', abandoned_at=CURRENT_TIMESTAMP, last_seen_at=CURRENT_TIMESTAMP
+            WHERE session_id=$1`,
+          [sessionId],
+        );
+      }
+      await client.query("COMMIT");
+      return { status: "abandoned" as const };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -625,8 +654,8 @@ export class TopikRepository {
 
   async getResults(sessionId: string, token: string) {
     await finalizeIfExpired(sessionId, token);
-    const sessionResult = await pool.query<SessionRow & { title_id: string; title_ko: string }>(
-      `SELECT s.*, m.title_id, m.title_ko
+    const sessionResult = await pool.query<SessionRow & { title_en: string; title_ko: string }>(
+      `SELECT s.*, m.title_en, m.title_ko
          FROM topik_app.sessions s
          JOIN topik_app.mock_tests m ON m.mock_test_id = s.mock_test_id
         WHERE s.session_id = $1`,
@@ -664,7 +693,7 @@ export class TopikRepository {
     return {
       examId: session.mock_test_id,
       sessionId,
-      titleId: session.title_id,
+      titleEn: session.title_en,
       titleKo: session.title_ko,
       score: session.score ?? 0,
       maxScore: session.max_score,

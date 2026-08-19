@@ -7,7 +7,7 @@ vi.mock("./db.js", () => ({
 import { AdminRepository } from "./admin-repository.js";
 import { pool } from "./db.js";
 
-const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn> };
+const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
 
 describe("AdminRepository response details", () => {
   beforeEach(() => poolMock.query.mockReset());
@@ -71,5 +71,45 @@ describe("AdminRepository response details", () => {
     });
     expect(result.responses[0]).not.toHaveProperty("questionContent");
     expect(result.responses[0]).not.toHaveProperty("questionChoices");
+  });
+});
+
+describe("AdminRepository question revisions", () => {
+  beforeEach(() => poolMock.connect.mockReset());
+
+  it("creates an immutable item and set version, repoints the round, and unpublishes it", async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
+      if (sql.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
+      if (sql.includes("FROM topik_bank.question_set_versions") && sql.includes("FOR UPDATE")) return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, default_predicted_difficulty: 0, published_at: new Date() }] };
+      if (sql.includes("SELECT qsi.position,iv.*")) return { rowCount: 1, rows: [{
+        position: 1, item_id: "30000000-0000-4000-8000-000000000001", item_version: 1,
+        section: "reading", item_type: "grammar_blank", type_slot: 1, primary_skill: "grammar",
+        target_level: 3, predicted_difficulty: 0, irt_difficulty: null, irt_discrimination: null,
+        generator_provider: "test", generator_model: "test", generator_version: "v1", prompt_version: "a".repeat(64),
+        review_status: "reviewed", stem: "old", choices: ["1", "2", "3", "4"], correct_answer: 1,
+        explanation: "old explanation", content_json: { stem: "old", choices: ["1", "2", "3", "4"] }, source_provenance: {},
+      }] };
+      if (sql.includes("MAX(item_version)")) return { rowCount: 1, rows: [{ version: 2 }] };
+      if (sql.includes("FROM topik_app.item_visual_assets") && sql.includes("SELECT option_number")) return { rowCount: 0, rows: [] };
+      if (sql.includes("MAX(set_version)")) return { rowCount: 1, rows: [{ version: 2 }] };
+      if (sql.includes("UPDATE topik_app.mock_test_sections")) return { rowCount: 1, rows: [{ mock_test_id: "20000000-0000-4000-8000-000000000001" }] };
+      return { rowCount: 1, rows: [] };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    const result = await new AdminRepository().reviseQuestionSet(
+      "10000000-0000-4000-8000-000000000001",
+      1,
+      [{
+        position: 1, itemId: "30000000-0000-4000-8000-000000000001", itemVersion: 1,
+        stem: "new", choices: ["1", "2", "3", "4"], correctAnswer: 2,
+        explanation: "new explanation", contentJson: { stem: "new", choices: ["1", "2", "3", "4"] },
+      }],
+    );
+
+    expect(result).toMatchObject({ setVersion: 2, published: false, revisions: [{ position: 1, itemVersion: 2 }] });
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO topik_bank.item_versions"))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET is_published=FALSE"))).toBe(true);
   });
 });

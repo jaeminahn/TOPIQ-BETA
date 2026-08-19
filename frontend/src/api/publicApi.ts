@@ -78,6 +78,13 @@ export const api = {
     });
   },
 
+  abandon(sessionId: string, token: string) {
+    return request<{ status: "abandoned" }>(`/v1/sessions/${sessionId}/abandon`, {
+      method: "POST",
+      headers: auth(token),
+    });
+  },
+
   feedback(
     sessionId: string,
     token: string,

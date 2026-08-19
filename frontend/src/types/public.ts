@@ -3,7 +3,9 @@ export type ExamMode = "timed" | "practice";
 export interface Exam {
   id: string;
   slug: string;
+  titleEn?: string;
   titleKo: string;
+  descriptionEn?: string;
   descriptionKo: string;
   durationSeconds: number;
   questionCount: number;
@@ -38,13 +40,13 @@ export interface TestSession {
   sessionId: string;
   userId: string;
   mode: ExamMode;
-  status: "in_progress" | "submitted";
+  status: "in_progress" | "submitted" | "abandoned";
   startedAt: string;
   expiresAt: string | null;
   submittedAt: string | null;
   resultsUnlocked: boolean;
   serverTime: string;
-  exam: { slug: string; titleKo: string };
+  exam: { id?: string; slug: string; titleEn?: string; titleKo: string };
   questions: Question[];
 }
 
@@ -57,6 +59,7 @@ export interface Results {
   examId: string;
   sessionId: string;
   titleKo: string;
+  titleEn?: string;
   score: number;
   maxScore: number;
   submittedAt: string | null;

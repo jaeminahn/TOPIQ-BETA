@@ -1,11 +1,12 @@
 import { ArrowRight, Mail, Star } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Header } from "../components/Header";
 import { ErrorState, LoadingState } from "../components/States";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
+import { clearActiveSession } from "../activeSessions";
 
 export function FeedbackPage() {
   const { sessionId } = useParams();
@@ -16,6 +17,10 @@ export function FeedbackPage() {
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (session?.status === "submitted") clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
+  }, [session]);
 
   if (!sessionId || !token) return <><Header compact /><ErrorState message={t("sessionMissing")} /></>;
   if (loading) return <div className="min-h-screen bg-gray-100"><Header compact /><LoadingState /></div>;
@@ -65,7 +70,7 @@ export function FeedbackPage() {
             <label className="block text-sm font-semibold text-gray-700">{t("emailLabel")}</label>
             <label className="relative mt-2 block">
               <Mail className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t("emailPlaceholder")} className="focus-ring min-h-11 w-full rounded-xl border-2 border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-gray-900 outline-none placeholder:text-gray-400 focus:border-primary" />
+              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t("emailPlaceholder")} className="focus-ring min-h-11 w-full rounded-xl border-2 border-red-400 bg-transparent py-2.5 pl-12 pr-4 text-gray-900 outline-none placeholder:text-gray-400 focus:border-red-600" />
             </label>
           </div>
           {formError && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</p>}

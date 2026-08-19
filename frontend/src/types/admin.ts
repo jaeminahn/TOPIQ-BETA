@@ -10,6 +10,8 @@ export interface AdminSummary {
 
 export interface AdminListeningTarget {
   itemId: string; itemVersion: number; position: number; itemType: string; questionPrompt: string;
+  stem: string; choices: string[]; correctAnswer: number | null; explanation: string;
+  contentJson: Record<string, unknown>;
   visualOptionCount: number; visualReadyCount: number; visualOptions: AdminVisualOption[];
 }
 
@@ -69,10 +71,15 @@ export interface AdminReadingSet {
 }
 
 export interface AdminResponseSession {
-  sessionId: string; userId: string; mockTestTitle: string; mode: ExamMode; status: "submitted";
-  startedAt: string; submittedAt: string; score: number; maxScore: number; rating: number | null;
+  sessionId: string; userId: string; mockTestTitle: string; mode: ExamMode; status: "submitted" | "abandoned";
+  startedAt: string; submittedAt: string | null; score: number | null; maxScore: number; rating: number | null;
   section: "reading" | "listening"; responseCount: number; answeredCount: number;
   unansweredCount: number; correctCount: number; incorrectCount: number;
+}
+
+export interface AdminQuestionRevision {
+  position: number; itemId: string; itemVersion: number; stem: string; choices: string[];
+  correctAnswer: number; explanation: string; contentJson: Record<string, unknown>;
 }
 
 export interface AdminResponseObservation {
