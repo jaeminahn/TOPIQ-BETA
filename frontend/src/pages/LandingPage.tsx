@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { clearActiveSession, getActiveSession, positionStorageKey, saveActiveSession, type ActiveSessionEntry } from "../activeSessions";
-import { readCompletedResults } from "../completedResults";
 import { Header } from "../components/Header";
 import { ExamCatalog } from "../components/landing/ExamCatalog";
 import { LandingHero } from "../components/landing/LandingHero";
@@ -13,13 +12,13 @@ import { SessionResumeDialog } from "../components/SessionResumeDialog";
 export function LandingPage() {
   const navigate = useNavigate();
   const [exams, setExams] = useState<Exam[]>([]);
-  const [modes, setModes] = useState<Record<string, ExamMode>>({});
+  const [mode, setMode] = useState<ExamMode>("timed");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [completedResults] = useState(readCompletedResults);
   const [resumeEntry, setResumeEntry] = useState<ActiveSessionEntry | null>(null);
   const [resumeExam, setResumeExam] = useState<Exam | null>(null);
+  const [resumeMode, setResumeMode] = useState<ExamMode>("timed");
 
   const load = async () => {
     setLoading(true);
@@ -27,7 +26,6 @@ export function LandingPage() {
     try {
       const data = await api.exams();
       setExams(data);
-      setModes(Object.fromEntries(data.map((exam) => [exam.id, "timed"])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to load exams");
     } finally {
@@ -37,14 +35,13 @@ export function LandingPage() {
 
   useEffect(() => { void load(); }, []);
 
-  const createNew = async (exam: Exam) => {
-    const mode = modes[exam.id] ?? "timed";
-    const created = await api.createSession(exam.id, mode);
-    saveActiveSession({ examId: exam.id, sessionId: created.sessionId, mode, lastPosition: 1, startedAt: new Date().toISOString() });
+  const createNew = async (exam: Exam, selectedMode: ExamMode) => {
+    const created = await api.createSession(exam.id, selectedMode);
+    saveActiveSession({ examId: exam.id, sessionId: created.sessionId, mode: selectedMode, lastPosition: 1, startedAt: new Date().toISOString() });
     navigate(`/session/${created.sessionId}`);
   };
 
-  const start = async (exam: Exam) => {
+  const start = async (exam: Exam, selectedMode: ExamMode) => {
     setStarting(exam.id);
     setError(null);
     try {
@@ -58,6 +55,7 @@ export function LandingPage() {
               const lastPosition = Number(localStorage.getItem(positionStorageKey(active.sessionId))) || active.lastPosition || 1;
               setResumeEntry({ ...active, lastPosition });
               setResumeExam(exam);
+              setResumeMode(selectedMode);
               setStarting(null);
               return;
             }
@@ -65,7 +63,7 @@ export function LandingPage() {
         }
         clearActiveSession(exam.id, active.sessionId);
       }
-      await createNew(exam);
+      await createNew(exam, selectedMode);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to start exam");
       setStarting(null);
@@ -88,7 +86,7 @@ export function LandingPage() {
       clearActiveSession(resumeEntry.examId, resumeEntry.sessionId);
       const exam = resumeExam;
       closeResume();
-      await createNew(exam);
+      await createNew(exam, resumeMode);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to restart exam");
       setStarting(null);
@@ -101,15 +99,13 @@ export function LandingPage() {
       <LandingHero />
       <ExamCatalog
         exams={exams}
-        modes={modes}
-        completedResults={completedResults}
+        mode={mode}
         loading={loading}
         error={error}
         starting={starting}
         onRetry={() => void load()}
-        onModeChange={(examId, mode) => setModes((current) => ({ ...current, [examId]: mode }))}
-        onStart={(exam) => void start(exam)}
-        onViewResults={(sessionId) => navigate(`/session/${sessionId}/results`)}
+        onModeChange={setMode}
+        onStart={(exam) => void start(exam, mode)}
       />
       <SiteFooter />
       <SessionResumeDialog entry={resumeEntry} busy={starting !== null} onContinue={continueSession} onRestart={() => void restartSession()} onClose={closeResume} />

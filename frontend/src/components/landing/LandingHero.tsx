@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3 } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import { useI18n } from "../../i18n";
 
 export function LandingHero() {
@@ -9,7 +9,6 @@ export function LandingHero() {
         <div>
           <h1 className="max-w-3xl whitespace-pre-line text-[28px] font-semibold leading-[1.2] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">{t("heroTitle")}</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-gray-600">{t("heroBody")}</p>
-          <a href="#tests" className="focus-ring mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark">{t("chooseTest")} <ArrowRight className="size-4" /></a>
         </div>
         <div className="mx-auto hidden w-full max-w-md lg:block">
           <div className="rounded-2xl border border-gray-200 bg-white p-5">

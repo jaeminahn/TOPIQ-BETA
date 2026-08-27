@@ -27,7 +27,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; font-family: "Pretendard Variable", "Pretendard", sans-serif; }
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { cursor: pointer; }
 
 .exam-shell { min-height: 100vh; background: #F3F4F6; }
