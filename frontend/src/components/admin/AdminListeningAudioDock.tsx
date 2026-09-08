@@ -14,8 +14,13 @@ export type BulkAudioProgress = {
 const isGenerating = (group: AdminListeningGroup | null) =>
   group?.generationStatus === "queued" || group?.generationStatus === "processing";
 
+const MIN_SPEAKING_RATE = 0.8;
+const MAX_SPEAKING_RATE = 1.2;
+const SPEAKING_RATE_STEP = 0.025;
+const formatSpeakingRate = (rate: number) => rate.toFixed(3).replace(/0$/, "");
+
 const styleSummary = (style: TtsStyle | null) => style
-  ? `${style.speakingRate.toFixed(2)}× · ${style.stylePrompt.trim() || "기본 스타일"}`
+  ? `${formatSpeakingRate(style.speakingRate)}× · ${style.stylePrompt.trim() || "기본 스타일"}`
   : "적용된 음원 없음";
 
 function timeline(group: AdminListeningGroup) {
@@ -167,8 +172,9 @@ export function AdminListeningAudioDock({
 
           <div className="grid gap-3 sm:grid-cols-[.65fr_1.35fr]">
             <label className="text-xs font-semibold text-gray-600">
-              생성 말하기 속도 <span className="text-primary">{draftStyle.speakingRate.toFixed(2)}×</span>
-              <input aria-label="생성 말하기 속도" type="range" min="0.75" max="1.25" step="0.05" value={draftStyle.speakingRate} disabled={generating} onChange={(event) => onDraftStyleChange({ ...draftStyle, speakingRate: Number(event.target.value) })} className="mt-2 block w-full accent-primary disabled:opacity-40" />
+              생성 말하기 속도 <span className="text-primary">{formatSpeakingRate(draftStyle.speakingRate)}×</span>
+              <input aria-label="생성 말하기 속도" type="range" min={MIN_SPEAKING_RATE} max={MAX_SPEAKING_RATE} step={SPEAKING_RATE_STEP} value={draftStyle.speakingRate} disabled={generating} onChange={(event) => onDraftStyleChange({ ...draftStyle, speakingRate: Number(event.target.value) })} className="mt-2 block w-full accent-primary disabled:opacity-40" />
+              <span className="mt-1 block text-[11px] font-normal text-gray-500">0.80×~1.20× · 0.025 단위</span>
             </label>
             <label className="text-xs font-semibold text-gray-600">
               음원 스타일

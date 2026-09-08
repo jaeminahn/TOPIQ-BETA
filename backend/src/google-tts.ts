@@ -37,7 +37,7 @@ export function literalDeliveryStyle(stylePrompt: string) {
 export function maximumLiteralDurationMs(text: string, speakingRate: number) {
   const spokenUnits = text.match(/[\p{L}\p{N}]/gu)?.length ?? 1;
   const sentenceStops = text.match(/[.!?。！？]/g)?.length ?? 0;
-  const safeRate = Math.max(0.75, Math.min(1.25, speakingRate));
+  const safeRate = Math.max(0.8, Math.min(1.2, speakingRate));
   return Math.max(1_600, Math.round(900 + spokenUnits * 220 / safeRate + sentenceStops * 180));
 }
 

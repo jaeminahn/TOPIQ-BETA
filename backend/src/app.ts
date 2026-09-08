@@ -29,8 +29,8 @@ const readingVisualAssetParams = readingItemParams.extend({ visualAssetId: z.str
 const mockTestParams = z.object({ mockTestId: z.string().uuid() });
 const questionSetRevisionParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const adminAudioParams = z.object({ audioAssetId: z.string().uuid() });
-const ttsStyleSchema = z.object({
-  speakingRate: z.number().finite().min(0.75).max(1.25).default(1),
+export const ttsStyleSchema = z.object({
+  speakingRate: z.number().finite().min(0.8).max(1.2).default(1),
   stylePrompt: z.string().trim().max(300).default(""),
 });
 

@@ -56,6 +56,8 @@ describe("Google TTS request", () => {
     expect(literalDeliveryStyle("두 번 반복해 주세요")).toBe("neutral and clear");
     expect(maximumLiteralDurationMs("21번.", 1)).toBeLessThan(2_500);
     expect(maximumLiteralDurationMs("다음을 듣고 가장 알맞은 그림을 고르십시오.", 1)).toBeGreaterThan(4_000);
+    expect(maximumLiteralDurationMs("21번.", 0.1)).toBe(maximumLiteralDurationMs("21번.", 0.8));
+    expect(maximumLiteralDurationMs("21번.", 10)).toBe(maximumLiteralDurationMs("21번.", 1.2));
   });
 
   it("keeps a normal first literal result without retrying", async () => {

@@ -90,12 +90,17 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.click(await screen.findByRole("button",{name:"음원 재생성"}));
 
     expect(adminApi.generateGroup).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("생성 말하기 속도"),{target:{value:"1.1"}});
+    const speakingRate = screen.getByLabelText("생성 말하기 속도");
+    expect(speakingRate).toHaveAttribute("min", "0.8");
+    expect(speakingRate).toHaveAttribute("max", "1.2");
+    expect(speakingRate).toHaveAttribute("step", "0.025");
+    fireEvent.change(speakingRate,{target:{value:"1.025"}});
+    expect(screen.getByText("1.025×")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("음원 스타일"));
     await userEvent.type(screen.getByLabelText("음원 스타일"),"밝고 또렷하게");
     await userEvent.click(screen.getByRole("button",{name:"음원 재생성 시작"}));
 
-    await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",linked.setId,1,"item-1",true,{speakingRate:1.1,stylePrompt:"밝고 또렷하게"}));
+    await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",linked.setId,1,"item-1",true,{speakingRate:1.025,stylePrompt:"밝고 또렷하게"}));
     expect(screen.getByRole("button",{name:"재생"})).toBeDisabled();
     expect(screen.getByText("음원 생성 대기 중")).toBeInTheDocument();
     expect(document.querySelector("audio")).not.toBeInTheDocument();

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildApp } from "../src/app.js";
+import { buildApp, ttsStyleSchema } from "../src/app.js";
 import type { TopikRepository } from "../src/repository.js";
 
 const repositories: Array<Awaited<ReturnType<typeof buildApp>>> = [];
@@ -8,6 +8,14 @@ afterEach(async () => {
 });
 
 describe("public API", () => {
+  it("accepts fine-grained speaking rates only within the admin range", () => {
+    expect(ttsStyleSchema.safeParse({ speakingRate: 0.8, stylePrompt: "" }).success).toBe(true);
+    expect(ttsStyleSchema.safeParse({ speakingRate: 1.025, stylePrompt: "" }).success).toBe(true);
+    expect(ttsStyleSchema.safeParse({ speakingRate: 1.2, stylePrompt: "" }).success).toBe(true);
+    expect(ttsStyleSchema.safeParse({ speakingRate: 0.799, stylePrompt: "" }).success).toBe(false);
+    expect(ttsStyleSchema.safeParse({ speakingRate: 1.201, stylePrompt: "" }).success).toBe(false);
+  });
+
   it("exposes a health endpoint", async () => {
     const repository = { listExams: vi.fn() } as unknown as TopikRepository;
     const app = await buildApp(repository);
