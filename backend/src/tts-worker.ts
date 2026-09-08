@@ -16,10 +16,13 @@ type Job = {
 const validTurns = (turns: DialogueTurn[]) => turns.length > 0
   && turns.every((turn) => ["남자", "여자"].includes(turn.speaker) && Boolean(turn.text));
 
+export const EXAM_TRACK_SYNTHESIS_VERSION = "GEMINI_LITERAL_ATOMIC_V2_LONG_FALLBACK";
+export const EXAM_TRACK_COMPOSER_VERSION = "LINEAR16_FFMPEG_V4_BRIGHT_BELL";
+
 export function examTrackSourceHash(script: AdminNarrationScript, style: TtsStyle) {
   return createHash("sha256").update(JSON.stringify({
-    script, promptVersion: script.version.toUpperCase(), composerVersion: "LINEAR16_FFMPEG_V3",
-    synthesisVersion: script.version === EXAM_TRACK_VERSION ? "GEMINI_LITERAL_ATOMIC_V1" : "GEMINI_LEGACY_V1",
+    script, promptVersion: script.version.toUpperCase(), composerVersion: EXAM_TRACK_COMPOSER_VERSION,
+    synthesisVersion: script.version === EXAM_TRACK_VERSION ? EXAM_TRACK_SYNTHESIS_VERSION : "GEMINI_LEGACY_V1",
     sampleRateHertz: 24_000, model: config.googleTts.model,
     female: config.googleTts.femaleVoice, male: config.googleTts.maleVoice,
     style: { speakingRate: style.speakingRate, stylePrompt: style.stylePrompt },

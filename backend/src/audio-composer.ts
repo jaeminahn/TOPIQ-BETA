@@ -73,17 +73,26 @@ export function createSilenceWave(durationMs: number, format: WaveFormat) {
   return output;
 }
 
-const BELL_DURATION_MS = 800;
-const FIRST_TONE_DURATION_MS = 300;
-const TONE_GAP_MS = 80;
-const SECOND_TONE_DURATION_MS = BELL_DURATION_MS - FIRST_TONE_DURATION_MS - TONE_GAP_MS;
+export const BELL_DURATION_MS = 620;
+export const BELL_FREQUENCIES_HZ = [783.99, 1_046.5] as const;
+const FIRST_TONE_DURATION_MS = 320;
+const SECOND_TONE_START_MS = 150;
+const SECOND_TONE_DURATION_MS = BELL_DURATION_MS - SECOND_TONE_START_MS;
 
 function toneEnvelope(timeSeconds: number, durationSeconds: number) {
-  const attackSeconds = 0.012;
-  const releaseSeconds = 0.08;
+  const attackSeconds = 0.006;
+  const releaseSeconds = 0.07;
   const attack = Math.min(1, timeSeconds / attackSeconds);
   const release = Math.min(1, Math.max(0, durationSeconds - timeSeconds) / releaseSeconds);
-  return Math.max(0, Math.min(attack, release));
+  const decay = Math.exp(-3.5 * timeSeconds / durationSeconds);
+  return Math.max(0, Math.min(attack, release)) * decay;
+}
+
+function brightBellTone(timeSeconds: number, durationSeconds: number, frequency: number) {
+  const partials = Math.sin(2 * Math.PI * frequency * timeSeconds) * 0.72
+    + Math.sin(2 * Math.PI * frequency * 2.01 * timeSeconds) * 0.2
+    + Math.sin(2 * Math.PI * frequency * 3.98 * timeSeconds) * 0.08;
+  return partials * toneEnvelope(timeSeconds, durationSeconds);
 }
 
 export function createBellWave(format: WaveFormat) {
@@ -91,22 +100,21 @@ export function createBellWave(format: WaveFormat) {
   const dataLength = sampleFrames * format.blockAlign;
   const output = createSilenceWave(BELL_DURATION_MS, format);
   const firstToneFrames = Math.round(format.sampleRate * FIRST_TONE_DURATION_MS / 1_000);
-  const secondToneStart = Math.round(format.sampleRate * (FIRST_TONE_DURATION_MS + TONE_GAP_MS) / 1_000);
-  const amplitude = Math.round(0.22 * 0x7fff);
+  const secondToneStart = Math.round(format.sampleRate * SECOND_TONE_START_MS / 1_000);
+  const amplitude = Math.round(0.24 * 0x7fff);
 
   for (let frame = 0; frame < sampleFrames; frame += 1) {
     let sample = 0;
     if (frame < firstToneFrames) {
       const time = frame / format.sampleRate;
-      sample = Math.sin(2 * Math.PI * 784 * time)
-        * toneEnvelope(time, FIRST_TONE_DURATION_MS / 1_000);
-    } else if (frame >= secondToneStart) {
+      sample += brightBellTone(time, FIRST_TONE_DURATION_MS / 1_000, BELL_FREQUENCIES_HZ[0]);
+    }
+    if (frame >= secondToneStart) {
       const localFrame = frame - secondToneStart;
       const time = localFrame / format.sampleRate;
-      sample = Math.sin(2 * Math.PI * 523.25 * time)
-        * toneEnvelope(time, SECOND_TONE_DURATION_MS / 1_000);
+      sample += brightBellTone(time, SECOND_TONE_DURATION_MS / 1_000, BELL_FREQUENCIES_HZ[1]);
     }
-    const value = Math.round(sample * amplitude);
+    const value = Math.max(-0x8000, Math.min(0x7fff, Math.round(sample * amplitude)));
     for (let channel = 0; channel < format.channels; channel += 1) {
       output.writeInt16LE(value, 44 + frame * format.blockAlign + channel * 2);
     }

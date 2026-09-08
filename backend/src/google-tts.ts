@@ -46,6 +46,19 @@ function linear16DurationMs(audio: Buffer) {
   return format.dataBytes / format.byteRate * 1_000;
 }
 
+export async function synthesizeLiteralWithDurationRetry(
+  requestAudio: () => Promise<Buffer>,
+  maxDurationMs: number,
+) {
+  const first = await requestAudio();
+  const firstDurationMs = linear16DurationMs(first);
+  if (firstDurationMs <= maxDurationMs) return first;
+
+  const second = await requestAudio();
+  const secondDurationMs = linear16DurationMs(second);
+  return secondDurationMs <= firstDurationMs ? second : first;
+}
+
 function paceInstruction(speakingRate: number) {
   return speakingRate < 0.95
     ? "Use a slightly slower pace with natural Korean rhythm."
@@ -169,15 +182,10 @@ export class GoogleTtsClient {
 
   async synthesizeLiteral(turn: DialogueTurn, style: TtsStyle = defaultTtsStyle, audio: TtsAudioOptions = {}) {
     const request = buildLiteralGoogleTtsRequest(turn, style, audio);
-    const maxDurationMs = maximumLiteralDurationMs(turn.text, style.speakingRate);
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const result = await this.request(request);
-      if (audio.audioEncoding !== "LINEAR16" || linear16DurationMs(result) <= maxDurationMs) return result;
-    }
-    throw new AppError(
-      502,
-      "TTS_DUPLICATE_SUSPECTED",
-      `Gemini TTS returned an abnormally long segment for literal speech: ${turn.text.slice(0, 80)}`,
+    if (audio.audioEncoding !== "LINEAR16") return this.request(request);
+    return synthesizeLiteralWithDurationRetry(
+      () => this.request(request),
+      maximumLiteralDurationMs(turn.text, style.speakingRate),
     );
   }
 }

@@ -7,7 +7,11 @@ import { ListeningAdminPanel } from "./ListeningAdminPanel";
 
 vi.mock("../../api",()=>({adminApi:{
   listeningItems:vi.fn(),registerListeningSet:vi.fn(),audioUrl:vi.fn(),generateGroup:vi.fn(),generateSet:vi.fn(),
+  uploadVisual:vi.fn(),
 }}));
+vi.mock("./AdminImageCropDialog",()=>({
+  AdminImageCropDialog:({title,onCancel,onConfirm}:{title:string;onCancel:()=>void;onConfirm:(file:File)=>void})=><div role="dialog"><h2>{title}</h2><button onClick={onCancel}>크롭 취소</button><button onClick={()=>onConfirm(new File(["cropped"],"cropped.webp",{type:"image/webp"}))}>크롭 후 업로드</button></div>,
+}));
 
 const linked:AdminListeningSet={setId:"10000000-0000-4000-8000-000000000001",setVersion:1,setSequence:1,createdAt:"2026-08-10T00:00:00Z",reviewStatus:"reviewed",publishedAt:"2026-08-10T00:00:00Z",itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"20000000-0000-4000-8000-000000000001",slug:"topik-ii-listening-1",titleKo:"TOPIK II 듣기 모의고사 1회",mockTestPublished:true,round:1,readyToRegister:false,readyToPublish:true,blockingReasons:[]};
 const pending:AdminListeningSet={...linked,setId:"10000000-0000-4000-8000-000000000003",setSequence:2,createdAt:"2026-08-12T00:00:00Z",audioReady:0,visualReady:0,mockTestId:null,slug:null,titleKo:null,mockTestPublished:null,round:null,readyToRegister:true,readyToPublish:false};
@@ -37,6 +41,7 @@ describe("ListeningAdminPanel",()=>{
     vi.mocked(adminApi.audioUrl).mockReset();vi.mocked(adminApi.audioUrl).mockResolvedValue({audioUrl:"https://example.com/audio-1.mp3"});
     vi.mocked(adminApi.generateGroup).mockReset();vi.mocked(adminApi.generateGroup).mockResolvedValue({jobId:"job-1",queued:true,targetCount:1});
     vi.mocked(adminApi.generateSet).mockReset();vi.mocked(adminApi.generateSet).mockResolvedValue({queued:1,jobIds:["job-2"]});
+    vi.mocked(adminApi.uploadVisual).mockReset();vi.mocked(adminApi.uploadVisual).mockResolvedValue({visualAssetId:"asset-1",url:"https://example.com/choice.webp"});
     vi.spyOn(window,"confirm").mockReturnValue(true);
   });
 
@@ -186,5 +191,23 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.click(await screen.findByText("들은 내용과 같은 것을 고르십시오."));
     await userEvent.click(screen.getByRole("button",{name:"1번 1번 보기 생성 프롬프트 복사"}));
     expect(writeText).toHaveBeenCalledWith("TOPIK 흑백 선그래프");
+  });
+
+  it("crops a listening visual before uploading it",async()=>{
+    const visualGroup:AdminListeningGroup={...readyGroup,targets:[{
+      itemId:"item-1",itemVersion:1,position:1,itemType:"visual_scene",questionPrompt:"그림을 고르십시오.",stem:"",choices:[],correctAnswer:1,explanation:"",contentJson:{},visualOptionCount:1,visualReadyCount:0,
+      visualOptions:[{optionNumber:1,description:"사무실",imagePrompt:"사무실 그림",chartSpec:null,visualAssetId:null,imageUrl:null,generationStatus:null,generationError:null}],
+    }]};
+    vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[visualGroup]});
+    render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
+    await userEvent.click(screen.getByRole("button",{name:"문항 보기"}));
+    await userEvent.click(await screen.findByText("들은 내용과 같은 것을 고르십시오."));
+    const input=screen.getByLabelText("1번 1번 보기 업로드").querySelector("input")!;
+    await userEvent.upload(input,new File(["image"],"choice.png",{type:"image/png"}));
+
+    expect(screen.getByRole("heading",{name:"1번 1번 보기 크롭"})).toBeInTheDocument();
+    expect(adminApi.uploadVisual).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button",{name:"크롭 후 업로드"}));
+    await waitFor(()=>expect(adminApi.uploadVisual).toHaveBeenCalledWith("token","item-1",1,1,expect.objectContaining({type:"image/webp"})));
   });
 });

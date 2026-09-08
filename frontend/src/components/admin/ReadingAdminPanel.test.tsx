@@ -11,6 +11,9 @@ vi.mock("../../api", () => ({
     uploadReadingMaterial: vi.fn(), deleteReadingMaterial: vi.fn(),
   },
 }));
+vi.mock("./AdminImageCropDialog", () => ({
+  AdminImageCropDialog: ({ title, onCancel, onConfirm }: { title: string; onCancel: () => void; onConfirm: (file: File) => void }) => <div role="dialog"><h2>{title}</h2><button onClick={onCancel}>크롭 취소</button><button onClick={() => onConfirm(new File(["cropped"], "cropped.webp", { type: "image/webp" }))}>크롭 후 업로드</button></div>,
+}));
 
 const linkedSet: AdminReadingSet = {
   setId: "10000000-0000-4000-8000-000000000001", setVersion: 1, setSequence: 1,
@@ -158,6 +161,12 @@ describe("ReadingAdminPanel", () => {
 
     const upload = screen.getByLabelText("10번 그래프 업로드").querySelector("input")!;
     await userEvent.upload(upload, new File(["image"], "graph.png", { type: "image/png" }));
+    expect(screen.getByRole("heading", { name: "10번 그래프 크롭" })).toBeInTheDocument();
+    expect(adminApi.uploadReadingMaterial).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "크롭 취소" }));
+    expect(adminApi.uploadReadingMaterial).not.toHaveBeenCalled();
+    await userEvent.upload(upload, new File(["image-2"], "graph.png", { type: "image/png" }));
+    await userEvent.click(screen.getByRole("button", { name: "크롭 후 업로드" }));
     await waitFor(() => expect(adminApi.uploadReadingMaterial).toHaveBeenCalledWith("admin-token", graphItem.itemId, 1, expect.any(File)));
 
     await userEvent.click(screen.getByRole("button", { name: "10번 그래프 삭제" }));

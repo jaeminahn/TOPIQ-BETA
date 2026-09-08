@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildNarrationScript } from "./listening-narration.js";
-import { examTrackSourceHash, splitLiteralUtterances, synthesizeExamTrackParts } from "./tts-worker.js";
+import {
+  EXAM_TRACK_COMPOSER_VERSION,
+  EXAM_TRACK_SYNTHESIS_VERSION,
+  examTrackSourceHash,
+  splitLiteralUtterances,
+  synthesizeExamTrackParts,
+} from "./tts-worker.js";
 
 describe("exam-track synthesis", () => {
   it("synthesizes the common dialogue once and reuses it for the second reading", async () => {
@@ -46,5 +52,13 @@ describe("exam-track synthesis", () => {
     expect(examTrackSourceHash(reusedElsewhere, { speakingRate: 1, stylePrompt: "" })).not.toBe(baseline);
     expect(examTrackSourceHash(first, { speakingRate: .95, stylePrompt: "" })).not.toBe(baseline);
     expect(examTrackSourceHash(first, { speakingRate: 1, stylePrompt: "차분하게" })).not.toBe(baseline);
+  });
+
+  it("uses the long-result fallback synthesis cache version", () => {
+    expect(EXAM_TRACK_SYNTHESIS_VERSION).toBe("GEMINI_LITERAL_ATOMIC_V2_LONG_FALLBACK");
+  });
+
+  it("uses the bright-bell composer cache version", () => {
+    expect(EXAM_TRACK_COMPOSER_VERSION).toBe("LINEAR16_FFMPEG_V4_BRIGHT_BELL");
   });
 });
