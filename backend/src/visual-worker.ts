@@ -7,6 +7,7 @@ import { SupabaseStorage } from "./storage.js";
 
 type VisualJob = {
   job_id: string; item_id: string; item_version: number; option_number: number;
+  visual_role: "choice" | "material";
   requested_by: string; attempts: number; prompt_snapshot: {
     itemType?: string; description?: string; imagePrompt?: string; chartSpec?: ChartSpec | null;
   };
@@ -60,20 +61,26 @@ export class VisualWorker {
   private async process(job: VisualJob) {
     try {
       const snapshot = job.prompt_snapshot ?? {};
+      const visualRole = job.visual_role ?? "choice";
       let generated: { data: Buffer; mimeType: string; extension: string };
-      if (snapshot.itemType === "visual_chart") {
+      if (visualRole === "choice" && snapshot.itemType === "visual_chart") {
         generated = { data: renderChartSvg(snapshot.chartSpec ?? {}),mimeType:"image/svg+xml",extension:"svg" };
       } else {
         const prompt = snapshot.imagePrompt?.trim() || snapshot.description?.trim();
         if (!prompt) throw new Error("Visual image_prompt and description are missing");
-        generated = await this.imageClient.generate(prompt);
+        generated = await this.imageClient.generate(
+          prompt,
+          visualRole === "material" ? "reading_material" : "listening_choice",
+        );
       }
-      const path = `listening/${job.item_id}/v${job.item_version}/option-${job.option_number}-${randomUUID()}.${generated.extension}`;
+      const path = visualRole === "material"
+        ? `reading/${job.item_id}/v${job.item_version}/material-${randomUUID()}.${generated.extension}`
+        : `listening/${job.item_id}/v${job.item_version}/option-${job.option_number}-${randomUUID()}.${generated.extension}`;
       const storage = this.storageFactory();
       const uploaded = await storage.uploadMedia(path,generated.data,generated.mimeType);
       const bound = await this.repository.bindVisualAsset({
         adminUserId:job.requested_by,itemId:job.item_id,itemVersion:job.item_version,
-        optionNumber:job.option_number,bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,
+        optionNumber:job.option_number,visualRole,bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,
         mimeType:generated.mimeType,byteSize:generated.data.length,
       });
       for (const replaced of bound.replacedAssets) {

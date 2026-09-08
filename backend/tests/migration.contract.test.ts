@@ -102,4 +102,33 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("email_subscriptions_locale_check");
     expect(sql).toContain("'id', 'ko', 'en'");
   });
+
+  it("defines set-position listening exam tracks and immutable narration snapshots", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/009_listening_exam_tracks.sql"), "utf8");
+    expect(sql).toContain("narration_version");
+    expect(sql).toContain("script_snapshot");
+    expect(sql).toContain("topik_app.question_set_item_audio_bindings");
+    expect(sql).toContain("set_id, set_version, position");
+    expect(sql).toContain("tts_jobs_active_group_idx");
+  });
+
+  it("allows the bell-and-gap exam track narration version", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/010_listening_exam_track_v3.sql"), "utf8");
+    expect(sql).toContain("tts_audio_assets_narration_version_check");
+    expect(sql).toContain("'dialogue_v1', 'exam_track_v2', 'exam_track_v3'");
+  });
+
+  it("allows the literal Gemini exam track narration version", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/011_listening_exam_track_v4.sql"), "utf8");
+    expect(sql).toContain("tts_audio_assets_narration_version_check");
+    expect(sql).toContain("'dialogue_v1', 'exam_track_v2', 'exam_track_v3', 'exam_track_v4'");
+  });
+
+  it("adds reading material visuals and auditable abandoned-session deletion", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/012_reading_material_visuals_and_abandoned_deletion.sql"), "utf8");
+    expect(sql).toContain("visual_role");
+    expect(sql).toContain("'choice', 'material'");
+    expect(sql).toContain("visual_material");
+    expect(sql).toContain("all_abandoned_sessions");
+  });
 });

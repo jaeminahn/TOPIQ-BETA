@@ -27,14 +27,15 @@ async function seed() {
     const path = `listening/${itemId}/v${itemVersion}/option-${optionNumber}.png`;
     const existing = await pool.query(
       `SELECT 1 FROM topik_app.item_visual_assets
-        WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND storage_path=$4 AND is_current`,
+        WHERE item_id=$1 AND item_version=$2 AND visual_role='choice'
+          AND option_number=$3 AND storage_path=$4 AND is_current`,
       [itemId, itemVersion, optionNumber, path],
     );
     if (existing.rowCount) continue;
     const data = await readFile(resolve(directory, file));
     const uploaded = await storage.uploadMedia(path, data, "image/png");
     await repository.bindVisualAsset({
-      adminUserId, itemId, itemVersion, optionNumber, bucket: uploaded.bucket,
+      adminUserId, itemId, itemVersion, optionNumber, visualRole:"choice", bucket: uploaded.bucket,
       path: uploaded.path, url: uploaded.url, mimeType: "image/png", byteSize: data.length,
     });
     uploadedCount += 1;

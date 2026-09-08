@@ -87,13 +87,14 @@ GOOGLE_CLOUD_CREDENTIALS_JSON={"type":"service_account",...}
 GOOGLE_TTS_MODEL=gemini-2.5-flash-tts
 GOOGLE_TTS_FEMALE_VOICE=Aoede
 GOOGLE_TTS_MALE_VOICE=Charon
+FFMPEG_PATH=ffmpeg
 TTS_WORKER_ENABLED=true
 
 ADMIN_EMAIL=admin@unigate.kr
 ADMIN_PASSWORD=12자-이상의-강한-임시-비밀번호
 ```
 
-`GOOGLE_CLOUD_CREDENTIALS_JSON`은 줄바꿈 없는 JSON으로 설정합니다. 해당 서비스 계정에는 Cloud Text-to-Speech 합성 권한만 부여합니다. 실제 키와 서비스 역할 키는 Git에 커밋하지 않습니다.
+`GOOGLE_CLOUD_CREDENTIALS_JSON`은 줄바꿈 없는 JSON으로 설정합니다. 해당 서비스 계정에는 Cloud Text-to-Speech 합성 권한만 부여합니다. 실제 키와 서비스 역할 키는 Git에 커밋하지 않습니다. 완성형 듣기 음원 조합에는 FFmpeg가 필요하며 배포 Docker 이미지에는 포함되어 있습니다. 로컬에서는 FFmpeg를 설치하거나 `FFMPEG_PATH`에 실행 파일 경로를 지정합니다.
 
 `frontend/.env`:
 

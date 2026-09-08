@@ -173,4 +173,50 @@ describe("ListeningAudioPlayer", () => {
     await act(async () => { vi.advanceTimersByTime(1); });
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
   });
+
+  it("plays a complete exam track only once in timed mode", async () => {
+    vi.useFakeTimers();
+    playbackMock.mockImplementation((_sessionId, _token, _assetId, _playId, eventType) => Promise.resolve(
+      eventType === "prepared"
+        ? { submitted: false, playNumber: 1, audioUrl: "https://example.com/exam-track.mp3" }
+        : { submitted: false, playNumber: 1 },
+    ));
+    const { container } = renderWithI18n(
+      <ListeningAudioPlayer sessionId="session-id" token="session-token" audioAssetId="exam-track" repeatCount={1} mode="timed" />,
+    );
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => { vi.advanceTimersByTime(3000); });
+    fireEvent.playing(container.querySelector("audio")!);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    fireEvent.ended(container.querySelector("audio")!);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+
+    expect(playbackMock.mock.calls.filter((call) => call[4] === "prepared")).toHaveLength(1);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("재생 완료")).toBeInTheDocument();
+    expect(screen.getByText("1 / 1")).toBeInTheDocument();
+  });
+
+  it("keeps the legacy timed repeat behavior when repeatCount is two", async () => {
+    vi.useFakeTimers();
+    playbackMock.mockImplementation((_sessionId, _token, _assetId, _playId, eventType) => Promise.resolve(
+      eventType === "prepared"
+        ? { submitted: false, playNumber: 1, audioUrl: "https://example.com/legacy.mp3" }
+        : { submitted: false, playNumber: 1 },
+    ));
+    const { container } = renderWithI18n(
+      <ListeningAudioPlayer sessionId="session-id" token="session-token" audioAssetId="legacy-track" repeatCount={2} mode="timed" />,
+    );
+
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    await act(async () => { vi.advanceTimersByTime(3000); });
+    fireEvent.playing(container.querySelector("audio")!);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    fireEvent.ended(container.querySelector("audio")!);
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+
+    expect(playbackMock.mock.calls.filter((call) => call[4] === "prepared")).toHaveLength(2);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+  });
 });

@@ -14,6 +14,7 @@ export interface Exam {
 }
 
 export interface VisualOption { number: number; imageUrl: string }
+export interface MaterialVisual { imageUrl: string; description: string }
 export interface TranscriptTurn { speaker: string; text: string }
 
 export interface Question {
@@ -30,6 +31,7 @@ export interface Question {
   highlightText: string;
   choices: string[];
   visualOptions?: VisualOption[];
+  materialVisual?: MaterialVisual | null;
   audioAssetId?: string | null;
   repeatCount?: number;
   transcript?: TranscriptTurn[];

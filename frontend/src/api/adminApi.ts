@@ -62,7 +62,7 @@ export const adminApi = {
     );
   },
 
-  responseSessions(token: string, filters: { section?: string; correctness?: string; page?: number; pageSize?: number } = {}) {
+  responseSessions(token: string, filters: { status?: string; section?: string; correctness?: string; page?: number; pageSize?: number } = {}) {
     return request<{ sessions: AdminResponseSession[]; total: number }>(
       `/v1/admin/responses/sessions${queryString(filters)}`,
       { headers: auth(token) },
@@ -86,6 +86,14 @@ export const adminApi = {
 
   deleteAllResponseSessions(token: string, confirmation: string) {
     return request<{ deletedSessions: number; deletedObservations: number }>("/v1/admin/responses/sessions/all", {
+      method: "DELETE",
+      headers: auth(token),
+      body: JSON.stringify({ confirmation }),
+    });
+  },
+
+  deleteAllAbandonedSessions(token: string, confirmation: string) {
+    return request<{ deletedSessions: number; deletedObservations: number }>("/v1/admin/responses/sessions/abandoned/all", {
       method: "DELETE",
       headers: auth(token),
       body: JSON.stringify({ confirmation }),
@@ -116,7 +124,7 @@ export const adminApi = {
   },
 
   generateItem(token: string, itemId: string, itemVersion: number, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
-    return request<{ jobId: string; queued: boolean }>(`/v1/admin/listening/items/${itemId}/versions/${itemVersion}/tts`, {
+    return request<{ jobId: string | null; queued: boolean; targetCount: number }>(`/v1/admin/listening/items/${itemId}/versions/${itemVersion}/tts`, {
       method: "POST",
       headers: auth(token),
       body: JSON.stringify({ forceRegenerate, ttsStyle }),
@@ -178,6 +186,36 @@ export const adminApi = {
   deleteVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, visualAssetId: string) {
     return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained?: boolean }>(
       `/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}/assets/${visualAssetId}`,
+      { method: "DELETE", headers: auth(token) },
+    );
+  },
+
+  uploadReadingMaterial(token: string, itemId: string, itemVersion: number, file: File) {
+    const form = new FormData();
+    form.set("file", file);
+    return request<{ visualAssetId: string; url: string }>(
+      `/v1/admin/reading/items/${itemId}/versions/${itemVersion}/visual-material`,
+      { method: "POST", headers: auth(token), body: form },
+    );
+  },
+
+  generateReadingMaterial(token: string, itemId: string, itemVersion: number, forceRegenerate = false) {
+    return request<{ queued: boolean; jobId: string | null }>(
+      `/v1/admin/reading/items/${itemId}/versions/${itemVersion}/visual-material/generate`,
+      { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
+    );
+  },
+
+  generateReadingSetVisuals(token: string, setId: string, setVersion: number, forceRegenerate = false) {
+    return request<{ queued: number; jobIds: string[] }>(
+      `/v1/admin/reading/sets/${setId}/versions/${setVersion}/visuals/generate`,
+      { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
+    );
+  },
+
+  deleteReadingMaterial(token: string, itemId: string, itemVersion: number, visualAssetId: string) {
+    return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained?: boolean }>(
+      `/v1/admin/reading/items/${itemId}/versions/${itemVersion}/visual-material/assets/${visualAssetId}`,
       { method: "DELETE", headers: auth(token) },
     );
   },

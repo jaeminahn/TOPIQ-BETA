@@ -54,7 +54,7 @@ describe("listening set administration",()=>{
     });
     poolMock.connect.mockResolvedValue({query,release:vi.fn()});
     const removeObject=vi.fn(async()=>{operations.push("storage-delete");});
-    await expect(new AdminRepository().deleteVisualAsset("10000000-0000-4000-8000-000000000011",1,2,"20000000-0000-4000-8000-000000000011",removeObject)).resolves.toEqual({deleted:true,storageDeleted:true});
+    await expect(new AdminRepository().deleteVisualAsset("10000000-0000-4000-8000-000000000011",1,2,"20000000-0000-4000-8000-000000000011","choice",removeObject)).resolves.toEqual({deleted:true,storageDeleted:true});
     expect(removeObject).toHaveBeenCalledWith("media","listening/item.png");
     expect(operations).toEqual(["storage-delete","database-delete"]);
   });
@@ -64,7 +64,7 @@ describe("listening set administration",()=>{
       ?{rows:[{storage_bucket:"media",storage_path:"listening/item.png"}]}
       :{rows:[],rowCount:1});
     poolMock.connect.mockResolvedValue({query,release:vi.fn()});
-    await expect(new AdminRepository().deleteVisualAsset("10000000-0000-4000-8000-000000000011",1,2,"20000000-0000-4000-8000-000000000011",vi.fn().mockRejectedValue(new Error("storage failed")))).rejects.toThrow("storage failed");
+    await expect(new AdminRepository().deleteVisualAsset("10000000-0000-4000-8000-000000000011",1,2,"20000000-0000-4000-8000-000000000011","choice",vi.fn().mockRejectedValue(new Error("storage failed")))).rejects.toThrow("storage failed");
     expect(query.mock.calls.some(([sql])=>String(sql).includes("DELETE FROM topik_app.item_visual_assets"))).toBe(false);
     expect(query).toHaveBeenCalledWith("ROLLBACK");
   });

@@ -11,7 +11,18 @@ function credentials() {
   }
 }
 
-export function buildTopikImagePrompt(prompt: string) {
+export type VisualPromptKind = "listening_choice" | "reading_material";
+
+export function buildTopikImagePrompt(prompt: string, kind: VisualPromptKind = "listening_choice") {
+  if (kind === "reading_material") {
+    return [
+      "Create one TOPIK II Korean reading-test statistical graph.",
+      "Black-and-white clean exam-print style, white background, legible Korean typography, 4:3 composition.",
+      "Copy every supplied title, label, number, percentage, unit, and survey note exactly as written.",
+      "Do not translate, omit, alter, invent, or duplicate any data. Do not add a border or watermark.",
+      prompt.trim(),
+    ].join(" ");
+  }
   return [
     "Create one TOPIK II Korean listening-test answer-choice illustration.",
     "Black-and-white clean line art, white background, simple exam-print style, 4:3 composition.",
@@ -42,11 +53,11 @@ export function buildGoogleImageEndpoint(projectId: string, location: string, mo
   return `https://${host}/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/publishers/google/models/${encodeURIComponent(model)}:generateContent`;
 }
 
-export function buildGeminiImageRequest(prompt: string) {
+export function buildGeminiImageRequest(prompt: string, kind: VisualPromptKind = "listening_choice") {
   return {
     contents: [{
       role: "USER",
-      parts: [{ text: buildTopikImagePrompt(prompt) }],
+      parts: [{ text: buildTopikImagePrompt(prompt, kind) }],
     }],
     generationConfig: {
       responseModalities: ["TEXT", "IMAGE"],
@@ -84,7 +95,7 @@ export function extractGeminiImage(body: GeminiImageResponse) {
 }
 
 export class GoogleImageClient {
-  async generate(prompt: string) {
+  async generate(prompt: string, kind: VisualPromptKind = "listening_choice") {
     const { projectId, location, model } = config.googleImage;
     if (!projectId) throw new AppError(503, "IMAGE_PROVIDER_NOT_CONFIGURED", "Google Vertex image generation is not configured");
     const auth = new GoogleAuth({
@@ -98,7 +109,7 @@ export class GoogleImageClient {
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" },
-      body: JSON.stringify(buildGeminiImageRequest(prompt)),
+      body: JSON.stringify(buildGeminiImageRequest(prompt, kind)),
     });
     const body = await response.json() as GeminiImageResponse;
     if (!response.ok) {

@@ -2,9 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "./db.js";
 import { AppError, notFound } from "./errors.js";
-import type { TtsStyle } from "./google-tts.js";
+import type { DialogueTurn, TtsStyle } from "./google-tts.js";
 import { config } from "./config.js";
 import { sanitizeQuestion } from "./domain.js";
+import { buildNarrationScript, EXAM_TRACK_VERSION } from "./listening-narration.js";
+import { materialPromptSnapshot, normalizeReadingMaterial } from "./reading-visual.js";
+
+type VisualRole = "choice" | "material";
 
 const stableJson = (value: unknown): string => {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
@@ -41,9 +45,15 @@ export class AdminRepository {
         (SELECT COUNT(*) FROM topik_bank.question_sets)::int AS "setCount",
         (SELECT COUNT(*) FROM topik_app.mock_tests)::int AS "mockTestCount",
         (SELECT COUNT(*) FROM topik_app.mock_tests WHERE is_published)::int AS "publishedMockTests",
-        (SELECT COUNT(*) FROM topik_app.item_audio_bindings WHERE is_current)::int AS "audioReady",
-        ((SELECT COUNT(*) FROM topik_bank.item_versions WHERE section='listening')
-          - (SELECT COUNT(*) FROM topik_app.item_audio_bindings WHERE is_current))::int AS "audioMissing",
+        (SELECT COUNT(*) FROM topik_app.question_set_item_audio_bindings binding
+          JOIN topik_app.tts_audio_assets asset ON asset.audio_asset_id=binding.audio_asset_id
+          WHERE binding.is_current AND asset.narration_version='exam_track_v4' AND asset.deleted_at IS NULL)::int AS "audioReady",
+        ((SELECT COUNT(*) FROM topik_bank.question_set_items qsi
+          JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
+          WHERE iv.section='listening')
+          - (SELECT COUNT(*) FROM topik_app.question_set_item_audio_bindings binding
+            JOIN topik_app.tts_audio_assets asset ON asset.audio_asset_id=binding.audio_asset_id
+            WHERE binding.is_current AND asset.narration_version='exam_track_v4' AND asset.deleted_at IS NULL))::int AS "audioMissing",
         (SELECT COUNT(*) FROM topik_app.item_visual_assets WHERE is_current)::int AS "visualReady",
         ((SELECT COUNT(*) FROM topik_app.tts_generation_jobs WHERE status='queued')
           + (SELECT COUNT(*) FROM topik_app.visual_generation_jobs WHERE status='queued'))::int AS "jobsQueued",
@@ -54,8 +64,8 @@ export class AdminRepository {
             FROM topik_app.tts_generation_jobs ORDER BY item_id,item_version,created_at DESC
         ) latest WHERE status='failed')
           + (SELECT COUNT(*) FROM (
-            SELECT DISTINCT ON (item_id,item_version,option_number) status
-              FROM topik_app.visual_generation_jobs ORDER BY item_id,item_version,option_number,created_at DESC
+            SELECT DISTINCT ON (item_id,item_version,visual_role,option_number) status
+              FROM topik_app.visual_generation_jobs ORDER BY item_id,item_version,visual_role,option_number,created_at DESC
           ) latest_visual WHERE status='failed'))::int AS "jobsFailed",
         (SELECT COUNT(*) FROM topik_app.sessions WHERE started_at::date=CURRENT_DATE)::int AS "sessionsToday",
         (SELECT COUNT(*) FROM topik_app.response_observations)::int AS "responseCount",
@@ -73,13 +83,17 @@ export class AdminRepository {
       `WITH item_rows AS (
          SELECT qsi.set_id, qsi.set_version, qsi.position,
                 iv.item_id, iv.item_version, iv.item_type,
+                CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
+                     ELSE 'position:' || qsi.position::text END AS audio_group_key,
                 iv.stem, iv.choices, iv.correct_answer, iv.explanation, iv.content_json,
                 iv.content_json->'dialogue_turns' AS dialogue_turns,
                 COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
                 COALESCE((iv.content_json->>'repeat_count')::int,1) AS repeat_count,
-                COALESCE(jsonb_array_length(iv.content_json->'visual_options'),0) AS visual_option_count,
+                CASE WHEN jsonb_typeof(iv.content_json->'visual_options')='array'
+                     THEN jsonb_array_length(iv.content_json->'visual_options') ELSE 0 END AS visual_option_count,
                 (SELECT COUNT(*) FROM topik_app.item_visual_assets iva
-                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version AND iva.is_current)::int AS visual_ready_count,
+                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+                    AND iva.visual_role='choice' AND iva.is_current)::int AS visual_ready_count,
                 COALESCE((
                   SELECT jsonb_agg(jsonb_build_object(
                     'optionNumber', visual.ordinality,
@@ -91,32 +105,47 @@ export class AdminRepository {
                     'generationStatus', recent_visual.status,
                     'generationError', CASE WHEN recent_visual.status='failed' THEN recent_visual.error_message END
                   ) ORDER BY visual.ordinality)
-                  FROM jsonb_array_elements(COALESCE(iv.content_json->'visual_options','[]'::jsonb))
+                  FROM jsonb_array_elements(CASE
+                    WHEN jsonb_typeof(iv.content_json->'visual_options')='array'
+                    THEN iv.content_json->'visual_options' ELSE '[]'::jsonb END)
                        WITH ORDINALITY AS visual(value, ordinality)
                   LEFT JOIN LATERAL (
                     SELECT iva.visual_asset_id,iva.storage_url
                       FROM topik_app.item_visual_assets iva
                      WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
-                       AND iva.option_number=visual.ordinality AND iva.is_current
+                       AND iva.visual_role='choice' AND iva.option_number=visual.ordinality AND iva.is_current
                      LIMIT 1
                   ) asset ON TRUE
                   LEFT JOIN LATERAL (
                     SELECT vgj.status,vgj.error_message
-                      FROM topik_app.visual_generation_jobs vgj
+                     FROM topik_app.visual_generation_jobs vgj
                      WHERE vgj.item_id=iv.item_id AND vgj.item_version=iv.item_version
-                       AND vgj.option_number=visual.ordinality
+                       AND vgj.visual_role='choice' AND vgj.option_number=visual.ordinality
                      ORDER BY vgj.created_at DESC LIMIT 1
                   ) recent_visual ON TRUE
                 ),'[]'::jsonb) AS visual_options,
-                iab.audio_asset_id, taa.storage_url, taa.tts_style
+                COALESCE(set_asset.audio_asset_id,legacy_asset.audio_asset_id) AS audio_asset_id,
+                COALESCE(set_asset.storage_url,legacy_asset.storage_url) AS storage_url,
+                COALESCE(set_asset.tts_style,legacy_asset.tts_style) AS tts_style,
+                COALESCE(set_asset.narration_version,legacy_asset.narration_version,'dialogue_v1') AS narration_version,
+                set_asset.script_snapshot,
+                (set_asset.narration_version='exam_track_v4') AS is_exam_track
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-           LEFT JOIN topik_app.item_audio_bindings iab
-             ON iab.item_id=iv.item_id AND iab.item_version=iv.item_version AND iab.is_current
-           LEFT JOIN topik_app.tts_audio_assets taa ON taa.audio_asset_id=iab.audio_asset_id
+           LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+             ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
+            AND set_binding.position=qsi.position AND set_binding.is_current
+           LEFT JOIN topik_app.tts_audio_assets set_asset
+             ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
+           LEFT JOIN topik_app.item_audio_bindings legacy_binding
+             ON legacy_binding.item_id=iv.item_id AND legacy_binding.item_version=iv.item_version
+            AND legacy_binding.is_current AND set_asset.audio_asset_id IS NULL
+           LEFT JOIN topik_app.tts_audio_assets legacy_asset
+             ON legacy_asset.audio_asset_id=legacy_binding.audio_asset_id AND legacy_asset.deleted_at IS NULL
           WHERE ${filters.join(" AND ")}
        ), grouped AS (
-         SELECT set_id, set_version, dialogue_turns,
+         SELECT set_id, set_version, audio_group_key,
+                jsonb_agg(dialogue_turns ORDER BY position)->0 AS dialogue_turns,
                 array_agg(position ORDER BY position) AS positions,
                 array_agg(item_id ORDER BY position) AS item_ids,
                 array_agg(item_version ORDER BY position) AS item_versions,
@@ -133,12 +162,15 @@ export class AdminRepository {
                 ) ORDER BY position) AS targets,
                 COUNT(*)::int AS target_count,
                 COUNT(audio_asset_id)::int AS bound_count,
+                COUNT(*) FILTER (WHERE is_exam_track)::int AS exam_track_count,
                 COUNT(DISTINCT audio_asset_id)::int AS distinct_audio_count,
                 (array_agg(audio_asset_id ORDER BY position) FILTER (WHERE audio_asset_id IS NOT NULL))[1] AS audio_asset_id,
                 (array_agg(storage_url ORDER BY position) FILTER (WHERE storage_url IS NOT NULL))[1] AS storage_url,
-                (array_agg(tts_style ORDER BY position) FILTER (WHERE tts_style IS NOT NULL))[1] AS tts_style
+                (array_agg(tts_style ORDER BY position) FILTER (WHERE tts_style IS NOT NULL))[1] AS tts_style,
+                (array_agg(narration_version ORDER BY position) FILTER (WHERE audio_asset_id IS NOT NULL))[1] AS narration_version,
+                (array_agg(script_snapshot ORDER BY position) FILTER (WHERE script_snapshot IS NOT NULL))[1] AS script_snapshot
            FROM item_rows
-          GROUP BY set_id,set_version,dialogue_turns
+          GROUP BY set_id,set_version,audio_group_key
        )
        SELECT g.set_id AS "setId", g.set_version AS "setVersion", g.positions,
               g.item_ids[1] AS "leaderItemId", g.item_versions[1] AS "leaderItemVersion",
@@ -147,23 +179,31 @@ export class AdminRepository {
               CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN g.audio_asset_id END AS "audioAssetId",
               CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN g.storage_url END AS "audioStorageUrl",
               CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN g.tts_style END AS "ttsStyle",
-              CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN 'ready'
-                   WHEN g.bound_count=0 THEN 'missing' ELSE 'partial' END AS "audioStatus",
-              g.targets,
-              CASE WHEN recent.status='failed' THEN recent.error_message END AS "lastError"
-         FROM grouped g
-         LEFT JOIN LATERAL (
-           SELECT j.status,j.error_message
-             FROM topik_app.tts_generation_jobs j
-            WHERE EXISTS (
-              SELECT 1 FROM topik_app.tts_generation_job_targets tgt
-               WHERE tgt.job_id=j.job_id AND tgt.item_id=ANY(g.item_ids)
-            )
+              CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN g.narration_version END AS "narrationVersion",
+              CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN g.script_snapshot END AS "appliedScript",
+               CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 AND g.exam_track_count=g.target_count THEN 'ready'
+                    WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN 'legacy'
+                    WHEN g.bound_count=0 THEN 'missing' ELSE 'partial' END AS "audioStatus",
+               g.targets,
+               recent.job_id AS "generationJobId",
+               recent.status AS "generationStatus",
+               recent.tts_style AS "generationTtsStyle",
+               recent.script_snapshot AS "generationScript",
+               CASE WHEN recent.status='failed' THEN recent.error_message END AS "lastError"
+          FROM grouped g
+          LEFT JOIN LATERAL (
+            SELECT j.job_id,j.status,j.error_message,j.tts_style,j.script_snapshot
+              FROM topik_app.tts_generation_jobs j
+            WHERE (j.set_id=g.set_id AND j.set_version=g.set_version AND j.group_start_position=g.positions[1])
+               OR (j.set_id IS NULL AND EXISTS (
+                 SELECT 1 FROM topik_app.tts_generation_job_targets tgt
+                  WHERE tgt.job_id=j.job_id AND tgt.item_id=ANY(g.item_ids)
+               ))
             ORDER BY j.created_at DESC LIMIT 1
          ) recent ON TRUE
         WHERE ($${values.length + 1}::text IS NULL)
-           OR ($${values.length + 1}='ready' AND g.bound_count=g.target_count AND g.distinct_audio_count=1)
-           OR ($${values.length + 1}='missing' AND g.bound_count<g.target_count)
+           OR ($${values.length + 1}='ready' AND g.bound_count=g.target_count AND g.distinct_audio_count=1 AND g.exam_track_count=g.target_count)
+           OR ($${values.length + 1}='missing' AND (g.bound_count<g.target_count OR g.exam_track_count<g.target_count))
            OR ($${values.length + 1}='failed' AND recent.status='failed')
         ORDER BY g.set_id,g.positions[1]`,
       [...values, status ?? null],
@@ -187,16 +227,20 @@ export class AdminRepository {
       `SELECT mt.mock_test_id AS "mockTestId", mt.title_ko AS "titleKo", mt.is_published AS "published",
               mts.set_id AS "setId", mts.set_version AS "setVersion",
               COUNT(qsi.item_id)::int AS "itemCount",
-              COUNT(iab.audio_asset_id)::int AS "audioReady",
+              COUNT(set_binding.audio_asset_id) FILTER (WHERE audio.narration_version='exam_track_v4')::int AS "audioReady",
               COALESCE(SUM(jsonb_array_length(iv.content_json->'visual_options')),0)::int AS "visualRequired",
               COALESCE(SUM((SELECT COUNT(*) FROM topik_app.item_visual_assets iva
-                WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version AND iva.is_current)),0)::int AS "visualReady"
+                WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+                  AND iva.visual_role='choice' AND iva.is_current)),0)::int AS "visualReady"
          FROM topik_app.mock_tests mt
          JOIN topik_app.mock_test_sections mts ON mts.mock_test_id=mt.mock_test_id AND mts.section='listening'
          JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id AND qsi.set_version=mts.set_version
          JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-         LEFT JOIN topik_app.item_audio_bindings iab
-           ON iab.item_id=iv.item_id AND iab.item_version=iv.item_version AND iab.is_current
+         LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+           ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
+          AND set_binding.position=qsi.position AND set_binding.is_current
+         LEFT JOIN topik_app.tts_audio_assets audio
+           ON audio.audio_asset_id=set_binding.audio_asset_id AND audio.deleted_at IS NULL
         GROUP BY mt.mock_test_id,mt.title_ko,mt.is_published,mts.set_id,mts.set_version,mt.display_order
         ORDER BY mt.display_order`,
     );
@@ -224,11 +268,12 @@ export class AdminRepository {
                 AND jsonb_typeof(iv.content_json->'dialogue_turns')='array'
                 AND jsonb_array_length(iv.content_json->'dialogue_turns')>0
               )::int AS "validItemCount",
-              COUNT(iab.audio_asset_id)::int AS "audioReady",
+              COUNT(set_binding.audio_asset_id) FILTER (WHERE audio.narration_version='exam_track_v4')::int AS "audioReady",
               COALESCE(SUM(CASE WHEN jsonb_typeof(iv.content_json->'visual_options')='array'
                 THEN jsonb_array_length(iv.content_json->'visual_options') ELSE 0 END),0)::int AS "visualRequired",
               COALESCE(SUM((SELECT COUNT(*) FROM topik_app.item_visual_assets iva
-                WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version AND iva.is_current)),0)::int AS "visualReady",
+                WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+                  AND iva.visual_role='choice' AND iva.is_current)),0)::int AS "visualReady",
               linked.mock_test_id AS "mockTestId",linked.slug,linked.title_ko AS "titleKo",
               linked.is_published AS "mockTestPublished"
          FROM topik_bank.question_sets qs
@@ -237,8 +282,11 @@ export class AdminRepository {
            ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
          LEFT JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-         LEFT JOIN topik_app.item_audio_bindings iab
-           ON iab.item_id=iv.item_id AND iab.item_version=iv.item_version AND iab.is_current
+         LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+           ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
+          AND set_binding.position=qsi.position AND set_binding.is_current
+         LEFT JOIN topik_app.tts_audio_assets audio
+           ON audio.audio_asset_id=set_binding.audio_asset_id AND audio.deleted_at IS NULL
          LEFT JOIN LATERAL (
            SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.is_published
              FROM topik_app.mock_test_sections mts
@@ -348,6 +396,7 @@ export class AdminRepository {
     const result = await pool.query<{
       setId: string; setVersion: number; setSequence: number; createdAt: Date;
       reviewStatus: string; publishedAt: Date | null; itemCount: number; validItemCount: number;
+      visualRequired: number; visualReady: number;
       mockTestId: string | null; slug: string | null; titleKo: string | null; mockTestPublished: boolean | null;
     }>(
       `SELECT qs.set_id AS "setId", qsv.set_version AS "setVersion",
@@ -359,6 +408,8 @@ export class AdminRepository {
                 AND iv.correct_answer BETWEEN 1 AND 4
                 AND CASE WHEN jsonb_typeof(iv.choices)='array' THEN jsonb_array_length(iv.choices) ELSE 0 END=4
               )::int AS "validItemCount",
+              COUNT(qsi.item_id) FILTER (WHERE qsi.position=10)::int AS "visualRequired",
+              COUNT(material_asset.visual_asset_id) FILTER (WHERE qsi.position=10)::int AS "visualReady",
               linked.mock_test_id AS "mockTestId", linked.slug,
               linked.title_ko AS "titleKo", linked.is_published AS "mockTestPublished"
          FROM topik_bank.question_sets qs
@@ -367,6 +418,10 @@ export class AdminRepository {
            ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
          LEFT JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
+         LEFT JOIN topik_app.item_visual_assets material_asset
+           ON material_asset.item_id=iv.item_id AND material_asset.item_version=iv.item_version
+          AND material_asset.visual_role='material' AND material_asset.option_number=1
+          AND material_asset.is_current
          LEFT JOIN LATERAL (
            SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.is_published
              FROM topik_app.mock_test_sections mts
@@ -389,6 +444,7 @@ export class AdminRepository {
       if (!row.publishedAt) blockingReasons.push("SET_NOT_PUBLISHED");
       if (row.itemCount !== 50) blockingReasons.push("ITEM_COUNT_INVALID");
       if (row.validItemCount !== 50) blockingReasons.push("ITEMS_INVALID");
+      if (row.visualReady < row.visualRequired) blockingReasons.push("VISUALS_INCOMPLETE");
       return {
         ...row,
         round: roundMatch ? Number(roundMatch[1]) : null,
@@ -420,14 +476,35 @@ export class AdminRepository {
           LIMIT 1`,
         [setId, setVersion],
       );
+      if (existing.rows[0]?.is_published) {
+        const linked = existing.rows[0];
+        await client.query("COMMIT");
+        const round = Number(linked.slug.match(/^topik-ii-reading-(\d+)$/)?.[1] ?? 0) || null;
+        return { mockTestId: linked.mock_test_id, slug: linked.slug, round, published: true, created: false };
+      }
+
+      const visuals = await client.query<{ required: number; ready: number }>(
+        `SELECT COUNT(*) FILTER (WHERE qsi.position=10)::int AS required,
+                COUNT(material.visual_asset_id) FILTER (WHERE qsi.position=10)::int AS ready
+           FROM topik_bank.question_set_items qsi
+           JOIN topik_bank.item_versions iv
+             ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version AND iv.section='reading'
+           LEFT JOIN topik_app.item_visual_assets material
+             ON material.item_id=iv.item_id AND material.item_version=iv.item_version
+            AND material.visual_role='material' AND material.option_number=1 AND material.is_current
+          WHERE qsi.set_id=$1 AND qsi.set_version=$2`,
+        [setId, setVersion],
+      );
+      if ((visuals.rows[0]?.required ?? 0) === 0 || visuals.rows[0]!.ready < visuals.rows[0]!.required) {
+        throw new AppError(409, "READING_VISUALS_INCOMPLETE", "The reading question 10 graph must be ready before publishing");
+      }
+
       if (existing.rows[0]) {
         const linked = existing.rows[0];
-        if (!linked.is_published) {
-          await client.query(
-            "UPDATE topik_app.mock_tests SET is_published=TRUE,updated_at=CURRENT_TIMESTAMP WHERE mock_test_id=$1",
-            [linked.mock_test_id],
-          );
-        }
+        await client.query(
+          "UPDATE topik_app.mock_tests SET is_published=TRUE,updated_at=CURRENT_TIMESTAMP WHERE mock_test_id=$1",
+          [linked.mock_test_id],
+        );
         await client.query("COMMIT");
         const round = Number(linked.slug.match(/^topik-ii-reading-(\d+)$/)?.[1] ?? 0) || null;
         return { mockTestId: linked.mock_test_id, slug: linked.slug, round, published: true, created: false };
@@ -509,28 +586,81 @@ export class AdminRepository {
               iv.target_level AS "targetLevel", iv.predicted_difficulty AS "predictedDifficulty",
               iv.review_status AS "reviewStatus", iv.stem, iv.choices,
               iv.correct_answer AS "correctAnswer", iv.explanation,
-              iv.content_json AS "contentJson"
+              iv.content_json AS "contentJson",
+              material_asset.visual_asset_id AS "materialVisualAssetId",
+              material_asset.storage_url AS "materialImageUrl",
+              recent_material.status AS "materialGenerationStatus",
+              CASE WHEN recent_material.status='failed' THEN recent_material.error_message END AS "materialGenerationError",
+              COALESCE((
+                SELECT jsonb_agg(jsonb_build_object(
+                  'optionNumber',visual.ordinality,
+                  'description',COALESCE(visual.value->>'description',''),
+                  'imagePrompt',COALESCE(visual.value->>'image_prompt',''),
+                  'chartSpec',visual.value->'chart_spec'
+                ) ORDER BY visual.ordinality)
+                  FROM jsonb_array_elements(CASE
+                    WHEN jsonb_typeof(iv.content_json->'visual_options')='array'
+                    THEN iv.content_json->'visual_options' ELSE '[]'::jsonb END)
+                       WITH ORDINALITY AS visual(value,ordinality)
+              ),'[]'::jsonb) AS "visualOptions"
          FROM topik_bank.question_set_items qsi
          JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
          LEFT JOIN topik_app.mock_test_sections mts
            ON mts.set_id=qsi.set_id AND mts.set_version=qsi.set_version AND mts.section='reading'
          LEFT JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
+         LEFT JOIN LATERAL (
+           SELECT iva.visual_asset_id,iva.storage_url
+             FROM topik_app.item_visual_assets iva
+            WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+              AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current
+            LIMIT 1
+         ) material_asset ON TRUE
+         LEFT JOIN LATERAL (
+           SELECT vgj.status,vgj.error_message
+             FROM topik_app.visual_generation_jobs vgj
+            WHERE vgj.item_id=iv.item_id AND vgj.item_version=iv.item_version
+              AND vgj.visual_role='material' AND vgj.option_number=1
+            ORDER BY vgj.created_at DESC LIMIT 1
+         ) recent_material ON TRUE
         WHERE ${filters.join(" AND ")}
         ORDER BY qsi.set_id, qsi.position`,
       values,
     );
-    return result.rows;
+    return result.rows.map((row) => {
+      const record = row as Record<string, unknown>;
+      const material = normalizeReadingMaterial(
+        Number(record.position),
+        record.contentJson as Record<string, unknown>,
+        String(record.stem ?? ""),
+      );
+      const {
+        materialVisualAssetId, materialImageUrl, materialGenerationStatus, materialGenerationError,
+        ...item
+      } = record;
+      return {
+        ...item,
+        materialVisual: material ? {
+          ...material,
+          visualAssetId: materialVisualAssetId ?? null,
+          imageUrl: materialImageUrl ?? null,
+          generationStatus: materialGenerationStatus ?? null,
+          generationError: materialGenerationError ?? null,
+        } : null,
+      };
+    });
   }
 
   async listResponseSessions(input: {
     section?: "reading" | "listening";
     correctness?: "correct" | "incorrect" | "unanswered";
+    status?: "submitted" | "abandoned";
     page: number;
     pageSize: number;
   }) {
     const values: unknown[] = [];
     const filters: string[] = ["s.status IN ('submitted','abandoned')"];
+    if (input.status) { values.push(input.status); filters.push(`s.status=$${values.length}`); }
     if (input.section) {
       values.push(input.section);
       filters.push(`EXISTS (SELECT 1 FROM topik_app.session_items sx WHERE sx.session_id=s.session_id AND sx.section=$${values.length})`);
@@ -544,7 +674,8 @@ export class AdminRepository {
     const result = await pool.query(
       `SELECT COUNT(*) OVER()::int AS "totalCount", s.session_id AS "sessionId",
               s.user_id AS "userId", mt.title_ko AS "mockTestTitle", s.mode, s.status,
-              s.started_at AS "startedAt", s.submitted_at AS "submittedAt", s.score,
+              s.started_at AS "startedAt", s.submitted_at AS "submittedAt",
+              s.abandoned_at AS "abandonedAt", s.score,
               s.max_score AS "maxScore", af.rating,
               MIN(si.section) AS section,
               COUNT(si.item_order)::int AS "responseCount",
@@ -580,20 +711,38 @@ export class AdminRepository {
               ro.created_at AS "createdAt", s.mode, s.score, af.rating,
               iv.stem AS "questionStem", iv.choices AS "questionChoices",
               iv.content_json AS "questionContent", iv.explanation,
-              iab.audio_asset_id AS "audioAssetId",
+              COALESCE(set_asset.audio_asset_id,legacy_asset.audio_asset_id) AS "audioAssetId",
+              CASE WHEN set_asset.narration_version IN ('exam_track_v2','exam_track_v3','exam_track_v4') THEN 1
+                   ELSE GREATEST(1,COALESCE((iv.content_json->>'repeat_count')::int,1)) END AS "audioRepeatCount",
               COALESCE((SELECT jsonb_agg(jsonb_build_object(
                 'number', iva.option_number, 'imageUrl', iva.storage_url
               ) ORDER BY iva.option_number)
                 FROM topik_app.item_visual_assets iva
-               WHERE iva.item_id=ro.item_id AND iva.item_version=ro.item_version AND iva.is_current), '[]'::jsonb) AS "visualAssets"
+               WHERE iva.item_id=ro.item_id AND iva.item_version=ro.item_version
+                 AND iva.visual_role='choice' AND iva.is_current), '[]'::jsonb) AS "visualAssets",
+              (SELECT jsonb_build_object(
+                'imageUrl',iva.storage_url,
+                'description',COALESCE(iv.content_json->'visual_material'->>'description',iv.content_json->>'passage','읽기 10번 그래프')
+              ) FROM topik_app.item_visual_assets iva
+                WHERE iva.item_id=ro.item_id AND iva.item_version=ro.item_version
+                  AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current
+                LIMIT 1) AS "materialVisual"
          FROM topik_app.response_observations ro
          JOIN topik_app.session_items si ON si.session_id=ro.session_id AND si.item_order=ro.item_order
          JOIN topik_bank.item_versions iv ON iv.item_id=ro.item_id AND iv.item_version=ro.item_version
          JOIN topik_app.sessions s ON s.session_id=ro.session_id
          JOIN topik_app.mock_tests mt ON mt.mock_test_id=s.mock_test_id
          LEFT JOIN topik_app.attempt_feedback af ON af.session_id=s.session_id
-         LEFT JOIN topik_app.item_audio_bindings iab
-           ON iab.item_id=ro.item_id AND iab.item_version=ro.item_version AND iab.is_current
+         LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
+          AND set_binding.position=si.test_position AND set_binding.is_current
+         LEFT JOIN topik_app.tts_audio_assets set_asset
+           ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
+         LEFT JOIN topik_app.item_audio_bindings legacy_binding
+           ON legacy_binding.item_id=ro.item_id AND legacy_binding.item_version=ro.item_version
+          AND legacy_binding.is_current AND set_asset.audio_asset_id IS NULL
+         LEFT JOIN topik_app.tts_audio_assets legacy_asset
+           ON legacy_asset.audio_asset_id=legacy_binding.audio_asset_id AND legacy_asset.deleted_at IS NULL
         WHERE ro.session_id=$1 ORDER BY ro.item_order`,
       [sessionId],
     );
@@ -605,7 +754,9 @@ export class AdminRepository {
           questionChoices,
           questionContent,
           audioAssetId,
+          audioRepeatCount,
           visualAssets,
+          materialVisual,
           ...response
         } = row;
         return {
@@ -622,7 +773,9 @@ export class AdminRepository {
             choices: questionChoices,
             content_json: questionContent,
             audio_asset_id: audioAssetId,
+            audio_repeat_count: audioRepeatCount,
             visual_assets: visualAssets,
+            material_visual: materialVisual,
             selected_option: row.selectedOption,
           }, { includeTranscript: true }),
         };
@@ -630,7 +783,7 @@ export class AdminRepository {
     };
   }
 
-  async deleteResponseSessions(adminUserId: string, sessionIds: string[] | "all") {
+  async deleteResponseSessions(adminUserId: string, sessionIds: string[] | "all" | "abandoned") {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -641,14 +794,17 @@ export class AdminRepository {
                 SELECT 1 FROM topik_app.response_observations ro WHERE ro.session_id=s.session_id
               ) FOR UPDATE`,
           )
+        : sessionIds === "abandoned"
+          ? await client.query<{ session_id: string; user_id: string }>(
+              `SELECT s.session_id,s.user_id FROM topik_app.sessions s
+                WHERE s.status='abandoned' FOR UPDATE`,
+            )
         : await client.query<{ session_id: string; user_id: string }>(
             `SELECT s.session_id,s.user_id FROM topik_app.sessions s
-              WHERE s.session_id=ANY($1::uuid[]) AND s.status='submitted' AND EXISTS (
-                SELECT 1 FROM topik_app.response_observations ro WHERE ro.session_id=s.session_id
-              ) FOR UPDATE`,
+              WHERE s.session_id=ANY($1::uuid[]) AND s.status IN ('submitted','abandoned') FOR UPDATE`,
             [sessionIds],
           );
-      if (sessionIds !== "all" && selected.rowCount !== new Set(sessionIds).size) {
+      if (Array.isArray(sessionIds) && selected.rowCount !== new Set(sessionIds).size) {
         throw new AppError(409, "RESPONSE_SESSION_INVALID", "One or more response sessions cannot be deleted");
       }
       const ids = selected.rows.map((row) => row.session_id);
@@ -668,7 +824,9 @@ export class AdminRepository {
         `INSERT INTO topik_app.response_deletion_audits(
            deletion_audit_id,deleted_by,deletion_scope,deleted_session_count,deleted_observation_count
          ) VALUES ($1,$2,$3,$4,$5)`,
-        [randomUUID(), adminUserId, sessionIds === "all" ? "all_response_sessions" : "selected_sessions", ids.length, observations.rowCount ?? 0],
+        [randomUUID(), adminUserId,
+          sessionIds === "all" ? "all_response_sessions" : sessionIds === "abandoned" ? "all_abandoned_sessions" : "selected_sessions",
+          ids.length, observations.rowCount ?? 0],
       );
       await client.query("COMMIT");
       return { deletedSessions: ids.length, deletedObservations: observations.rowCount ?? 0 };
@@ -690,17 +848,23 @@ export class AdminRepository {
   private async resolveAudioGroup(client: PoolClient, setId: string, setVersion: number, leaderItemId: string) {
     const result = await client.query<{
       item_id: string; item_version: number; position: number;
+      question_prompt: string; dialogue_turns: unknown;
     }>(
       `WITH leader AS (
-         SELECT iv.content_json->'dialogue_turns' AS dialogue_turns
+         SELECT qsi.position,iv.item_type
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
           WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND qsi.item_id=$3 AND iv.section='listening'
        )
-       SELECT qsi.item_id,qsi.item_version,qsi.position
+       SELECT qsi.item_id,qsi.item_version,qsi.position,
+              COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
+              iv.content_json->'dialogue_turns' AS dialogue_turns
          FROM topik_bank.question_set_items qsi
          JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-         JOIN leader l ON iv.content_json->'dialogue_turns'=l.dialogue_turns
+         JOIN leader l ON (
+           (LEFT(l.item_type,7)='paired_' AND iv.item_type=l.item_type)
+           OR (LEFT(l.item_type,7)<>'paired_' AND qsi.position=l.position)
+         )
         WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND iv.section='listening'
         ORDER BY qsi.position`,
       [setId, setVersion, leaderItemId],
@@ -716,39 +880,46 @@ export class AdminRepository {
     const targets = await this.resolveAudioGroup(client, input.setId, input.setVersion, input.leaderItemId);
     const itemIds = targets.map((target) => target.item_id);
     const itemVersions = targets.map((target) => target.item_version);
+    const positions = targets.map((target) => target.position);
+    const script = buildNarrationScript(targets.map((target) => ({
+      position: target.position,
+      questionPrompt: target.question_prompt,
+      dialogueTurns: target.dialogue_turns as DialogueTurn[],
+    })));
+    const leader = targets[0]!;
     const active = await client.query<{ job_id: string }>(
-      `SELECT DISTINCT j.job_id FROM topik_app.tts_generation_jobs j
-         JOIN topik_app.tts_generation_job_targets tgt ON tgt.job_id=j.job_id
-        WHERE j.status IN ('queued','processing')
-          AND (tgt.item_id,tgt.item_version) IN (
-            SELECT * FROM unnest($1::uuid[],$2::integer[])
-          ) LIMIT 1`,
-      [itemIds, itemVersions],
+      `SELECT job_id FROM topik_app.tts_generation_jobs
+        WHERE set_id=$1 AND set_version=$2 AND group_start_position=$3
+          AND status IN ('queued','processing') LIMIT 1`,
+      [input.setId, input.setVersion, leader.position],
     );
     if (active.rows[0]) return { jobId: active.rows[0].job_id, queued: false, targetCount: targets.length };
     if (!input.forceRegenerate) {
       const ready = await client.query<{ count: number }>(
-        `SELECT COUNT(*)::int count FROM topik_app.item_audio_bindings iab
-          WHERE iab.is_current AND (iab.item_id,iab.item_version) IN (
-            SELECT * FROM unnest($1::uuid[],$2::integer[])
-          )`,
-        [itemIds, itemVersions],
+        `SELECT COUNT(*)::int count
+           FROM topik_app.question_set_item_audio_bindings binding
+           JOIN topik_app.tts_audio_assets asset ON asset.audio_asset_id=binding.audio_asset_id
+          WHERE binding.set_id=$1 AND binding.set_version=$2 AND binding.position=ANY($3::smallint[])
+            AND binding.is_current AND asset.narration_version=$4 AND asset.deleted_at IS NULL`,
+        [input.setId, input.setVersion, positions, EXAM_TRACK_VERSION],
       );
       if (ready.rows[0]?.count === targets.length) return { jobId: null, queued: false, targetCount: targets.length };
     }
-    const leader = targets[0]!;
     const jobId = randomUUID();
     await client.query(
       `INSERT INTO topik_app.tts_generation_jobs(
-         job_id,item_id,item_version,requested_by,force_regenerate,tts_style
-       ) VALUES ($1,$2,$3,$4,$5,$6)`,
-      [jobId, leader.item_id, leader.item_version, input.adminUserId, input.forceRegenerate, input.ttsStyle],
+         job_id,item_id,item_version,requested_by,force_regenerate,tts_style,
+         set_id,set_version,group_start_position,script_snapshot
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [jobId, leader.item_id, leader.item_version, input.adminUserId, input.forceRegenerate, input.ttsStyle,
+        input.setId, input.setVersion, leader.position, script],
     );
     await client.query(
-      `INSERT INTO topik_app.tts_generation_job_targets(job_id,item_id,item_version)
-       SELECT $1,target.item_id,target.item_version
-         FROM unnest($2::uuid[],$3::integer[]) AS target(item_id,item_version)`,
-      [jobId, itemIds, itemVersions],
+      `INSERT INTO topik_app.tts_generation_job_targets(
+         job_id,item_id,item_version,set_id,set_version,position
+       ) SELECT $1,target.item_id,target.item_version,$4,$5,target.position
+         FROM unnest($2::uuid[],$3::integer[],$6::smallint[]) AS target(item_id,item_version,position)`,
+      [jobId, itemIds, itemVersions, input.setId, input.setVersion, positions],
     );
     return { jobId, queued: true, targetCount: targets.length };
   }
@@ -766,15 +937,18 @@ export class AdminRepository {
   }
 
   async enqueueItem(adminUserId: string, itemId: string, itemVersion: number, forceRegenerate: boolean, ttsStyle: TtsStyle) {
-    const membership = await pool.query<{ set_id: string; set_version: number }>(
-      `SELECT qsi.set_id,qsi.set_version FROM topik_bank.question_set_items qsi
+    const membership = await pool.query<{ set_id: string; set_version: number; position: number }>(
+      `SELECT qsi.set_id,qsi.set_version,qsi.position FROM topik_bank.question_set_items qsi
        JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
        WHERE qsi.item_id=$1 AND qsi.item_version=$2 AND iv.section='listening'
-       ORDER BY qsi.set_version DESC LIMIT 1`,
+       ORDER BY qsi.set_id,qsi.set_version,qsi.position`,
       [itemId, itemVersion],
     );
     const row = membership.rows[0];
     if (!row) throw notFound("Listening item not found");
+    if (membership.rows.length > 1) {
+      throw new AppError(409, "AMBIGUOUS_AUDIO_POSITION", "Use the set audio-group endpoint for an item reused in multiple test positions");
+    }
     return this.enqueueGroup(adminUserId, row.set_id, row.set_version, itemId, forceRegenerate, ttsStyle);
   }
 
@@ -783,11 +957,16 @@ export class AdminRepository {
     try {
       await client.query("BEGIN");
       const leaders = await client.query<{ item_id: string }>(
-        `SELECT DISTINCT ON (iv.content_json->'dialogue_turns') qsi.item_id
+        `SELECT DISTINCT ON (
+             CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
+                  ELSE 'position:' || qsi.position::text END
+           ) qsi.item_id
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
           WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND iv.section='listening'
-          ORDER BY iv.content_json->'dialogue_turns',qsi.position`,
+          ORDER BY CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
+                        ELSE 'position:' || qsi.position::text END,
+                   qsi.position`,
         [setId, setVersion],
       );
       if (!leaders.rowCount) throw notFound("Listening set not found");
@@ -818,27 +997,47 @@ export class AdminRepository {
       const targets = await this.resolveAudioGroup(client, setId, setVersion, leaderItemId);
       const itemIds = targets.map((target) => target.item_id);
       const itemVersions = targets.map((target) => target.item_version);
+      const positions = targets.map((target) => target.position);
       const asset = await client.query<{ storage_bucket: string; storage_path: string }>(
         `SELECT storage_bucket,storage_path FROM topik_app.tts_audio_assets
           WHERE audio_asset_id=$1 FOR UPDATE`,
         [audioAssetId],
       );
       const row = asset.rows[0];
-      const bound = await client.query<{ count: number }>(
-        `SELECT COUNT(*)::int count FROM topik_app.item_audio_bindings
-          WHERE audio_asset_id=$1 AND is_current AND (item_id,item_version) IN (
-            SELECT * FROM unnest($2::uuid[],$3::integer[])
-          )`,
-        [audioAssetId, itemIds, itemVersions],
+      const bound = await client.query<{ set_count: number; legacy_count: number }>(
+        `SELECT
+           (SELECT COUNT(*)::int FROM topik_app.question_set_item_audio_bindings
+             WHERE audio_asset_id=$1 AND set_id=$2 AND set_version=$3
+               AND position=ANY($4::smallint[]) AND is_current) AS set_count,
+           (SELECT COUNT(*)::int FROM topik_app.item_audio_bindings
+             WHERE audio_asset_id=$1 AND is_current AND (item_id,item_version) IN (
+               SELECT * FROM unnest($5::uuid[],$6::integer[])
+             )) AS legacy_count`,
+        [audioAssetId, setId, setVersion, positions, itemIds, itemVersions],
       );
-      if (!row || bound.rows[0]?.count !== targets.length) throw notFound("Current group audio asset not found");
-      await client.query(
-        `DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current
-          AND (item_id,item_version) IN (SELECT * FROM unnest($2::uuid[],$3::integer[]))`,
-        [audioAssetId, itemIds, itemVersions],
-      );
+      const bindingKind = bound.rows[0]?.set_count === targets.length
+        ? "set"
+        : bound.rows[0]?.legacy_count === targets.length ? "legacy" : null;
+      if (!row || !bindingKind) throw notFound("Current group audio asset not found");
+      if (bindingKind === "set") {
+        await client.query(
+          `DELETE FROM topik_app.question_set_item_audio_bindings
+            WHERE audio_asset_id=$1 AND set_id=$2 AND set_version=$3
+              AND position=ANY($4::smallint[]) AND is_current`,
+          [audioAssetId, setId, setVersion, positions],
+        );
+      } else {
+        await client.query(
+          `DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+            AND (item_id,item_version) IN (SELECT * FROM unnest($2::uuid[],$3::integer[]))`,
+          [audioAssetId, itemIds, itemVersions],
+        );
+      }
       const shared = await client.query(
-        "SELECT 1 FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current LIMIT 1",
+        `SELECT 1 FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+         UNION ALL
+         SELECT 1 FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+         LIMIT 1`,
         [audioAssetId],
       );
       let storageDeleted = false;
@@ -846,6 +1045,7 @@ export class AdminRepository {
         await removeObject(row.storage_bucket, row.storage_path);
         await client.query("UPDATE topik_app.tts_generation_jobs SET audio_asset_id=NULL WHERE audio_asset_id=$1", [audioAssetId]);
         await client.query("DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
+        await client.query("DELETE FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
         const playbackHistory = await client.query("SELECT 1 FROM topik_app.audio_playback_events WHERE audio_asset_id=$1 LIMIT 1", [audioAssetId]);
         if (playbackHistory.rowCount) {
           await client.query("UPDATE topik_app.tts_audio_assets SET deleted_at=CURRENT_TIMESTAMP,storage_url='' WHERE audio_asset_id=$1", [audioAssetId]);
@@ -886,7 +1086,10 @@ export class AdminRepository {
         [audioAssetId, itemId, itemVersion],
       );
       const shared = await client.query(
-        "SELECT 1 FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current LIMIT 1",
+        `SELECT 1 FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+         UNION ALL
+         SELECT 1 FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+         LIMIT 1`,
         [audioAssetId],
       );
       let storageDeleted = false;
@@ -894,6 +1097,7 @@ export class AdminRepository {
         await removeObject(row.storage_bucket, row.storage_path);
         await client.query("UPDATE topik_app.tts_generation_jobs SET audio_asset_id=NULL WHERE audio_asset_id=$1", [audioAssetId]);
         await client.query("DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
+        await client.query("DELETE FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
         const playbackHistory = await client.query(
           "SELECT 1 FROM topik_app.audio_playback_events WHERE audio_asset_id=$1 LIMIT 1",
           [audioAssetId],
@@ -917,40 +1121,68 @@ export class AdminRepository {
   }
 
   private async createVisualJob(client: PoolClient, input: {
-    adminUserId: string; itemId: string; itemVersion: number; optionNumber: number; forceRegenerate: boolean;
+    adminUserId: string; itemId: string; itemVersion: number; optionNumber: number;
+    visualRole: VisualRole; forceRegenerate: boolean;
   }) {
-    const option = await client.query<{ prompt_snapshot: Record<string, unknown>; has_asset: boolean }>(
-      `SELECT jsonb_build_object(
-                'itemType',iv.item_type,
-                'description',COALESCE(iv.content_json->'visual_options'->($3::int-1)->>'description',''),
-                'imagePrompt',COALESCE(iv.content_json->'visual_options'->($3::int-1)->>'image_prompt',''),
-                'chartSpec',iv.content_json->'visual_options'->($3::int-1)->'chart_spec'
-              ) AS prompt_snapshot,
-              EXISTS (SELECT 1 FROM topik_app.item_visual_assets iva
-                WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
-                  AND iva.option_number=$3 AND iva.is_current) AS has_asset
-         FROM topik_bank.item_versions iv
-        WHERE iv.item_id=$1 AND iv.item_version=$2 AND iv.section='listening'
-          AND jsonb_typeof(iv.content_json->'visual_options')='array'
-          AND jsonb_array_length(iv.content_json->'visual_options') >= $3`,
-      [input.itemId,input.itemVersion,input.optionNumber],
-    );
-    const visual = option.rows[0];
-    if (!visual) throw notFound("Listening visual option not found");
-    if (visual.has_asset && !input.forceRegenerate) return { queued: false, jobId: null, alreadyReady: true };
+    let promptSnapshot: Record<string, unknown> | null = null;
+    let hasAsset = false;
+    if (input.visualRole === "choice") {
+      const option = await client.query<{ prompt_snapshot: Record<string, unknown>; has_asset: boolean }>(
+        `SELECT jsonb_build_object(
+                  'visualRole','choice',
+                  'itemType',iv.item_type,
+                  'description',COALESCE(iv.content_json->'visual_options'->($3::int-1)->>'description',''),
+                  'imagePrompt',COALESCE(iv.content_json->'visual_options'->($3::int-1)->>'image_prompt',''),
+                  'chartSpec',iv.content_json->'visual_options'->($3::int-1)->'chart_spec'
+                ) AS prompt_snapshot,
+                EXISTS (SELECT 1 FROM topik_app.item_visual_assets iva
+                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+                    AND iva.visual_role='choice' AND iva.option_number=$3 AND iva.is_current) AS has_asset
+           FROM topik_bank.item_versions iv
+          WHERE iv.item_id=$1 AND iv.item_version=$2 AND iv.section='listening'
+            AND jsonb_typeof(iv.content_json->'visual_options')='array'
+            AND jsonb_array_length(iv.content_json->'visual_options') >= $3`,
+        [input.itemId,input.itemVersion,input.optionNumber],
+      );
+      const visual = option.rows[0];
+      if (!visual) throw notFound("Listening visual option not found");
+      promptSnapshot = visual.prompt_snapshot;
+      hasAsset = visual.has_asset;
+    } else {
+      const item = await client.query<{
+        item_type: string; stem: string; content_json: Record<string, unknown>; has_asset: boolean;
+      }>(
+        `SELECT iv.item_type,iv.stem,iv.content_json,
+                EXISTS (SELECT 1 FROM topik_app.item_visual_assets iva
+                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version
+                    AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current) AS has_asset
+           FROM topik_bank.item_versions iv
+          WHERE iv.item_id=$1 AND iv.item_version=$2 AND iv.section='reading'
+            AND EXISTS (SELECT 1 FROM topik_bank.question_set_items qsi
+              WHERE qsi.item_id=iv.item_id AND qsi.item_version=iv.item_version AND qsi.position=10)`,
+        [input.itemId,input.itemVersion],
+      );
+      const row = item.rows[0];
+      const material = row && normalizeReadingMaterial(10,row.content_json,row.stem);
+      if (!row || !material) throw notFound("Reading graph material not found");
+      promptSnapshot = materialPromptSnapshot(material,row.item_type);
+      hasAsset = row.has_asset;
+    }
+    if (hasAsset && !input.forceRegenerate) return { queued: false, jobId: null, alreadyReady: true };
     const active = await client.query<{ job_id: string }>(
       `SELECT job_id FROM topik_app.visual_generation_jobs
-        WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND status IN ('queued','processing')
-        ORDER BY created_at DESC LIMIT 1`, [input.itemId,input.itemVersion,input.optionNumber],
+        WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND visual_role=$4
+          AND status IN ('queued','processing')
+        ORDER BY created_at DESC LIMIT 1`, [input.itemId,input.itemVersion,input.optionNumber,input.visualRole],
     );
     if (active.rows[0]) return { queued: false, jobId: active.rows[0].job_id, alreadyReady: false };
     const jobId = randomUUID();
     await client.query(
       `INSERT INTO topik_app.visual_generation_jobs(
-         job_id,item_id,item_version,option_number,requested_by,force_regenerate,model_name,prompt_snapshot
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [jobId,input.itemId,input.itemVersion,input.optionNumber,input.adminUserId,input.forceRegenerate,
-        config.googleImage.model,visual.prompt_snapshot],
+         job_id,item_id,item_version,option_number,visual_role,requested_by,force_regenerate,model_name,prompt_snapshot
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [jobId,input.itemId,input.itemVersion,input.optionNumber,input.visualRole,input.adminUserId,input.forceRegenerate,
+        config.googleImage.model,promptSnapshot],
     );
     return { queued: true, jobId, alreadyReady: false };
   }
@@ -959,7 +1191,9 @@ export class AdminRepository {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await this.createVisualJob(client, { adminUserId,itemId,itemVersion,optionNumber,forceRegenerate });
+      const result = await this.createVisualJob(client, {
+        adminUserId,itemId,itemVersion,optionNumber,visualRole:"choice",forceRegenerate,
+      });
       await client.query("COMMIT"); return result;
     } catch (error) {
       await client.query("ROLLBACK"); throw error;
@@ -984,7 +1218,7 @@ export class AdminRepository {
       for (const option of options.rows) {
         const result = await this.createVisualJob(client, {
           adminUserId,itemId:option.item_id,itemVersion:option.item_version,
-          optionNumber:option.option_number,forceRegenerate,
+          optionNumber:option.option_number,visualRole:"choice",forceRegenerate,
         });
         if (result.queued && result.jobId) jobIds.push(result.jobId);
       }
@@ -995,8 +1229,48 @@ export class AdminRepository {
     } finally { client.release(); }
   }
 
+  async enqueueReadingMaterial(adminUserId: string, itemId: string, itemVersion: number, forceRegenerate: boolean) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await this.createVisualJob(client, {
+        adminUserId,itemId,itemVersion,optionNumber:1,visualRole:"material",forceRegenerate,
+      });
+      await client.query("COMMIT"); return result;
+    } catch (error) {
+      await client.query("ROLLBACK"); throw error;
+    } finally { client.release(); }
+  }
+
+  async enqueueReadingVisualSet(adminUserId: string, setId: string, setVersion: number, forceRegenerate: boolean) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const items = await client.query<{ item_id: string; item_version: number }>(
+        `SELECT iv.item_id,iv.item_version
+           FROM topik_bank.question_set_items qsi
+           JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
+          WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND qsi.position=10 AND iv.section='reading'`,
+        [setId,setVersion],
+      );
+      if (!items.rowCount) throw notFound("Reading set question 10 graph not found");
+      const jobIds: string[] = [];
+      for (const item of items.rows) {
+        const result = await this.createVisualJob(client, {
+          adminUserId,itemId:item.item_id,itemVersion:item.item_version,
+          optionNumber:1,visualRole:"material",forceRegenerate,
+        });
+        if (result.queued && result.jobId) jobIds.push(result.jobId);
+      }
+      await client.query("COMMIT");
+      return { queued:jobIds.length,jobIds };
+    } catch (error) {
+      await client.query("ROLLBACK"); throw error;
+    } finally { client.release(); }
+  }
+
   async deleteVisualAsset(
-    itemId: string,itemVersion: number,optionNumber: number,visualAssetId: string,
+    itemId: string,itemVersion: number,optionNumber: number,visualAssetId: string,visualRole: VisualRole,
     removeObject: (bucket: string,path: string) => Promise<void>,
   ) {
     const client = await pool.connect();
@@ -1004,8 +1278,9 @@ export class AdminRepository {
       await client.query("BEGIN");
       const asset = await client.query<{ storage_bucket: string; storage_path: string }>(
         `SELECT storage_bucket,storage_path FROM topik_app.item_visual_assets
-          WHERE visual_asset_id=$1 AND item_id=$2 AND item_version=$3 AND option_number=$4 AND is_current
-          FOR UPDATE`, [visualAssetId,itemId,itemVersion,optionNumber],
+          WHERE visual_asset_id=$1 AND item_id=$2 AND item_version=$3 AND option_number=$4
+            AND visual_role=$5 AND is_current
+          FOR UPDATE`, [visualAssetId,itemId,itemVersion,optionNumber,visualRole],
       );
       const row = asset.rows[0];
       if (!row) throw notFound("Current visual asset not found");
@@ -1029,23 +1304,35 @@ export class AdminRepository {
 
   async bindVisualAsset(input: {
     adminUserId: string; itemId: string; itemVersion: number; optionNumber: number;
+    visualRole: VisualRole;
     bucket: string; path: string; url: string; mimeType: string; byteSize: number;
   }) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      if (input.visualRole === "material") {
+        const allowed = await client.query(
+          `SELECT 1 FROM topik_bank.item_versions iv
+            WHERE iv.item_id=$1 AND iv.item_version=$2 AND iv.section='reading'
+              AND EXISTS (SELECT 1 FROM topik_bank.question_set_items qsi
+                WHERE qsi.item_id=iv.item_id AND qsi.item_version=iv.item_version AND qsi.position=10)`,
+          [input.itemId,input.itemVersion],
+        );
+        if (!allowed.rowCount) throw notFound("Reading graph material not found");
+      }
       const replaced = await client.query<{ visual_asset_id: string; storage_bucket: string; storage_path: string }>(
         `UPDATE topik_app.item_visual_assets SET is_current=FALSE
-          WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND is_current
-          RETURNING visual_asset_id,storage_bucket,storage_path`, [input.itemId,input.itemVersion,input.optionNumber],
+          WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND visual_role=$4 AND is_current
+          RETURNING visual_asset_id,storage_bucket,storage_path`,
+        [input.itemId,input.itemVersion,input.optionNumber,input.visualRole],
       );
       const assetId = randomUUID();
       await client.query(
         `INSERT INTO topik_app.item_visual_assets(
-          visual_asset_id,item_id,item_version,option_number,storage_bucket,storage_path,
+          visual_asset_id,item_id,item_version,option_number,visual_role,storage_bucket,storage_path,
           storage_url,mime_type,byte_size,created_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [assetId,input.itemId,input.itemVersion,input.optionNumber,input.bucket,input.path,
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [assetId,input.itemId,input.itemVersion,input.optionNumber,input.visualRole,input.bucket,input.path,
           input.url,input.mimeType,input.byteSize,input.adminUserId],
       );
       await client.query("COMMIT");
@@ -1133,6 +1420,16 @@ export class AdminRepository {
           stem: revision.stem,
           choices: revision.choices,
         };
+        const nextMaterial = current.section === "reading"
+          ? normalizeReadingMaterial(revision.position,contentJson,revision.stem)
+          : null;
+        if (nextMaterial) {
+          contentJson.visual_material = {
+            description:nextMaterial.description,
+            image_prompt:nextMaterial.imagePrompt,
+            source_text:nextMaterial.sourceText,
+          };
+        }
         const contentHash = sha256({
           stem: revision.stem,
           choices: revision.choices,
@@ -1180,23 +1477,30 @@ export class AdminRepository {
             [current.item_id,current.item_version,nextVersion],
           );
         }
-        if (stableJson(current.content_json.visual_options ?? []) === stableJson(contentJson.visual_options ?? [])) {
+        const choicesUnchanged = stableJson(current.content_json.visual_options ?? []) === stableJson(contentJson.visual_options ?? []);
+        const currentMaterial = current.section === "reading"
+          ? normalizeReadingMaterial(current.position,current.content_json,current.stem)
+          : null;
+        const materialUnchanged = Boolean(currentMaterial && nextMaterial
+          && currentMaterial.sourceText === nextMaterial.sourceText);
+        if (choicesUnchanged || materialUnchanged) {
           const visuals = await client.query<{
-            option_number: number; storage_bucket: string; storage_path: string; storage_url: string;
+            option_number: number; visual_role: VisualRole; storage_bucket: string; storage_path: string; storage_url: string;
             mime_type: string; byte_size: number; created_by: string | null;
           }>(
-            `SELECT option_number,storage_bucket,storage_path,storage_url,mime_type,byte_size,created_by
+            `SELECT option_number,visual_role,storage_bucket,storage_path,storage_url,mime_type,byte_size,created_by
                FROM topik_app.item_visual_assets
-              WHERE item_id=$1 AND item_version=$2 AND is_current`,
-            [current.item_id,current.item_version],
+              WHERE item_id=$1 AND item_version=$2 AND is_current
+                AND ((visual_role='choice' AND $3::boolean) OR (visual_role='material' AND $4::boolean))`,
+            [current.item_id,current.item_version,choicesUnchanged,materialUnchanged],
           );
           for (const visual of visuals.rows) {
             await client.query(
               `INSERT INTO topik_app.item_visual_assets(
-                 visual_asset_id,item_id,item_version,option_number,storage_bucket,storage_path,
+                 visual_asset_id,item_id,item_version,option_number,visual_role,storage_bucket,storage_path,
                  storage_url,mime_type,byte_size,created_by,is_current
-               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,TRUE)`,
-              [randomUUID(),current.item_id,nextVersion,visual.option_number,visual.storage_bucket,
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,TRUE)`,
+              [randomUUID(),current.item_id,nextVersion,visual.option_number,visual.visual_role,visual.storage_bucket,
                 visual.storage_path,visual.storage_url,visual.mime_type,visual.byte_size,visual.created_by],
             );
           }
@@ -1268,15 +1572,24 @@ export class AdminRepository {
                 COUNT(*) FILTER (WHERE iv.correct_answer BETWEEN 1 AND 4
                   AND (CASE WHEN jsonb_typeof(iv.choices)='array' THEN jsonb_array_length(iv.choices) ELSE 0 END=4
                     OR CASE WHEN jsonb_typeof(iv.content_json->'visual_options')='array' THEN jsonb_array_length(iv.content_json->'visual_options') ELSE 0 END=4))::int valid_items,
-                COUNT(iab.audio_asset_id)::int audio_ready,
-                COALESCE(SUM(CASE WHEN jsonb_typeof(iv.content_json->'visual_options')='array' THEN jsonb_array_length(iv.content_json->'visual_options') ELSE 0 END),0)::int visual_expected,
+                COUNT(set_binding.audio_asset_id) FILTER (WHERE audio.narration_version='exam_track_v4')::int audio_ready,
+                COALESCE(SUM(CASE
+                  WHEN mts.section='listening' AND jsonb_typeof(iv.content_json->'visual_options')='array'
+                    THEN jsonb_array_length(iv.content_json->'visual_options')
+                  WHEN mts.section='reading' AND qsi.position=10 THEN 1
+                  ELSE 0 END),0)::int visual_expected,
                 COALESCE(SUM((SELECT COUNT(*) FROM topik_app.item_visual_assets iva
-                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version AND iva.is_current)),0)::int visual_ready
+                  WHERE iva.item_id=iv.item_id AND iva.item_version=iv.item_version AND iva.is_current
+                    AND ((mts.section='listening' AND iva.visual_role='choice')
+                      OR (mts.section='reading' AND qsi.position=10 AND iva.visual_role='material')))),0)::int visual_ready
            FROM topik_app.mock_test_sections mts
            JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id AND qsi.set_version=mts.set_version
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-           LEFT JOIN topik_app.item_audio_bindings iab
-             ON iab.item_id=iv.item_id AND iab.item_version=iv.item_version AND iab.is_current
+           LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+             ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
+            AND set_binding.position=qsi.position AND set_binding.is_current
+           LEFT JOIN topik_app.tts_audio_assets audio
+             ON audio.audio_asset_id=set_binding.audio_asset_id AND audio.deleted_at IS NULL
           WHERE mts.mock_test_id=$1
           GROUP BY mts.section`,
         [mockTestId],
@@ -1287,6 +1600,9 @@ export class AdminRepository {
       }
       if (row.section === "listening" && (row.audio_ready !== 50 || row.visual_ready < row.visual_expected)) {
         throw new AppError(409, "LISTENING_ASSETS_INCOMPLETE", "All 50 audio and visual assets are required before publishing");
+      }
+      if (row.section === "reading" && row.visual_ready < row.visual_expected) {
+        throw new AppError(409, "READING_VISUALS_INCOMPLETE", "The reading question 10 graph must be ready before publishing");
       }
     }
     const updated = await pool.query(

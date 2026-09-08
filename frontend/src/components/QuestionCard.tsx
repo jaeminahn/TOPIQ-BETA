@@ -40,7 +40,7 @@ export function QuestionCard({
         data-two-column={presentation.twoColumn}
         className={!grouped && presentation.twoColumn ? "grid gap-4 lg:grid-cols-[minmax(0,1.12fr)_minmax(280px,.88fr)] lg:items-start" : "space-y-4"}
       >
-        {!grouped && <div><QuestionBody presentation={presentation} highlights={[question.highlightText]} /><TranscriptBlock question={question} mode={transcriptMode} /></div>}
+        {!grouped && <div><QuestionBody presentation={presentation} highlights={[question.highlightText]} materialVisual={question.materialVisual} /><TranscriptBlock question={question} mode={transcriptMode} /></div>}
         {grouped && unmatchedHighlight && <HighlightFallback highlight={unmatchedHighlight} />}
         <QuestionChoices question={question} onAnswer={onAnswer} disabled={disabled} correctAnswer={showResult?.correctAnswer} />
       </div>

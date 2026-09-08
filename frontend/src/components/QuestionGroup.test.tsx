@@ -37,7 +37,9 @@ describe("QuestionGroup", () => {
     expect(screen.getAllByText("21~22번 공통 지문")).toHaveLength(1);
     expect(screen.getAllByTestId("shared-question-material")).toHaveLength(1);
     expect(screen.getAllByTestId("inline-highlight")).toHaveLength(1);
+    expect(screen.getByTestId("inline-highlight").tagName).toBe("U");
     expect(screen.getByTestId("highlight-fallback")).toHaveTextContent("지문에 없는 인용문");
+    expect(screen.getByTestId("highlight-fallback").querySelector("u")).toBeInTheDocument();
     expect(screen.getAllByText(/번 질문입니다/)).toHaveLength(2);
 
     await userEvent.click(screen.getByText("22-3"));

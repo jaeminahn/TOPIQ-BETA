@@ -19,11 +19,13 @@ const sessionParams = z.object({ sessionId: z.string().uuid() });
 const itemParams = sessionParams.extend({ itemOrder: z.coerce.number().int().min(1).max(100) });
 const audioParams = sessionParams.extend({ audioAssetId: z.string().uuid() });
 const listeningItemParams = z.object({ itemId: z.string().uuid(), itemVersion: z.coerce.number().int().positive() });
+const readingItemParams = z.object({ itemId: z.string().uuid(), itemVersion: z.coerce.number().int().positive() });
 const listeningSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const readingSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const listeningGroupParams = listeningSetParams.extend({ leaderItemId: z.string().uuid() });
 const visualParams = listeningItemParams.extend({ optionNumber: z.coerce.number().int().min(1).max(4) });
 const visualAssetParams = visualParams.extend({ visualAssetId: z.string().uuid() });
+const readingVisualAssetParams = readingItemParams.extend({ visualAssetId: z.string().uuid() });
 const mockTestParams = z.object({ mockTestId: z.string().uuid() });
 const questionSetRevisionParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const adminAudioParams = z.object({ audioAssetId: z.string().uuid() });
@@ -224,6 +226,7 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const query = z.object({
       section: z.enum(["reading", "listening"]).optional(),
       correctness: z.enum(["correct", "incorrect", "unanswered"]).optional(),
+      status: z.enum(["submitted", "abandoned"]).optional(),
       page: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(10).max(100).default(50),
     }).parse(request.query);
@@ -246,6 +249,12 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const admin = await requireAdmin(requireToken(request.headers.authorization));
     const body = z.object({ confirmation: z.literal("전체 응답 삭제") }).parse(request.body);
     return adminRepository.deleteResponseSessions(admin.adminUserId, "all");
+  });
+
+  app.delete("/v1/admin/responses/sessions/abandoned/all", async (request) => {
+    const admin = await requireAdmin(requireToken(request.headers.authorization));
+    const body = z.object({ confirmation: z.literal("폐기 세션 전체 삭제") }).parse(request.body);
+    return adminRepository.deleteResponseSessions(admin.adminUserId, "abandoned");
   });
 
   app.get("/v1/admin/tts/jobs", async (request) => {
@@ -329,7 +338,7 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     const path = `listening/${itemId}/v${itemVersion}/option-${optionNumber}-${randomUUID()}.${extension}`;
     const uploaded = await new SupabaseStorage().uploadMedia(path, data, file.mimetype);
     const result = await adminRepository.bindVisualAsset({
-      adminUserId: admin.adminUserId, itemId, itemVersion, optionNumber,
+      adminUserId: admin.adminUserId, itemId, itemVersion, optionNumber, visualRole:"choice",
       bucket: uploaded.bucket, path: uploaded.path, url: uploaded.url,
       mimeType: file.mimetype, byteSize: data.length,
     });
@@ -362,8 +371,63 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     await requireAdmin(requireToken(request.headers.authorization));
     const { itemId,itemVersion,optionNumber,visualAssetId } = visualAssetParams.parse(request.params);
     const storage = new SupabaseStorage();
-    return adminRepository.deleteVisualAsset(itemId,itemVersion,optionNumber,visualAssetId,
+    return adminRepository.deleteVisualAsset(itemId,itemVersion,optionNumber,visualAssetId,"choice",
       (bucket,path) => storage.removeObject(bucket,path));
+  });
+
+  app.post("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material", async (request, reply) => {
+    const admin = await requireAdmin(requireToken(request.headers.authorization));
+    const { itemId,itemVersion } = readingItemParams.parse(request.params);
+    const file = await request.file();
+    if (!file || !["image/png", "image/jpeg", "image/webp"].includes(file.mimetype)) {
+      throw new AppError(400, "IMAGE_REQUIRED", "A PNG, JPEG or WebP image is required");
+    }
+    const data = await file.toBuffer();
+    const extension = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
+    const path = `reading/${itemId}/v${itemVersion}/material-${randomUUID()}.${extension}`;
+    const storage = new SupabaseStorage();
+    const uploaded = await storage.uploadMedia(path,data,file.mimetype);
+    const result = await adminRepository.bindVisualAsset({
+      adminUserId:admin.adminUserId,itemId,itemVersion,optionNumber:1,visualRole:"material",
+      bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,mimeType:file.mimetype,byteSize:data.length,
+    });
+    for (const replaced of result.replacedAssets) {
+      await adminRepository.removeSupersededVisualAsset(
+        replaced.visual_asset_id,
+        (bucket,objectPath) => storage.removeObject(bucket,objectPath),
+      );
+    }
+    return reply.code(201).send(result);
+  });
+
+  app.post("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material/generate", async (request, reply) => {
+    const admin = await requireAdmin(requireToken(request.headers.authorization));
+    const { itemId,itemVersion } = readingItemParams.parse(request.params);
+    const body = z.object({ forceRegenerate:z.boolean().default(false) }).parse(request.body ?? {});
+    const result = await adminRepository.enqueueReadingMaterial(
+      admin.adminUserId,itemId,itemVersion,body.forceRegenerate,
+    );
+    visualWorker.kick(); return reply.code(202).send(result);
+  });
+
+  app.post("/v1/admin/reading/sets/:setId/versions/:setVersion/visuals/generate", async (request, reply) => {
+    const admin = await requireAdmin(requireToken(request.headers.authorization));
+    const { setId,setVersion } = readingSetParams.parse(request.params);
+    const body = z.object({ forceRegenerate:z.boolean().default(false) }).parse(request.body ?? {});
+    const result = await adminRepository.enqueueReadingVisualSet(
+      admin.adminUserId,setId,setVersion,body.forceRegenerate,
+    );
+    visualWorker.kick(); return reply.code(202).send(result);
+  });
+
+  app.delete("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material/assets/:visualAssetId", async (request) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    const { itemId,itemVersion,visualAssetId } = readingVisualAssetParams.parse(request.params);
+    const storage = new SupabaseStorage();
+    return adminRepository.deleteVisualAsset(
+      itemId,itemVersion,1,visualAssetId,"material",
+      (bucket,path) => storage.removeObject(bucket,path),
+    );
   });
 
   app.put("/v1/admin/listening/mock-tests/:mockTestId/publish", async (request) => {

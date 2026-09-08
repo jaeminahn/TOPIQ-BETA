@@ -89,4 +89,19 @@ describe("admin response deletion", () => {
     expect(init?.method).toBe("DELETE");
     expect(JSON.parse(String(init?.body))).toEqual({ confirmation: "전체 응답 삭제" });
   });
+
+  it("uses the dedicated endpoint and confirmation for all abandoned sessions", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ deletedSessions: 4, deletedObservations: 0 }),
+    } as unknown as Response);
+
+    await adminApi.deleteAllAbandonedSessions("admin-token", "폐기 세션 전체 삭제");
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/v1\/admin\/responses\/sessions\/abandoned\/all$/);
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.method).toBe("DELETE");
+    expect(JSON.parse(String(init?.body))).toEqual({ confirmation: "폐기 세션 전체 삭제" });
+  });
 });

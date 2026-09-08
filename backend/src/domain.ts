@@ -24,6 +24,7 @@ export interface PublicQuestion {
   highlightText: string;
   choices: string[];
   visualOptions: Array<{ number: number; imageUrl: string }>;
+  materialVisual: { imageUrl: string; description: string } | null;
   audioAssetId: string | null;
   repeatCount: number;
   transcript?: DialogueTranscriptTurn[];
@@ -50,7 +51,9 @@ export function sanitizeQuestion(row: {
   choices: unknown;
   content_json: QuestionContent;
   audio_asset_id?: string | null;
+  audio_repeat_count?: number | null;
   visual_assets?: unknown;
+  material_visual?: unknown;
   selected_option: number | null;
 }, options: { includeTranscript?: boolean } = {}): PublicQuestion {
   const content = row.content_json ?? {};
@@ -62,6 +65,14 @@ export function sanitizeQuestion(row: {
     const imageUrl = text((asset as Record<string, unknown>).imageUrl);
     return number >= 1 && number <= 4 && imageUrl ? [{ number, imageUrl }] : [];
   });
+  const rawMaterial = row.material_visual && typeof row.material_visual === "object"
+    ? row.material_visual as Record<string, unknown>
+    : null;
+  const materialImageUrl = text(rawMaterial?.imageUrl);
+  const materialVisual = materialImageUrl ? {
+    imageUrl:materialImageUrl,
+    description:text(rawMaterial?.description) || text(content.passage) || "읽기 10번 그래프",
+  } : null;
   const isListening = row.section === "listening";
   const transcript = Array.isArray(content.dialogue_turns)
     ? content.dialogue_turns.flatMap((turn) => {
@@ -85,8 +96,9 @@ export function sanitizeQuestion(row: {
     highlightText: text(content.highlight_text),
     choices: choices.length ? choices : stringChoices(row.choices),
     visualOptions,
+    materialVisual,
     audioAssetId: row.audio_asset_id ?? null,
-    repeatCount: Math.max(1, Number(content.repeat_count) || 1),
+    repeatCount: Math.max(1, Number(row.audio_repeat_count ?? content.repeat_count) || 1),
     ...(options.includeTranscript && transcript.length ? { transcript } : {}),
     selectedOption: row.selected_option,
   };

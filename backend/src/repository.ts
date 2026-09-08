@@ -40,7 +40,9 @@ type QuestionRow = {
   choices: unknown;
   content_json: Record<string, unknown>;
   audio_asset_id: string | null;
+  audio_repeat_count?: number | null;
   visual_assets: unknown;
+  material_visual?: unknown;
   selected_option: number | null;
 };
 
@@ -315,19 +317,37 @@ export class TopikRepository {
     const questions = await pool.query<QuestionRow>(
       `SELECT si.item_order, si.section, si.test_position, si.item_id, si.item_version,
               iv.item_type, iv.stem, iv.choices, iv.content_json, a.selected_option,
-              iab.audio_asset_id,
+              COALESCE(set_asset.audio_asset_id,legacy_asset.audio_asset_id) AS audio_asset_id,
+              CASE WHEN set_asset.narration_version IN ('exam_track_v2','exam_track_v3','exam_track_v4') THEN 1
+                   ELSE GREATEST(1,COALESCE((iv.content_json->>'repeat_count')::int,1)) END AS audio_repeat_count,
               COALESCE((SELECT jsonb_agg(jsonb_build_object(
                 'number', iva.option_number, 'imageUrl', iva.storage_url
               ) ORDER BY iva.option_number)
                 FROM topik_app.item_visual_assets iva
-               WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version AND iva.is_current), '[]'::jsonb) visual_assets
+               WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version
+                 AND iva.visual_role='choice' AND iva.is_current), '[]'::jsonb) visual_assets,
+              (SELECT jsonb_build_object(
+                'imageUrl',iva.storage_url,
+                'description',COALESCE(iv.content_json->'visual_material'->>'description',iv.content_json->>'passage','읽기 10번 그래프')
+              ) FROM topik_app.item_visual_assets iva
+                WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version
+                  AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current
+                LIMIT 1) material_visual
          FROM topik_app.session_items si
          JOIN topik_bank.item_versions iv
            ON iv.item_id = si.item_id AND iv.item_version = si.item_version
          LEFT JOIN topik_app.answer_states a
            ON a.session_id = si.session_id AND a.item_order = si.item_order
-         LEFT JOIN topik_app.item_audio_bindings iab
-           ON iab.item_id=si.item_id AND iab.item_version=si.item_version AND iab.is_current
+         LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
+          AND set_binding.position=si.test_position AND set_binding.is_current
+         LEFT JOIN topik_app.tts_audio_assets set_asset
+           ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
+         LEFT JOIN topik_app.item_audio_bindings legacy_binding
+           ON legacy_binding.item_id=si.item_id AND legacy_binding.item_version=si.item_version
+          AND legacy_binding.is_current AND set_asset.audio_asset_id IS NULL
+         LEFT JOIN topik_app.tts_audio_assets legacy_asset
+           ON legacy_asset.audio_asset_id=legacy_binding.audio_asset_id AND legacy_asset.deleted_at IS NULL
         WHERE si.session_id = $1
         ORDER BY si.item_order`,
       [sessionId],
@@ -479,14 +499,22 @@ export class TopikRepository {
       if (session.status !== "in_progress") throw sessionClosed();
       const asset = await client.query<{ storage_path: string; repeat_count: number }>(
         `SELECT taa.storage_path,
-                MAX(COALESCE((iv.content_json->>'repeat_count')::int,1))::int repeat_count
+                CASE WHEN taa.narration_version IN ('exam_track_v2','exam_track_v3','exam_track_v4') THEN 1
+                     ELSE MAX(COALESCE((iv.content_json->>'repeat_count')::int,1))::int END repeat_count
            FROM topik_app.session_items si
            JOIN topik_bank.item_versions iv ON iv.item_id=si.item_id AND iv.item_version=si.item_version
-           JOIN topik_app.item_audio_bindings iab
-             ON iab.item_id=si.item_id AND iab.item_version=si.item_version AND iab.is_current
-           JOIN topik_app.tts_audio_assets taa ON taa.audio_asset_id=iab.audio_asset_id
-          WHERE si.session_id=$1 AND iab.audio_asset_id=$2
-          GROUP BY taa.storage_path`,
+           LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+             ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
+            AND set_binding.position=si.test_position AND set_binding.is_current
+           LEFT JOIN topik_app.tts_audio_assets set_asset
+             ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
+           LEFT JOIN topik_app.item_audio_bindings legacy_binding
+             ON legacy_binding.item_id=si.item_id AND legacy_binding.item_version=si.item_version
+            AND legacy_binding.is_current AND set_asset.audio_asset_id IS NULL
+           JOIN topik_app.tts_audio_assets taa
+             ON taa.audio_asset_id=COALESCE(set_asset.audio_asset_id,legacy_binding.audio_asset_id)
+          WHERE si.session_id=$1 AND taa.audio_asset_id=$2 AND taa.deleted_at IS NULL
+          GROUP BY taa.storage_path,taa.narration_version`,
         [input.sessionId, input.audioAssetId],
       );
       const audio = asset.rows[0];
@@ -673,19 +701,37 @@ export class TopikRepository {
       `SELECT si.item_order, si.section, si.test_position, si.item_id, si.item_version,
               iv.item_type, iv.stem, iv.choices, iv.content_json,
               ro.selected_option, iv.correct_answer, iv.explanation,
-              iab.audio_asset_id,
+              COALESCE(set_asset.audio_asset_id,legacy_asset.audio_asset_id) AS audio_asset_id,
+              CASE WHEN set_asset.narration_version IN ('exam_track_v2','exam_track_v3','exam_track_v4') THEN 1
+                   ELSE GREATEST(1,COALESCE((iv.content_json->>'repeat_count')::int,1)) END AS audio_repeat_count,
               COALESCE((SELECT jsonb_agg(jsonb_build_object(
                 'number', iva.option_number, 'imageUrl', iva.storage_url
               ) ORDER BY iva.option_number)
                 FROM topik_app.item_visual_assets iva
-               WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version AND iva.is_current), '[]'::jsonb) visual_assets
+               WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version
+                 AND iva.visual_role='choice' AND iva.is_current), '[]'::jsonb) visual_assets,
+              (SELECT jsonb_build_object(
+                'imageUrl',iva.storage_url,
+                'description',COALESCE(iv.content_json->'visual_material'->>'description',iv.content_json->>'passage','읽기 10번 그래프')
+              ) FROM topik_app.item_visual_assets iva
+                WHERE iva.item_id=si.item_id AND iva.item_version=si.item_version
+                  AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current
+                LIMIT 1) material_visual
          FROM topik_app.response_observations ro
          JOIN topik_app.session_items si
            ON si.session_id = ro.session_id AND si.item_order = ro.item_order
          JOIN topik_bank.item_versions iv
            ON iv.item_id = si.item_id AND iv.item_version = si.item_version
-         LEFT JOIN topik_app.item_audio_bindings iab
-           ON iab.item_id=si.item_id AND iab.item_version=si.item_version AND iab.is_current
+         LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
+           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
+          AND set_binding.position=si.test_position AND set_binding.is_current
+         LEFT JOIN topik_app.tts_audio_assets set_asset
+           ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
+         LEFT JOIN topik_app.item_audio_bindings legacy_binding
+           ON legacy_binding.item_id=si.item_id AND legacy_binding.item_version=si.item_version
+          AND legacy_binding.is_current AND set_asset.audio_asset_id IS NULL
+         LEFT JOIN topik_app.tts_audio_assets legacy_asset
+           ON legacy_asset.audio_asset_id=legacy_binding.audio_asset_id AND legacy_asset.deleted_at IS NULL
         WHERE ro.session_id = $1 AND ro.is_correct = FALSE
         ORDER BY si.item_order`,
       [sessionId],

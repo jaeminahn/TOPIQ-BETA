@@ -11,7 +11,7 @@ vi.mock("../../api", () => ({ adminApi: { audioUrl: vi.fn() } }));
 const session: AdminResponseSession = {
   sessionId: "session-1", userId: "user-1", mockTestTitle: "TOPIK II 듣기 모의고사 1회",
   mode: "timed", status: "submitted", startedAt: "2026-08-19T10:00:00Z",
-  submittedAt: "2026-08-19T11:00:00Z", score: 80, maxScore: 100, rating: 4,
+  submittedAt: "2026-08-19T11:00:00Z", abandonedAt: null, score: 80, maxScore: 100, rating: 4,
   section: "listening", responseCount: 1, answeredCount: 1, unansweredCount: 0,
   correctCount: 0, incorrectCount: 1,
 };
@@ -36,7 +36,7 @@ function renderPanel() {
   return render(<I18nProvider locale="ko"><AdminResponsesPanel
       token="admin-token" sessions={[session]} total={1} details={{ [session.sessionId]: [response] }}
       selectedSessions={new Set()} setSelectedSessions={vi.fn()} expandedSession={session.sessionId}
-      onToggleDetails={vi.fn()} section="" onSectionChange={vi.fn()} correctness=""
+      onToggleDetails={vi.fn()} status="" onStatusChange={vi.fn()} section="" onSectionChange={vi.fn()} correctness=""
       onCorrectnessChange={vi.fn()} page={1} onPageChange={vi.fn()} onDeleteRequest={vi.fn()}
     /></I18nProvider>);
 }
@@ -77,5 +77,37 @@ describe("AdminResponsesPanel", () => {
     expect(screen.getByText("들은 내용과 같은 것을 고르십시오.")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("response-question-backdrop"));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("filters abandoned sessions and exposes their dedicated bulk delete action", async () => {
+    const onStatusChange = vi.fn();
+    const onDeleteRequest = vi.fn();
+    const abandoned: AdminResponseSession = {
+      ...session,
+      sessionId: "session-abandoned",
+      status: "abandoned",
+      submittedAt: null,
+      abandonedAt: "2026-08-19T10:30:00Z",
+      score: null,
+      responseCount: 0,
+      answeredCount: 0,
+      unansweredCount: 50,
+      correctCount: 0,
+      incorrectCount: 0,
+    };
+    render(<I18nProvider locale="ko"><AdminResponsesPanel
+      token="admin-token" sessions={[abandoned]} total={1} details={{}}
+      selectedSessions={new Set()} setSelectedSessions={vi.fn()} expandedSession=""
+      onToggleDetails={vi.fn()} status="abandoned" onStatusChange={onStatusChange}
+      section="" onSectionChange={vi.fn()} correctness="" onCorrectnessChange={vi.fn()}
+      page={1} onPageChange={vi.fn()} onDeleteRequest={onDeleteRequest}
+    /></I18nProvider>);
+
+    expect(screen.getByText(new Date(abandoned.abandonedAt!).toLocaleString("ko-KR"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "보기" })).toBeDisabled();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "세션 상태" }), "submitted");
+    expect(onStatusChange).toHaveBeenCalledWith("submitted");
+    await userEvent.click(screen.getByRole("button", { name: "폐기 세션 전체 삭제" }));
+    expect(onDeleteRequest).toHaveBeenCalledWith({ mode: "abandoned" });
   });
 });

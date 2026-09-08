@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, FileText, Quote } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n";
 import type { Question } from "../../types";
 import { getQuestionPresentation, type QuestionPresentation } from "../questionPresentation";
@@ -10,7 +10,7 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function RichQuestionText({ text, highlights }: { text: string; highlights: string[] }) {
+export function RichQuestionText({ text, highlights }: { text: string; highlights: string[] }) {
   const inlineHighlights = highlights.filter((highlight) => highlight && text.includes(highlight));
   const tokens = ["\\(\\s*\\)"];
   tokens.unshift(...inlineHighlights.sort((a, b) => b.length - a.length).map(escapeRegExp));
@@ -18,7 +18,7 @@ function RichQuestionText({ text, highlights }: { text: string; highlights: stri
 
   return parts.map((part, index) => {
     if (inlineHighlights.includes(part)) {
-      return <mark key={`${part}-${index}`} data-testid="inline-highlight" className="rounded bg-primary-50 px-1 font-semibold text-primary-dark">{part}</mark>;
+      return <u key={`${part}-${index}`} data-testid="inline-highlight" className="font-normal decoration-2 underline-offset-4">{part}</u>;
     }
     if (/^\(\s*\)$/.test(part)) {
       return (
@@ -34,9 +34,9 @@ function RichQuestionText({ text, highlights }: { text: string; highlights: stri
 export function HighlightFallback({ highlight }: { highlight: string }) {
   if (!highlight) return null;
   return (
-    <div data-testid="highlight-fallback" className="mt-3 flex gap-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-medium leading-6 text-gray-700">
+    <div data-testid="highlight-fallback" className="mt-3 flex gap-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-700">
       <Quote className="mt-1 size-4 shrink-0 text-gray-500" />
-      <span>{highlight}</span>
+      <u className="font-normal decoration-2 underline-offset-4">{highlight}</u>
     </div>
   );
 }
@@ -45,11 +45,15 @@ export function QuestionBody({
   presentation,
   highlights,
   showFallback = true,
+  materialVisual = null,
 }: {
   presentation: QuestionPresentation;
   highlights: string[];
   showFallback?: boolean;
+  materialVisual?: Question["materialVisual"];
 }) {
+  const [materialFailed,setMaterialFailed] = useState(false);
+  useEffect(() => setMaterialFailed(false),[materialVisual?.imageUrl]);
   const { body, layout, auxiliary, groupLabel } = presentation;
   if (!body && !auxiliary) {
     return groupLabel ? <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700"><FileText className="size-3.5" />{groupLabel}</div> : null;
@@ -57,7 +61,18 @@ export function QuestionBody({
   const unmatchedHighlights = highlights.filter((highlight) => highlight && !body.includes(highlight));
   let content: ReactNode;
 
-  if (layout === "headline") {
+  if (materialVisual?.imageUrl && !materialFailed) {
+    content = (
+      <figure data-testid="question-material-visual" className="overflow-hidden rounded-2xl border border-gray-300 bg-white p-3 sm:p-4">
+        <img
+          src={materialVisual.imageUrl}
+          alt={materialVisual.description || "읽기 10번 그래프"}
+          onError={() => setMaterialFailed(true)}
+          className="mx-auto block h-auto max-h-[32rem] w-full object-contain"
+        />
+      </figure>
+    );
+  } else if (layout === "headline") {
     content = <div data-testid="headline-body" className="rounded-2xl border border-gray-200 bg-gray-50 px-5 py-6 text-center sm:px-7"><p className="question-copy text-lg font-semibold leading-8 text-gray-900 sm:text-xl">{body}</p></div>;
   } else if (layout === "sequence") {
     const rows = body.split(/\n+/).map((row) => row.trim()).filter(Boolean);
@@ -114,7 +129,7 @@ export function SharedQuestionMaterial({ question, highlights, transcriptMode = 
   const presentation = getQuestionPresentation(question);
   return (
     <div data-testid="shared-question-material" className="min-w-0">
-      <QuestionBody presentation={presentation} highlights={highlights} showFallback={false} />
+      <QuestionBody presentation={presentation} highlights={highlights} showFallback={false} materialVisual={question.materialVisual} />
       <TranscriptBlock question={question} mode={transcriptMode} />
     </div>
   );

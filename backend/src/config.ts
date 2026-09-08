@@ -28,6 +28,7 @@ const envSchema = z.object({
   GOOGLE_TTS_MODEL: z.string().default("gemini-2.5-flash-tts"),
   GOOGLE_TTS_FEMALE_VOICE: z.string().default("Aoede"),
   GOOGLE_TTS_MALE_VOICE: z.string().default("Charon"),
+  FFMPEG_PATH: z.string().default("ffmpeg"),
   TTS_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
   GOOGLE_IMAGE_LOCATION: z.string().default("global"),
   GOOGLE_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
@@ -62,6 +63,7 @@ export const config = {
     model: parsed.GOOGLE_TTS_MODEL,
     femaleVoice: parsed.GOOGLE_TTS_FEMALE_VOICE,
     maleVoice: parsed.GOOGLE_TTS_MALE_VOICE,
+    ffmpegPath: parsed.FFMPEG_PATH,
     workerEnabled: parsed.TTS_WORKER_ENABLED === "true",
   },
   googleImage: {

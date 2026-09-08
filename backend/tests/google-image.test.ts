@@ -15,6 +15,14 @@ describe("listening visual generation",()=>{
       .toBe("https://aiplatform.googleapis.com/v1/projects/project%20id/locations/global/publishers/google/models/gemini-2.5-flash-image:generateContent");
   });
 
+  it("wraps reading graph prompts without the listening-choice instructions",()=>{
+    const prompt=buildTopikImagePrompt("독서 34%, 운동 28%", "reading_material");
+    expect(prompt).toContain("reading-test statistical graph");
+    expect(prompt).toContain("Copy every supplied title, label, number");
+    expect(prompt).toContain("독서 34%, 운동 28%");
+    expect(prompt).not.toContain("answer-choice illustration");
+  });
+
   it("requests both text and image output in a 4:3 layout",()=>{
     const request=buildGeminiImageRequest("A woman points to a bus stop.");
     expect(request.generationConfig).toEqual({

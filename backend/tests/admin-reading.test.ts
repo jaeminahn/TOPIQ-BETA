@@ -20,11 +20,13 @@ describe("reading set administration", () => {
       {
         setId: "set-new", setVersion: 1, setSequence: 2, createdAt: new Date("2026-08-11T12:00:00Z"),
         reviewStatus: "reviewed", publishedAt: new Date("2026-08-11T12:00:00Z"), itemCount: 50, validItemCount: 50,
+        visualRequired: 1, visualReady: 1,
         mockTestId: null, slug: null, titleKo: null, mockTestPublished: null,
       },
       {
         setId: "set-one", setVersion: 1, setSequence: 1, createdAt: new Date("2026-08-10T12:00:00Z"),
         reviewStatus: "reviewed", publishedAt: new Date("2026-08-10T12:00:00Z"), itemCount: 50, validItemCount: 50,
+        visualRequired: 1, visualReady: 0,
         mockTestId: "mock-one", slug: "topik-ii-reading-1", titleKo: "읽기 1회", mockTestPublished: true,
       },
     ] });
@@ -39,6 +41,7 @@ describe("reading set administration", () => {
   it("creates the next published reading round in one transaction", async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes("FROM topik_app.mock_test_sections") && sql.includes("LIMIT 1")) return { rows: [] };
+      if (sql.includes("COUNT(*) FILTER (WHERE qsi.position=10)")) return { rows: [{ required: 1, ready: 1 }] };
       if (sql.includes("FROM topik_bank.question_sets")) return { rows: [{ section: "reading", review_status: "reviewed", published_at: new Date(), item_count: 50, valid_item_count: 50 }] };
       if (sql.includes("substring(slug")) return { rows: [{ round: 3, display_order: 5 }] };
       return { rows: [], rowCount: 1 };
@@ -69,12 +72,26 @@ describe("reading set administration", () => {
   it("rejects an incomplete reading set and rolls back", async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes("FROM topik_app.mock_test_sections")) return { rows: [] };
+      if (sql.includes("COUNT(*) FILTER (WHERE qsi.position=10)")) return { rows: [{ required: 1, ready: 1 }] };
       if (sql.includes("FROM topik_bank.question_sets")) return { rows: [{ section: "reading", review_status: "reviewed", published_at: new Date(), item_count: 49, valid_item_count: 49 }] };
       return { rows: [], rowCount: 1 };
     });
     poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
 
     await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1)).rejects.toMatchObject({ code: "READING_SET_NOT_READY" });
+    expect(query).toHaveBeenCalledWith("ROLLBACK");
+  });
+
+  it("rejects a new reading round until its question 10 graph is ready", async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("FROM topik_app.mock_test_sections")) return { rows: [] };
+      if (sql.includes("COUNT(*) FILTER (WHERE qsi.position=10)")) return { rows: [{ required: 1, ready: 0 }] };
+      return { rows: [], rowCount: 1 };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1))
+      .rejects.toMatchObject({ code: "READING_VISUALS_INCOMPLETE" });
     expect(query).toHaveBeenCalledWith("ROLLBACK");
   });
 });

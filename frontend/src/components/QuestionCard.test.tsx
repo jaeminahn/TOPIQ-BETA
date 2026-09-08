@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -53,7 +53,9 @@ describe("QuestionCard", () => {
       stem: "식당을 찾고자 지도를 꺼냈다.",
       highlightText: "찾고자",
     })} />);
+    expect(screen.getByTestId("inline-highlight").tagName).toBe("U");
     expect(screen.getByTestId("inline-highlight")).toHaveTextContent("찾고자");
+    expect(screen.getByTestId("inline-highlight")).not.toHaveClass("font-semibold", "bg-primary-50");
     expect(screen.queryByTestId("highlight-fallback")).not.toBeInTheDocument();
 
     rerender(<QuestionCard question={makeQuestion({
@@ -63,6 +65,7 @@ describe("QuestionCard", () => {
       highlightText: "어떻게 할지 몰라 허둥댔다",
     })} />);
     expect(screen.getByTestId("highlight-fallback")).toHaveTextContent("어떻게 할지 몰라 허둥댔다");
+    expect(screen.getByTestId("highlight-fallback").querySelector("u")).toBeInTheDocument();
   });
 
   it("renders sequence rows, an insertion sentence, a headline, and a paired label", () => {
@@ -136,6 +139,25 @@ describe("QuestionCard", () => {
   it("marks the correct option in result mode", () => {
     renderWithI18n(<QuestionCard question={{ ...baseQuestion, selectedOption: 1 }} disabled showResult={{ correctAnswer: 2 }} />);
     expect(screen.getByText("불러서").closest("button")).toHaveClass("border-green-500");
+  });
+
+  it("renders a reading graph as question material while preserving text choices and falls back to source text on image failure", () => {
+    renderWithI18n(<QuestionCard question={makeQuestion({
+      itemOrder: 10,
+      testPosition: 10,
+      itemType: "content_match_short",
+      passage: "대중교통 34%, 승용차 28%",
+      questionPrompt: "그래프의 내용과 같은 것을 고르십시오.",
+      materialVisual: { imageUrl: "https://example.com/reading-10.png", description: "교통수단 이용률 그래프" },
+    })} />);
+
+    const graph = screen.getByRole("img", { name: "교통수단 이용률 그래프" });
+    expect(screen.getByTestId("question-material-visual")).toContainElement(graph);
+    expect(screen.queryByText("대중교통 34%, 승용차 28%")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(4);
+
+    fireEvent.error(graph);
+    expect(screen.getByText("대중교통 34%, 승용차 28%")).toBeInTheDocument();
   });
 
   it("renders listening image choices without exposing descriptions and shows transcripts only when supplied", async () => {

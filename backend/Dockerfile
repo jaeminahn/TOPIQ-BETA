@@ -11,6 +11,7 @@ RUN npm run build
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache ffmpeg
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist

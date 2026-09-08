@@ -34,6 +34,7 @@ export function AdminPage() {
   const [responseTotal, setResponseTotal] = useState(0);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [expandedSession, setExpandedSession] = useState("");
+  const [responseStatus, setResponseStatus] = useState("");
   const [responseSection, setResponseSection] = useState("");
   const [responseCorrectness, setResponseCorrectness] = useState("");
   const [responsePage, setResponsePage] = useState(1);
@@ -67,6 +68,7 @@ export function AdminPage() {
         adminApi.listeningSets(token),
         adminApi.readingSets(token),
         adminApi.responseSessions(token, {
+          status: responseStatus || undefined,
           section: responseSection || undefined,
           correctness: responseCorrectness || undefined,
           page: responsePage,
@@ -83,7 +85,7 @@ export function AdminPage() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "관리자 데이터를 불러오지 못했습니다.");
     }
-  }, [responseCorrectness, responsePage, responseSection, token]);
+  }, [responseCorrectness, responsePage, responseSection, responseStatus, token]);
 
   const loadListeningSets = useCallback(async () => {
     if (!token) return;
@@ -141,9 +143,12 @@ export function AdminPage() {
   const confirmDeletion = async () => {
     if (!token || !deleteDialog) return;
     if (deleteDialog.mode === "all" && deleteConfirmation !== "전체 응답 삭제") return;
+    if (deleteDialog.mode === "abandoned" && deleteConfirmation !== "폐기 세션 전체 삭제") return;
     const operation = deleteDialog.mode === "all"
       ? adminApi.deleteAllResponseSessions(token, deleteConfirmation)
-      : adminApi.deleteResponseSessions(token, Array.from(selectedSessions));
+      : deleteDialog.mode === "abandoned"
+        ? adminApi.deleteAllAbandonedSessions(token, deleteConfirmation)
+        : adminApi.deleteResponseSessions(token, Array.from(selectedSessions));
     await action("delete-responses", () => operation);
     setSelectedSessions(new Set());
     setResponseDetails({});
@@ -169,7 +174,7 @@ export function AdminPage() {
         {tab === "overview" && summary && <AdminOverview summary={summary} jobs={jobs} />}
         {tab === "listening" && <ListeningAdminPanel token={token} sets={listeningSets} onError={setError} onSetsChanged={loadListeningSets} />}
         {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onSetsChanged={loadReadingSets} onTogglePublish={(set) => action(`toggle-reading-${set.setId}-${set.setVersion}`, () => adminApi.publish(token, set.mockTestId!, !set.mockTestPublished))} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
-        {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
+        {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} status={responseStatus} onStatusChange={(value) => { setResponseStatus(value); setResponsePage(1); setSelectedSessions(new Set()); setExpandedSession(""); }} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); setSelectedSessions(new Set()); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); setSelectedSessions(new Set()); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
         {tab === "response-guide" && <ResponseDataGuide />}
       </main>
       {deleteDialog && <ResponseDeleteDialog dialog={deleteDialog} selectedCount={selectedSessions.size} confirmation={deleteConfirmation} busy={Boolean(busy)} onConfirmationChange={setDeleteConfirmation} onCancel={() => { setDeleteDialog(null); setDeleteConfirmation(""); }} onConfirm={() => void confirmDeletion()} />}

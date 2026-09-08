@@ -42,10 +42,10 @@ export class SupabaseStorage {
     }
   }
 
-  async uploadAudio(path: string, data: Buffer) {
+  async uploadAudio(path: string, data: Buffer, contentType = "audio/mpeg") {
     const bucket = config.supabase.audioBucket;
     const result = await this.client.storage.from(bucket).upload(path, data, {
-      contentType: "audio/mpeg",
+      contentType,
       cacheControl: "31536000",
       upsert: true,
     });
