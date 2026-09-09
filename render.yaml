@@ -2,6 +2,7 @@ services:
   - type: web
     name: unigate-topik-api
     runtime: docker
+    branch: production
     rootDir: backend
     plan: starter
     healthCheckPath: /health
