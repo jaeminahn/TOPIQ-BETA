@@ -217,7 +217,7 @@ corepack pnpm --filter @unigate/topik-web preview
 
 루트의 `render.yaml`을 Blueprint로 연결합니다.
 
-- 도메인: `https://topik-api.unigate.kr`
+- 도메인: `https://topiq-api.unigate.kr`
 - Root Directory: `backend`
 - 배포 전: `node dist/migrate.js`
 - 상태 확인: `/health`
@@ -256,7 +256,7 @@ Docker 빌드에는 `seed-assets`와 위 스크립트가 포함됩니다. 초기
 Vercel 환경변수:
 
 ```env
-VITE_API_BASE_URL=https://topik-api.unigate.kr
+VITE_API_BASE_URL=https://topiq-api.unigate.kr
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
@@ -266,8 +266,8 @@ VITE_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ## 배포 후 확인
 
 ```powershell
-Invoke-RestMethod https://topik-api.unigate.kr/health
-Invoke-RestMethod https://topik-api.unigate.kr/v1/exams
+Invoke-RestMethod https://topiq-api.unigate.kr/health
+Invoke-RestMethod https://topiq-api.unigate.kr/v1/exams
 ```
 
 확인 항목:
