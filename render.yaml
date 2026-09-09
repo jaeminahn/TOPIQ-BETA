@@ -4,7 +4,7 @@ services:
     runtime: docker
     branch: production
     rootDir: backend
-    plan: starter
+    plan: starter 
     healthCheckPath: /health
     preDeployCommand: node dist/migrate.js
     envVars:
