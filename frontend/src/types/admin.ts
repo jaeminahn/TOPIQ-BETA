@@ -122,3 +122,39 @@ export interface AdminResponseObservation {
   mode: ExamMode; score: number | null; rating: number | null;
   question: Question; explanation: string;
 }
+
+export type AdminExportDataset = "questions" | "responses" | "sessions";
+export type AdminExportStatus = "submitted" | "abandoned" | "all";
+export type AdminExportOutcome = "all" | "answered" | "correct" | "incorrect" | "unanswered";
+
+export interface AdminExportFilters {
+  mockTestId?: string;
+  section?: "reading" | "listening";
+  mode?: ExamMode;
+  status: AdminExportStatus;
+  from?: string;
+  to?: string;
+  itemType?: string;
+  minAssignedCount: number;
+  outcome: AdminExportOutcome;
+  rating: "all" | "none" | "1" | "2" | "3" | "4" | "5";
+  resultEmail: "all" | "accepted" | "not_accepted";
+}
+
+export interface AdminExportOptions {
+  mockTests: Array<{
+    mockTestId: string;
+    slug: string;
+    titleKo: string;
+    titleEn: string;
+    isPublished: boolean;
+  }>;
+  itemTypes: string[];
+}
+
+export interface AdminExportPreview {
+  rowCount: number;
+  sessionCount: number;
+  filters: AdminExportFilters;
+  generatedAt: string;
+}

@@ -14,6 +14,14 @@ import { adminLogin, requireAdmin } from "./admin-auth.js";
 import { SupabaseStorage } from "./storage.js";
 import { ttsWorker } from "./tts-worker.js";
 import { visualWorker } from "./visual-worker.js";
+import { BrevoResultEmailSender, type ResultEmailSender } from "./brevo-result-email.js";
+import {
+  AdminExportRepository,
+  adminExportDatasets,
+  exportFilename,
+  parseAdminExportFilters,
+  type AdminExportSource,
+} from "./admin-export.js";
 
 const sessionParams = z.object({ sessionId: z.string().uuid() });
 const itemParams = sessionParams.extend({ itemOrder: z.coerce.number().int().min(1).max(100) });
@@ -29,6 +37,7 @@ const readingVisualAssetParams = readingItemParams.extend({ visualAssetId: z.str
 const mockTestParams = z.object({ mockTestId: z.string().uuid() });
 const questionSetRevisionParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
 const adminAudioParams = z.object({ audioAssetId: z.string().uuid() });
+const adminExportParams = z.object({ dataset: z.enum(adminExportDatasets) });
 export const ttsStyleSchema = z.object({
   speakingRate: z.number().finite().min(0.8).max(1.2).default(1),
   stylePrompt: z.string().trim().max(300).default(""),
@@ -40,6 +49,12 @@ function requireToken(authorization: string | undefined) {
   return token;
 }
 
+function requireResultToken(authorization: string | undefined) {
+  const token = bearerToken(authorization);
+  if (!token) throw new AppError(401, "RESULT_TOKEN_REQUIRED", "Result token required");
+  return token;
+}
+
 function isClientHttpError(
   error: unknown,
 ): error is Error & { statusCode: number; code?: string } {
@@ -48,7 +63,12 @@ function isClientHttpError(
   return typeof statusCode === "number" && statusCode >= 400 && statusCode < 500;
 }
 
-export async function buildApp(repository = new TopikRepository(), adminRepository = new AdminRepository()) {
+export async function buildApp(
+  repository = new TopikRepository(),
+  adminRepository = new AdminRepository(),
+  resultEmailSender: ResultEmailSender = new BrevoResultEmailSender(),
+  adminExportRepository: AdminExportSource = new AdminExportRepository(),
+) {
   const app = Fastify({
     logger: config.nodeEnv !== "test",
     trustProxy: config.trustProxy,
@@ -62,6 +82,7 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
       return callback(new Error("Origin not allowed"), false);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    exposedHeaders: ["Content-Disposition", "X-Export-Row-Count"],
   });
   await app.register(rateLimit, {
     max: 240,
@@ -142,26 +163,56 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
     return repository.abandonSession(sessionId, requireToken(request.headers.authorization));
   });
 
-  app.post("/v1/sessions/:sessionId/feedback", async (request) => {
+  app.post("/v1/sessions/:sessionId/result-email", {
+    config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+  }, async (request, reply) => {
     const { sessionId } = sessionParams.parse(request.params);
     const body = z
       .object({
         rating: z.number().int().min(1).max(5),
         locale: z.enum(["ko", "en"]),
-        email: z.string().trim().email().max(320).optional(),
-        marketingConsent: z.boolean().default(false),
+        email: z.string().trim().email().max(320),
       })
       .parse(request.body);
-    return repository.saveFeedback({
+    const prepared = await repository.prepareResultEmail({
       sessionId,
       token: requireToken(request.headers.authorization),
       ...body,
     });
+    let messageId: string;
+    try {
+      ({ messageId } = await resultEmailSender.send({
+        recipient: prepared.recipient,
+        locale: prepared.locale,
+        titleKo: prepared.titleKo,
+        titleEn: prepared.titleEn,
+        resultToken: prepared.resultToken,
+        expiresAt: prepared.expiresAt,
+      }));
+    } catch (error) {
+      try {
+        await repository.markResultEmailFailed(prepared.deliveryId, "BREVO_SEND_FAILED");
+      } catch (markError) {
+        app.log.error(markError, "Unable to mark result email as failed");
+      }
+      app.log.error(error, "Brevo result email request failed");
+      throw new AppError(502, "RESULT_EMAIL_SEND_FAILED", "Unable to send the result email");
+    }
+    try {
+      await repository.markResultEmailAccepted(prepared.deliveryId, messageId);
+    } catch (error) {
+      app.log.error(error, "Brevo accepted the result email but its status could not be persisted");
+    }
+    return reply.code(202).send({
+      emailAccepted: true,
+      maskedEmail: prepared.maskedEmail,
+      expiresAt: prepared.expiresAt.toISOString(),
+    });
   });
 
-  app.get("/v1/sessions/:sessionId/results", async (request) => {
-    const { sessionId } = sessionParams.parse(request.params);
-    return repository.getResults(sessionId, requireToken(request.headers.authorization));
+  app.get("/v1/results", async (request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    return repository.getResultsByToken(requireResultToken(request.headers.authorization));
   });
 
   app.get("/v1/admin/me", async (request) => {
@@ -179,6 +230,56 @@ export async function buildApp(repository = new TopikRepository(), adminReposito
   app.get("/v1/admin/dashboard", async (request) => {
     await requireAdmin(requireToken(request.headers.authorization));
     return { summary: await adminRepository.dashboard() };
+  });
+
+  app.get("/v1/admin/exports/options", async (request, reply) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    reply.header("Cache-Control", "no-store");
+    return adminExportRepository.options();
+  });
+
+  app.get("/v1/admin/exports/:dataset/preview", async (request, reply) => {
+    await requireAdmin(requireToken(request.headers.authorization));
+    const { dataset } = adminExportParams.parse(request.params);
+    const filters = parseAdminExportFilters(request.query, dataset);
+    const preview = await adminExportRepository.preview(dataset, filters);
+    reply.header("Cache-Control", "no-store");
+    return { ...preview, filters, generatedAt: new Date().toISOString() };
+  });
+
+  app.get("/v1/admin/exports/:dataset.csv", async (request, reply) => {
+    const admin = await requireAdmin(requireToken(request.headers.authorization));
+    const { dataset } = adminExportParams.parse(request.params);
+    const filters = parseAdminExportFilters(request.query, dataset);
+    const preview = await adminExportRepository.preview(dataset, filters);
+    request.log.info({
+      adminUserId: admin.adminUserId,
+      dataset,
+      filters,
+      rowCount: preview.rowCount,
+      sessionCount: preview.sessionCount,
+    }, "Admin CSV export started");
+    reply
+      .header("Cache-Control", "no-store")
+      .header("Content-Disposition", `attachment; filename="${exportFilename(dataset)}"`)
+      .header("X-Export-Row-Count", String(preview.rowCount))
+      .type("text/csv; charset=utf-8");
+    const stream = adminExportRepository.csvStream(dataset, filters);
+    const startedAt = Date.now();
+    stream.once("end", () => request.log.info({
+      adminUserId: admin.adminUserId,
+      dataset,
+      rowCount: preview.rowCount,
+      durationMs: Date.now() - startedAt,
+    }, "Admin CSV export completed"));
+    stream.once("error", (error) => request.log.error({
+      error,
+      adminUserId: admin.adminUserId,
+      dataset,
+      rowCount: preview.rowCount,
+      durationMs: Date.now() - startedAt,
+    }, "Admin CSV export failed"));
+    return reply.send(stream);
   });
 
   app.get("/v1/admin/listening/items", async (request) => {

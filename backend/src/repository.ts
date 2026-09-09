@@ -3,13 +3,14 @@ import type { PoolClient } from "pg";
 import { pool } from "./db.js";
 import {
   clampActiveDuration,
+  maskEmail,
   normalizeEmail,
   sanitizeQuestion,
   type ExamMode,
   type Locale,
   type ResponseEventType,
 } from "./domain.js";
-import { AppError, notFound, resultsLocked, sessionClosed, unauthorized } from "./errors.js";
+import { AppError, invalidResultToken, notFound, resultLinkExpired, sessionClosed, unauthorized } from "./errors.js";
 import { SupabaseStorage } from "./storage.js";
 
 type SessionRow = {
@@ -302,10 +303,26 @@ export class TopikRepository {
       slug: string;
       title_en: string;
       title_ko: string;
+      rating: number | null;
+      result_email: string | null;
+      result_link_expires_at: Date | null;
     }>(
-      `SELECT s.*, m.slug, m.title_en, m.title_ko
+      `SELECT s.*, m.slug, m.title_en, m.title_ko, af.rating,
+              delivery.email_original AS result_email,
+              delivery.expires_at AS result_link_expires_at
          FROM topik_app.sessions s
          JOIN topik_app.mock_tests m ON m.mock_test_id = s.mock_test_id
+         LEFT JOIN topik_app.attempt_feedback af ON af.session_id = s.session_id
+         LEFT JOIN LATERAL (
+           SELECT red.email_original, red.expires_at
+             FROM topik_app.result_email_deliveries red
+            WHERE red.session_id = s.session_id
+              AND red.status = 'accepted'
+              AND red.revoked_at IS NULL
+              AND red.expires_at > CURRENT_TIMESTAMP
+            ORDER BY red.accepted_at DESC NULLS LAST, red.requested_at DESC
+            LIMIT 1
+         ) delivery ON TRUE
         WHERE s.session_id = $1`,
       [sessionId],
     );
@@ -364,7 +381,10 @@ export class TopikRepository {
       startedAt: session.started_at.toISOString(),
       expiresAt: session.expires_at?.toISOString() ?? null,
       submittedAt: session.submitted_at?.toISOString() ?? null,
-      resultsUnlocked: session.results_unlocked_at !== null,
+      rating: session.rating,
+      resultEmailSent: session.result_email !== null,
+      maskedResultEmail: session.result_email ? maskEmail(session.result_email) : null,
+      resultLinkExpiresAt: session.result_link_expires_at?.toISOString() ?? null,
       serverTime: new Date().toISOString(),
       exam: { id: session.mock_test_id, slug: session.slug, titleEn: session.title_en, titleKo: session.title_ko },
       questions: questions.rows.map((row) => sanitizeQuestion(row)),
@@ -586,7 +606,7 @@ export class TopikRepository {
         await finalizeInTransaction(client, session, isExpired(session));
       }
       await client.query("COMMIT");
-      return { status: "submitted", resultsLocked: true };
+      return { status: "submitted", resultEmailRequired: true };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -621,13 +641,12 @@ export class TopikRepository {
     }
   }
 
-  async saveFeedback(input: {
+  async prepareResultEmail(input: {
     sessionId: string;
     token: string;
     rating: number;
     locale: Locale;
-    email?: string;
-    marketingConsent: boolean;
+    email: string;
   }) {
     const client = await begin();
     try {
@@ -636,8 +655,15 @@ export class TopikRepository {
       if (session.status !== "submitted") {
         throw new AppError(409, "SESSION_NOT_SUBMITTED", "Submit the session first");
       }
-      if (input.email && !input.marketingConsent) {
-        throw new AppError(400, "CONSENT_REQUIRED", "Marketing consent is required for email storage");
+      const attempts = await client.query<{ count: number }>(
+        `SELECT COUNT(*)::int count
+           FROM topik_app.result_email_deliveries
+          WHERE session_id = $1
+            AND requested_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
+        [input.sessionId],
+      );
+      if ((attempts.rows[0]?.count ?? 0) >= 5) {
+        throw new AppError(429, "RESULT_EMAIL_RATE_LIMITED", "Too many result email requests");
       }
       await client.query(
         `INSERT INTO topik_app.attempt_feedback(session_id, rating, locale)
@@ -648,30 +674,39 @@ export class TopikRepository {
            updated_at = CURRENT_TIMESTAMP`,
         [input.sessionId, input.rating, input.locale],
       );
-      if (input.email) {
-        const normalized = normalizeEmail(input.email);
-        await client.query(
-          `INSERT INTO topik_app.email_subscriptions(
-             subscription_id, session_id, email_normalized, email_original, locale
-           ) VALUES ($1,$2,$3,$4,$5)
-           ON CONFLICT (email_normalized) DO UPDATE SET
-             session_id = EXCLUDED.session_id,
-             email_original = EXCLUDED.email_original,
-             locale = EXCLUDED.locale,
-             consented_at = CURRENT_TIMESTAMP,
-             unsubscribed_at = NULL`,
-          [randomUUID(), input.sessionId, normalized, input.email.trim(), input.locale],
-        );
-      }
+
+      const deliveryId = randomUUID();
+      const resultToken = randomBytes(32).toString("base64url");
+      const recipient = input.email.trim();
+      const inserted = await client.query<{ expires_at: Date }>(
+        `INSERT INTO topik_app.result_email_deliveries(
+           delivery_id, session_id, email_normalized, email_original, locale,
+           result_token_hash, expires_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP + INTERVAL '30 days')
+         RETURNING expires_at`,
+        [deliveryId, input.sessionId, normalizeEmail(recipient), recipient, input.locale, tokenHash(resultToken)],
+      );
+      const exam = await client.query<{ title_en: string; title_ko: string }>(
+        `SELECT title_en, title_ko FROM topik_app.mock_tests WHERE mock_test_id = $1`,
+        [session.mock_test_id],
+      );
+      const selectedExam = exam.rows[0];
+      if (!selectedExam) throw notFound("Mock test not found");
       await client.query(
-        `UPDATE topik_app.sessions
-            SET results_unlocked_at = COALESCE(results_unlocked_at, CURRENT_TIMESTAMP),
-                last_seen_at = CURRENT_TIMESTAMP
-          WHERE session_id = $1`,
+        "UPDATE topik_app.sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE session_id = $1",
         [input.sessionId],
       );
       await client.query("COMMIT");
-      return { resultsUnlocked: true, emailSubscribed: Boolean(input.email) };
+      return {
+        deliveryId,
+        recipient,
+        maskedEmail: maskEmail(recipient),
+        locale: input.locale,
+        titleEn: selectedExam.title_en,
+        titleKo: selectedExam.title_ko,
+        resultToken,
+        expiresAt: inserted.rows[0]!.expires_at,
+      };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -680,19 +715,78 @@ export class TopikRepository {
     }
   }
 
-  async getResults(sessionId: string, token: string) {
-    await finalizeIfExpired(sessionId, token);
-    const sessionResult = await pool.query<SessionRow & { title_en: string; title_ko: string }>(
-      `SELECT s.*, m.title_en, m.title_ko
-         FROM topik_app.sessions s
+  async markResultEmailAccepted(deliveryId: string, providerMessageId: string) {
+    const client = await begin();
+    try {
+      const accepted = await client.query<{ session_id: string; requested_at: Date }>(
+        `UPDATE topik_app.result_email_deliveries
+            SET status='accepted', provider_message_id=$2, accepted_at=CURRENT_TIMESTAMP,
+                failed_at=NULL, failure_code=NULL
+          WHERE delivery_id=$1
+          RETURNING session_id, requested_at`,
+        [deliveryId, providerMessageId],
+      );
+      const acceptedDelivery = accepted.rows[0];
+      if (!acceptedDelivery) throw notFound("Result email delivery not found");
+      await client.query(
+        `UPDATE topik_app.result_email_deliveries
+            SET revoked_at=CURRENT_TIMESTAMP
+          WHERE session_id=$1 AND delivery_id<>$2 AND revoked_at IS NULL
+            AND requested_at < $3`,
+        [acceptedDelivery.session_id, deliveryId, acceptedDelivery.requested_at],
+      );
+      await client.query(
+        `UPDATE topik_app.result_email_deliveries current_delivery
+            SET revoked_at=CURRENT_TIMESTAMP
+          WHERE current_delivery.delivery_id=$1
+            AND EXISTS (
+              SELECT 1 FROM topik_app.result_email_deliveries newer
+               WHERE newer.session_id=$2 AND newer.delivery_id<>$1
+                 AND newer.status='accepted' AND newer.revoked_at IS NULL
+                 AND newer.requested_at > $3
+            )`,
+        [deliveryId, acceptedDelivery.session_id, acceptedDelivery.requested_at],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async markResultEmailFailed(deliveryId: string, failureCode: string) {
+    await pool.query(
+      `UPDATE topik_app.result_email_deliveries
+          SET status='failed', failure_code=$2, failed_at=CURRENT_TIMESTAMP
+        WHERE delivery_id=$1 AND status='pending'`,
+      [deliveryId, failureCode],
+    );
+  }
+
+  async getResultsByToken(token: string) {
+    const sessionResult = await pool.query<SessionRow & {
+      title_en: string;
+      title_ko: string;
+      delivery_status: "pending" | "accepted" | "failed";
+      delivery_expires_at: Date;
+      delivery_revoked_at: Date | null;
+    }>(
+      `SELECT s.*, m.title_en, m.title_ko, red.status AS delivery_status,
+              red.expires_at AS delivery_expires_at, red.revoked_at AS delivery_revoked_at
+         FROM topik_app.result_email_deliveries red
+         JOIN topik_app.sessions s ON s.session_id = red.session_id
          JOIN topik_app.mock_tests m ON m.mock_test_id = s.mock_test_id
-        WHERE s.session_id = $1`,
-      [sessionId],
+        WHERE red.result_token_hash = $1`,
+      [tokenHash(token)],
     );
     const session = sessionResult.rows[0];
-    if (!session) throw notFound("Session not found");
-    assertToken(session, token);
-    if (session.status !== "submitted" || !session.results_unlocked_at) throw resultsLocked();
+    if (!session || session.status !== "submitted" || session.delivery_status === "failed" || session.delivery_revoked_at) {
+      throw invalidResultToken();
+    }
+    if (session.delivery_expires_at.getTime() <= Date.now()) throw resultLinkExpired();
+    const sessionId = session.session_id;
 
     const wrong = await pool.query<QuestionRow & {
       correct_answer: number;

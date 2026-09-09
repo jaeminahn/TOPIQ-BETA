@@ -17,5 +17,8 @@ export const unauthorized = () =>
 export const sessionClosed = () =>
   new AppError(409, "SESSION_CLOSED", "This session has already been submitted");
 
-export const resultsLocked = () =>
-  new AppError(423, "RESULTS_LOCKED", "Submit a rating to unlock the results");
+export const invalidResultToken = () =>
+  new AppError(401, "INVALID_RESULT_TOKEN", "Invalid result link");
+
+export const resultLinkExpired = () =>
+  new AppError(410, "RESULT_LINK_EXPIRED", "This result link has expired");

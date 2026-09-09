@@ -26,7 +26,10 @@ const timedSession: TestSession = {
   startedAt: "2026-08-15T00:00:00.000Z",
   expiresAt: "2026-08-15T00:05:00.000Z",
   submittedAt: null,
-  resultsUnlocked: false,
+  rating: null,
+  resultEmailSent: false,
+  maskedResultEmail: null,
+  resultLinkExpiresAt: null,
   serverTime: "2026-08-15T00:00:00.000Z",
   exam: { slug: "topik-ii-reading-1", titleKo: "읽기 모의고사" },
   questions: [{

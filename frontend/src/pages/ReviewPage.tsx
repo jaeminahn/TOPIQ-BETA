@@ -25,7 +25,7 @@ export function ReviewPage() {
   if (loading) return <div className="min-h-screen bg-gray-100"><Header compact /><LoadingState /></div>;
   if (error || !session) return <div className="min-h-screen bg-gray-100"><Header compact /><ErrorState message={error ?? t("sessionMissing")} retry={reload} /></div>;
   if (session.status === "submitted") {
-    return <Navigate to={session.resultsUnlocked ? `/session/${sessionId}/results` : `/session/${sessionId}/feedback`} replace />;
+    return <Navigate to={`/session/${sessionId}/feedback`} replace />;
   }
 
   const unanswered = session.questions.filter((question) => question.selectedOption === null);

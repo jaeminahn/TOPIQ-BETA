@@ -53,7 +53,7 @@ export function TestPage() {
     if (!session) return;
     if (session.status === "submitted") {
       clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
-      navigate(session.resultsUnlocked ? `/session/${session.sessionId}/results` : `/session/${session.sessionId}/feedback`, { replace: true });
+      navigate(`/session/${session.sessionId}/feedback`, { replace: true });
     }
   }, [navigate, session]);
 

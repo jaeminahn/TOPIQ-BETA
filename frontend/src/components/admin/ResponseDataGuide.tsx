@@ -38,13 +38,13 @@ const groups = [
     icon: Star,
     title: "결과 피드백",
     description: "결과 확인 과정에서 제출한 평가 정보를 세션과 연결합니다.",
-    fields: ["1~5점 별점", "선택 언어", "생성·수정 시각", "결과 확인이 열린 시각"],
+    fields: ["1~5점 별점", "선택 언어", "생성·수정 시각"],
   },
   {
     icon: MailCheck,
-    title: "이메일 수신 동의",
-    description: "마케팅 수신에 명시적으로 동의하고 이메일을 입력한 경우에만 별도로 저장합니다.",
-    fields: ["원본·정규화 이메일", "선택 언어와 유입 경로", "동의·수신 거부 시각", "응답 세션 삭제 후에도 유지되는 구독 상태"],
+    title: "결과 이메일 전달",
+    description: "필수로 입력한 이메일은 해당 시험의 결과 링크 전달에만 사용하며 마케팅 구독과 분리합니다.",
+    fields: ["원본·정규화 이메일", "선택 언어와 발송 상태", "Brevo 메시지 ID와 발송 시각", "해시된 결과 토큰·만료·폐기 시각"],
   },
 ];
 
@@ -76,11 +76,11 @@ export function ResponseDataGuide() {
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <article className="rounded-2xl border border-primary-100 bg-primary-50 p-5">
           <h3 className="flex items-center gap-2 font-semibold text-primary-dark"><KeyRound className="size-5" />접근 정보 보호</h3>
-          <p className="mt-2 text-sm font-medium leading-6 text-gray-700">응시용 원본 접근 토큰은 데이터베이스에 저장하지 않고 SHA-256 해시만 저장합니다. 관리자 응답 화면에도 토큰이나 이메일은 노출하지 않습니다.</p>
+          <p className="mt-2 text-sm font-medium leading-6 text-gray-700">응시용 접근 토큰과 이메일 결과 링크의 원본 토큰은 데이터베이스에 저장하지 않고 SHA-256 해시만 저장합니다. 문항 분석·사용자 응답 CSV에는 이메일을 넣지 않으며, 응시 세션 요약 CSV에만 최신 접수 완료 이메일 원문을 포함합니다.</p>
         </article>
         <article className="rounded-2xl border border-red-100 bg-red-50 p-5">
           <h3 className="flex items-center gap-2 font-semibold text-red-700"><Trash2 className="size-5" />응답 삭제 시 처리</h3>
-          <p className="mt-2 text-sm font-medium leading-6 text-gray-700">세션, 답안 상태·이벤트, 최종 응답, 별점과 음원 재생 기록은 함께 삭제됩니다. 이메일 수신 동의는 세션 연결만 해제하고 유지하며, 삭제 범위·건수·실행 관리자·시각은 감사 기록으로 남습니다.</p>
+          <p className="mt-2 text-sm font-medium leading-6 text-gray-700">세션, 답안 상태·이벤트, 최종 응답, 별점, 결과 이메일과 음원 재생 기록은 함께 삭제됩니다. 기존 마케팅 수신 동의는 세션 연결만 해제하고 유지하며, 삭제 범위·건수·실행 관리자·시각은 감사 기록으로 남습니다.</p>
         </article>
       </div>
 

@@ -1,6 +1,6 @@
 # UNIGATE TOPIK II Mock Test
 
-`topik.unigate.kr`용 TOPIK II 읽기·듣기 모의고사입니다.
+`topiq.unigate.kr`용 TOPIK II 읽기·듣기 모의고사입니다.
 
 - 프론트엔드: React, Vite, TypeScript, Tailwind CSS, Pretendard
 - 백엔드: Fastify, TypeScript, PostgreSQL
@@ -74,13 +74,18 @@ NODE_ENV=development
 PORT=4000
 DATABASE_URL=postgresql://user:password@localhost:5432/topik
 DATABASE_SSL=disable
-APP_ORIGINS=http://localhost:5173,https://topik.unigate.kr
+APP_ORIGINS=http://localhost:5173,https://topiq.unigate.kr
 TRUST_PROXY=false
 
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 SUPABASE_AUDIO_BUCKET=topik-listening-audio
 SUPABASE_MEDIA_BUCKET=topik-question-media
+
+BREVO_API_KEY=your-brevo-api-key
+BREVO_SENDER_EMAIL=no-reply@unigate.kr
+BREVO_SENDER_NAME=UNIGATE
+PUBLIC_APP_URL=http://localhost:5173
 
 GOOGLE_CLOUD_PROJECT_ID=your-project-id
 GOOGLE_CLOUD_CREDENTIALS_JSON={"type":"service_account",...}
@@ -169,13 +174,14 @@ corepack pnpm --filter @unigate/topik-web dev
 
 작업은 DB에 남으므로 서버가 재시작되어도 재개됩니다. 동일 대화·모델·음성 해시는 재사용하며 21~50번 묶음 문제는 같은 음원을 공유합니다.
 
-관리자 페이지는 `요약`, `듣기 문항`, `읽기 문항`, `사용자 응답` 탭으로 나뉩니다.
+관리자 페이지는 `요약`, `듣기 문항`, `읽기 문항`, `사용자 응답`, `데이터 추출` 탭으로 나뉩니다.
 
 - 듣기: 생성 전 말하기 속도(0.75~1.25배)와 추가 스타일 지시를 설정할 수 있습니다. 재생성하면 새 설정이 작업과 음원에 함께 기록됩니다.
 - 음원 삭제: 공통 대본 그룹의 모든 문항 연결을 함께 해제하며, 다른 문항이 공유하지 않는 파일은 Supabase Storage에서도 삭제합니다. 재생 이력이 있는 SQL 행은 분석 참조를 위해 삭제 표시만 남깁니다.
 - TTS 오류: 실패 작업이 있을 때만 요약 화면과 해당 문항의 접힌 상세 영역에 표시됩니다. 이후 생성이 성공하면 문항에서는 이전 오류를 표시하지 않습니다.
 - 읽기: 세트·검색 필터로 본문, 보기, 정답, 해설, 목표 급수와 난이도를 검수할 수 있습니다.
-- 사용자 응답: 제출 세션을 펼쳐 문항별 선택 답안, 정답 여부, 활성 응답 시간과 답 변경 여부를 확인합니다. 체크한 세션만 삭제하거나 `전체 응답 삭제` 문구를 입력해 제출 완료 세션을 모두 삭제할 수 있습니다. 진행 중 시험과 이메일 수신 동의는 보존되며 삭제 수량과 관리자는 감사 로그에 기록됩니다.
+- 사용자 응답: 제출 세션을 펼쳐 문항별 선택 답안, 정답 여부, 활성 응답 시간과 답 변경 여부를 확인합니다. 체크한 세션만 삭제하거나 `전체 응답 삭제` 문구를 입력해 제출 완료 세션을 모두 삭제할 수 있습니다. 진행 중 시험과 기존 마케팅 수신 동의는 보존되고, 결과 이메일 이력은 세션과 함께 삭제되며 삭제 수량과 관리자는 감사 로그에 기록됩니다.
+- 데이터 추출: 시험·영역·기간·응시 상태 등의 조건을 적용하고 예상 행 수를 확인한 뒤 문항 분석, 사용자 문항별 응답, 응시 세션 요약 CSV를 내려받습니다. 문항·응답 CSV에는 이메일을 넣지 않으며, 세션 요약 CSV의 `result_email` 열에는 최신 Brevo 접수 완료 이메일 원문이 포함됩니다. IP·접근 토큰·결과 토큰은 모든 CSV에서 제외됩니다.
 
 관리자 기능을 업데이트한 기존 환경에서는 배포 전에 새 마이그레이션을 적용합니다.
 
@@ -224,6 +230,7 @@ SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
 GOOGLE_CLOUD_PROJECT_ID=...
 GOOGLE_CLOUD_CREDENTIALS_JSON={...}
+BREVO_API_KEY=xkeysib-...
 ```
 
 일반 환경변수는 `render.yaml`에 정의되어 있습니다. 최초 배포 후 Render Shell에서 한 번 실행합니다.
@@ -244,7 +251,7 @@ Docker 빌드에는 `seed-assets`와 위 스크립트가 포함됩니다. 초기
 | Install Command | `cd .. && corepack pnpm install --frozen-lockfile` |
 | Build Command | `corepack pnpm --filter @unigate/topik-web build` |
 | Output Directory | `dist` |
-| Domain | `topik.unigate.kr` |
+| Domain | `topiq.unigate.kr` |
 
 Vercel 환경변수:
 
@@ -272,6 +279,7 @@ Invoke-RestMethod https://topik-api.unigate.kr/v1/exams
 5. 준비되지 않은 듣기 시험 공개 거부
 6. 실전 모드 자동 재생·횟수 제한과 연습 모드 자유 재생
 7. 묶음 듣기 두 문항 동시 표시 및 문항별 답안 저장
-8. 제출 시 50개 최종 응답 생성과 별점 후 결과·대본 공개
+8. 제출 시 50개 최종 응답 생성, 필수 별점·이메일 입력과 Brevo 결과 링크 발송
+9. 메일 링크를 새 브라우저에서 열어 점수·오답·듣기 대본 확인, 만료·폐기 링크 접근 거부
 
 Google Cloud 요청 형식은 [Gemini TTS 공식 문서](https://docs.cloud.google.com/text-to-speech/docs/gemini-tts)를 기준으로 합니다.

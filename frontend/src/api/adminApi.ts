@@ -7,13 +7,17 @@ import type {
   AdminResponseObservation,
   AdminResponseSession,
   AdminSummary,
+  AdminExportDataset,
+  AdminExportFilters,
+  AdminExportOptions,
+  AdminExportPreview,
   AdminQuestionRevision,
   TtsJob,
   TtsStyle,
 } from "../types";
-import { auth, request } from "./request";
+import { auth, request, requestBlob } from "./request";
 
-function queryString(filters: Record<string, string | number | undefined>) {
+function queryString(filters: object) {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value !== undefined && value !== "") query.set(key, String(value));
@@ -35,6 +39,24 @@ export const adminApi = {
 
   dashboard(token: string) {
     return request<{ summary: AdminSummary }>("/v1/admin/dashboard", { headers: auth(token) });
+  },
+
+  exportOptions(token: string) {
+    return request<AdminExportOptions>("/v1/admin/exports/options", { headers: auth(token) });
+  },
+
+  exportPreview(token: string, dataset: AdminExportDataset, filters: AdminExportFilters) {
+    return request<AdminExportPreview>(
+      `/v1/admin/exports/${dataset}/preview${queryString(filters)}`,
+      { headers: auth(token) },
+    );
+  },
+
+  downloadExport(token: string, dataset: AdminExportDataset, filters: AdminExportFilters) {
+    return requestBlob(
+      `/v1/admin/exports/${dataset}.csv${queryString(filters)}`,
+      { headers: auth(token) },
+    );
   },
 
   listeningItems(token: string, filters: { setId?: string; status?: string } = {}) {

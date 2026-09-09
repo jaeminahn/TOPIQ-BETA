@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { FeedbackPage } from "./pages/FeedbackPage";
 import { LandingPage } from "./pages/LandingPage";
 import { ResultsPage } from "./pages/ResultsPage";
@@ -14,8 +14,14 @@ export default function App() {
       <Route path="/session/:sessionId" element={<TestPage />} />
       <Route path="/session/:sessionId/review" element={<ReviewPage />} />
       <Route path="/session/:sessionId/feedback" element={<FeedbackPage />} />
-      <Route path="/session/:sessionId/results" element={<ResultsPage />} />
+      <Route path="/results" element={<ResultsPage />} />
+      <Route path="/session/:sessionId/results" element={<LegacyResultsRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+function LegacyResultsRedirect() {
+  const { sessionId } = useParams();
+  return <Navigate to={sessionId ? `/session/${sessionId}/feedback` : "/"} replace />;
 }

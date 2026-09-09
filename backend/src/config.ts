@@ -33,6 +33,12 @@ const envSchema = z.object({
   GOOGLE_IMAGE_LOCATION: z.string().default("global"),
   GOOGLE_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
   VISUAL_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
+  BREVO_API_KEY: z.string().min(1).optional(),
+  BREVO_SENDER_EMAIL: z.string().email().optional(),
+  BREVO_SENDER_NAME: z.string().trim().min(1).max(100).default("UNIGATE"),
+  PUBLIC_APP_URL: z.string().url().default(
+    environmentName === "production" ? "https://topiq.unigate.kr" : "http://localhost:5173",
+  ),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(12).optional(),
 });
@@ -72,6 +78,12 @@ export const config = {
     location: parsed.GOOGLE_IMAGE_LOCATION,
     model: parsed.GOOGLE_IMAGE_MODEL,
     workerEnabled: parsed.VISUAL_WORKER_ENABLED === "true",
+  },
+  brevo: {
+    apiKey: parsed.BREVO_API_KEY,
+    senderEmail: parsed.BREVO_SENDER_EMAIL,
+    senderName: parsed.BREVO_SENDER_NAME,
+    publicAppUrl: parsed.PUBLIC_APP_URL.replace(/\/$/, ""),
   },
   adminBootstrap: { email: parsed.ADMIN_EMAIL, password: parsed.ADMIN_PASSWORD },
 } as const;

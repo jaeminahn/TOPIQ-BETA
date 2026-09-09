@@ -45,3 +45,11 @@ services:
         value: gemini-2.5-flash-image
       - key: VISUAL_WORKER_ENABLED
         value: "true"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        value: no-reply@unigate.kr
+      - key: BREVO_SENDER_NAME
+        value: UNIGATE
+      - key: PUBLIC_APP_URL
+        value: https://topiq.unigate.kr

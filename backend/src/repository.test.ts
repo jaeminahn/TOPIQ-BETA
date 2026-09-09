@@ -75,3 +75,61 @@ describe("TopikRepository abandonSession", () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining("status='abandoned'"), ["session-1"]);
   });
 });
+
+describe("TopikRepository result email delivery", () => {
+  const sessionToken = "session-token";
+  const submittedSession = {
+    session_id: "session-1", user_id: "user-1", mock_test_id: "exam-1", mode: "timed",
+    status: "submitted", access_token_hash: createHash("sha256").update(sessionToken).digest("hex"),
+    started_at: new Date(), expires_at: new Date(), submitted_at: new Date(), abandoned_at: null,
+    results_unlocked_at: null, score: 82, max_score: 100, timed_out_submission: false,
+  };
+
+  beforeEach(() => {
+    poolMock.query.mockReset();
+    poolMock.connect.mockReset();
+  });
+
+  it("stores only a hash of a 30-day result token and does not create a marketing subscription", async () => {
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [submittedSession] };
+      if (sql.includes("COUNT(*)::int count")) return { rowCount: 1, rows: [{ count: 0 }] };
+      if (sql.includes("INSERT INTO topik_app.result_email_deliveries")) return { rowCount: 1, rows: [{ expires_at: expiresAt }] };
+      if (sql.includes("SELECT title_en, title_ko")) return { rowCount: 1, rows: [{ title_en: "Reading 1", title_ko: "읽기 1회" }] };
+      return { rowCount: 1, rows: [] };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    const result = await new TopikRepository().prepareResultEmail({
+      sessionId: "session-1", token: sessionToken, rating: 5, locale: "ko", email: "User@Example.com ",
+    });
+
+    expect(result.resultToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(result.maskedEmail).toBe("u***r@example.com");
+    const deliveryInsert = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.result_email_deliveries"));
+    expect(deliveryInsert?.[1]).toEqual(expect.arrayContaining([
+      "session-1", "user@example.com", "User@Example.com", "ko",
+      createHash("sha256").update(result.resultToken).digest("hex"),
+    ]));
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("email_subscriptions"))).toBe(false);
+  });
+
+  it("rejects expired and revoked result tokens", async () => {
+    poolMock.query.mockResolvedValueOnce({ rowCount: 1, rows: [{
+      ...submittedSession,
+      title_en: "Reading 1", title_ko: "읽기 1회", delivery_status: "accepted",
+      delivery_expires_at: new Date(Date.now() - 1_000), delivery_revoked_at: null,
+    }] });
+    await expect(new TopikRepository().getResultsByToken("expired-token"))
+      .rejects.toMatchObject({ statusCode: 410, code: "RESULT_LINK_EXPIRED" });
+
+    poolMock.query.mockResolvedValueOnce({ rowCount: 1, rows: [{
+      ...submittedSession,
+      title_en: "Reading 1", title_ko: "읽기 1회", delivery_status: "accepted",
+      delivery_expires_at: new Date(Date.now() + 60_000), delivery_revoked_at: new Date(),
+    }] });
+    await expect(new TopikRepository().getResultsByToken("revoked-token"))
+      .rejects.toMatchObject({ statusCode: 401, code: "INVALID_RESULT_TOKEN" });
+  });
+});

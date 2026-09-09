@@ -32,6 +32,22 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
+export async function requestBlob(path: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(
+      response.status,
+      body?.error?.code ?? "REQUEST_FAILED",
+      body?.error?.message ?? "Request failed",
+    );
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? "unigate-export.csv";
+  return { blob: await response.blob(), filename };
+}
+
 export async function requestWithRetry<T>(operation: () => Promise<T>): Promise<T> {
   const delays = [0, 250, 750];
   let lastError: unknown;

@@ -1,25 +1,25 @@
-import { BookOpen, Database, Headphones, Home, LayoutDashboard, LogOut, MessageSquareText, RefreshCw } from "lucide-react";
+import { BookOpen, Download, Headphones, Home, LayoutDashboard, LogOut, MessageSquareText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api";
 import { AdminLogin } from "../components/admin/AdminLogin";
 import { AdminOverview } from "../components/admin/AdminOverview";
 import { AdminResponsesPanel, type DeleteDialog } from "../components/admin/AdminResponsesPanel";
+import { AdminDataExportPanel } from "../components/admin/AdminDataExportPanel";
 import { ListeningAdminPanel } from "../components/admin/ListeningAdminPanel";
 import { ReadingAdminPanel } from "../components/admin/ReadingAdminPanel";
 import { ResponseDeleteDialog } from "../components/admin/ResponseDeleteDialog";
-import { ResponseDataGuide } from "../components/admin/ResponseDataGuide";
 import { supabase } from "../supabase";
 import type { AdminListeningSet, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, TtsJob } from "../types";
 
-type AdminTab = "overview" | "listening" | "reading" | "responses" | "response-guide";
+type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports";
 
 const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "요약", icon: LayoutDashboard },
   { id: "listening", label: "듣기 문항", icon: Headphones },
   { id: "reading", label: "읽기 문항", icon: BookOpen },
   { id: "responses", label: "사용자 응답", icon: MessageSquareText },
-  { id: "response-guide", label: "응답 데이터 안내", icon: Database },
+  { id: "exports", label: "데이터 추출", icon: Download },
 ];
 
 export function AdminPage() {
@@ -175,7 +175,7 @@ export function AdminPage() {
         {tab === "listening" && <ListeningAdminPanel token={token} sets={listeningSets} onError={setError} onSetsChanged={loadListeningSets} />}
         {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onSetsChanged={loadReadingSets} onTogglePublish={(set) => action(`toggle-reading-${set.setId}-${set.setVersion}`, () => adminApi.publish(token, set.mockTestId!, !set.mockTestPublished))} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
         {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} status={responseStatus} onStatusChange={(value) => { setResponseStatus(value); setResponsePage(1); setSelectedSessions(new Set()); setExpandedSession(""); }} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); setSelectedSessions(new Set()); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); setSelectedSessions(new Set()); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
-        {tab === "response-guide" && <ResponseDataGuide />}
+        {tab === "exports" && <AdminDataExportPanel token={token} />}
       </main>
       {deleteDialog && <ResponseDeleteDialog dialog={deleteDialog} selectedCount={selectedSessions.size} confirmation={deleteConfirmation} busy={Boolean(busy)} onConfirmationChange={setDeleteConfirmation} onCancel={() => { setDeleteDialog(null); setDeleteConfirmation(""); }} onConfirm={() => void confirmDeletion()} />}
     </div>

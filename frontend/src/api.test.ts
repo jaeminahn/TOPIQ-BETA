@@ -40,7 +40,7 @@ describe("request headers", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: vi.fn().mockResolvedValue({ status: "submitted", resultsLocked: true }),
+      json: vi.fn().mockResolvedValue({ status: "submitted", resultEmailRequired: true }),
     } as unknown as Response);
 
     await api.submit(
@@ -52,6 +52,29 @@ describe("request headers", () => {
     const headers = new Headers(init?.headers);
     expect(init?.body).toBeUndefined();
     expect(headers.has("Content-Type")).toBe(false);
+  });
+
+  it("sends mandatory result delivery data and keeps the result token out of the URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 202,
+        json: vi.fn().mockResolvedValue({ emailAccepted: true, maskedEmail: "u***r@example.com", expiresAt: "2026-10-09T00:00:00Z" }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ score: 80, incorrect: [] }),
+      } as unknown as Response);
+
+    await api.resultEmail("session-1", "session-token", { rating: 5, locale: "ko", email: "user@example.com" });
+    await api.results("emailed-result-token");
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/v1\/sessions\/session-1\/result-email$/);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ rating: 5, locale: "ko", email: "user@example.com" });
+    expect(String(fetchMock.mock.calls[1]?.[0])).toMatch(/\/v1\/results$/);
+    expect(String(fetchMock.mock.calls[1]?.[0])).not.toContain("emailed-result-token");
+    expect(new Headers(fetchMock.mock.calls[1]?.[1]?.headers).get("Authorization")).toBe("Bearer emailed-result-token");
   });
 
   it("lets the browser provide the multipart boundary for a listening image upload", async () => {
@@ -163,5 +186,53 @@ describe("admin response deletion", () => {
     const init = fetchMock.mock.calls[0]?.[1];
     expect(init?.method).toBe("DELETE");
     expect(JSON.parse(String(init?.body))).toEqual({ confirmation: "폐기 세션 전체 삭제" });
+  });
+});
+
+describe("admin CSV export", () => {
+  it("sends filters to the preview endpoint with admin authentication", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ rowCount: 10, sessionCount: 2, filters: {}, generatedAt: "2026-09-09T00:00:00Z" }),
+    } as unknown as Response);
+
+    await adminApi.exportPreview("admin-token", "responses", {
+      status: "all",
+      section: "reading",
+      minAssignedCount: 0,
+      outcome: "unanswered",
+      rating: "all",
+      resultEmail: "all",
+    });
+
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]), "https://example.com");
+    expect(url.pathname).toBe("/v1/admin/exports/responses/preview");
+    expect(url.searchParams.get("status")).toBe("all");
+    expect(url.searchParams.get("section")).toBe("reading");
+    expect(url.searchParams.get("outcome")).toBe("unanswered");
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("Authorization")).toBe("Bearer admin-token");
+  });
+
+  it("reads the protected CSV filename and Blob response", async () => {
+    const blob = new Blob(["csv-data"], { type: "text/csv" });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "Content-Disposition": 'attachment; filename="unigate_questions_20260909_120000_KST.csv"' }),
+      blob: vi.fn().mockResolvedValue(blob),
+    } as unknown as Response);
+
+    const result = await adminApi.downloadExport("admin-token", "questions", {
+      status: "submitted",
+      minAssignedCount: 5,
+      outcome: "all",
+      rating: "all",
+      resultEmail: "all",
+    });
+
+    expect(result).toEqual({ blob, filename: "unigate_questions_20260909_120000_KST.csv" });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("/v1/admin/exports/questions.csv?");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain("minAssignedCount=5");
   });
 });

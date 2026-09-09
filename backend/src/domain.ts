@@ -113,6 +113,17 @@ export function normalizeEmail(value: string): string {
   return value.trim().toLocaleLowerCase("en-US");
 }
 
+export function maskEmail(value: string): string {
+  const normalized = normalizeEmail(value);
+  const separator = normalized.lastIndexOf("@");
+  if (separator <= 0) return "***";
+  const local = normalized.slice(0, separator);
+  const domain = normalized.slice(separator + 1);
+  const characters = Array.from(local);
+  const visible = characters.length > 1 ? `${characters[0]}***${characters.at(-1)}` : `${characters[0]}***`;
+  return `${visible}@${domain}`;
+}
+
 export function bearerToken(authorization: string | undefined): string | null {
   if (!authorization?.startsWith("Bearer ")) return null;
   const token = authorization.slice(7).trim();

@@ -131,4 +131,13 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("visual_material");
     expect(sql).toContain("all_abandoned_sessions");
   });
+
+  it("stores expiring result email deliveries with revocable hashed tokens", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/013_result_email_delivery.sql"), "utf8");
+    expect(sql).toContain("topik_app.result_email_deliveries");
+    expect(sql).toContain("result_token_hash CHAR(64) NOT NULL UNIQUE");
+    expect(sql).toContain("ON DELETE CASCADE");
+    expect(sql).toContain("revoked_at");
+    expect(sql).toContain("status IN ('pending', 'accepted', 'failed')");
+  });
 });

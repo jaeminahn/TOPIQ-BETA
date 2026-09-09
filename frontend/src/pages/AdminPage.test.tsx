@@ -10,6 +10,7 @@ vi.mock("../api", () => ({
   adminApi: {
     me: vi.fn(), dashboard: vi.fn(), jobs: vi.fn(), listeningSets: vi.fn(),
     readingSets: vi.fn(), responseSessions: vi.fn(), responseSession: vi.fn(),
+    exportOptions: vi.fn(), exportPreview: vi.fn(), downloadExport: vi.fn(),
   },
 }));
 vi.mock("../supabase", () => ({ supabase: null }));
@@ -32,6 +33,7 @@ describe("AdminPage", () => {
     vi.mocked(adminApi.listeningSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.readingSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.responseSessions).mockResolvedValue({ sessions: [], total: 0 });
+    vi.mocked(adminApi.exportOptions).mockResolvedValue({ mockTests: [], itemTypes: [] });
   });
 
   it("loads the dashboard and keeps response navigation available", async () => {
@@ -44,17 +46,21 @@ describe("AdminPage", () => {
     expect(adminApi.dashboard).toHaveBeenCalledWith("admin-token");
   });
 
-  it("shows the complete response data guide from the admin navigation", async () => {
+  it("shows the export guide and privacy details from the admin navigation", async () => {
     render(<MemoryRouter><AdminPage /></MemoryRouter>);
 
     await screen.findByRole("heading", { name: "서비스 요약" });
-    await userEvent.click(screen.getByRole("button", { name: "응답 데이터 안내" }));
+    await userEvent.click(screen.getByRole("button", { name: "데이터 추출" }));
 
+    expect(screen.getByRole("heading", { name: "분석 데이터 추출" })).toBeInTheDocument();
+    expect(screen.getByText("문항 분석 CSV")).toBeInTheDocument();
+    expect(screen.getByText("사용자 응답 CSV")).toBeInTheDocument();
+    expect(screen.getByText("응시 세션 요약 CSV")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "응답 데이터 저장 안내" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "문항 행동 이벤트" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "듣기 음원 재생" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "이메일 수신 동의" })).toBeInTheDocument();
-    expect(screen.getByText(/원본 접근 토큰은 데이터베이스에 저장하지 않고/)).toBeInTheDocument();
-    expect(screen.getByText(/이메일 수신 동의는 세션 연결만 해제하고 유지/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "결과 이메일 전달" })).toBeInTheDocument();
+    expect(screen.getByText(/이메일 결과 링크의 원본 토큰은 데이터베이스에 저장하지 않고/)).toBeInTheDocument();
+    expect(screen.getByText(/결과 이메일과 음원 재생 기록은 함께 삭제/)).toBeInTheDocument();
   });
 });

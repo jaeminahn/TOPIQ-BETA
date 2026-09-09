@@ -72,7 +72,7 @@ export const api = {
   },
 
   submit(sessionId: string, token: string) {
-    return request<{ status: "submitted"; resultsLocked: boolean }>(`/v1/sessions/${sessionId}/submit`, {
+    return request<{ status: "submitted"; resultEmailRequired: boolean }>(`/v1/sessions/${sessionId}/submit`, {
       method: "POST",
       headers: auth(token),
     });
@@ -85,18 +85,18 @@ export const api = {
     });
   },
 
-  feedback(
+  resultEmail(
     sessionId: string,
     token: string,
-    input: { rating: number; locale: "ko" | "en"; email?: string; marketingConsent: boolean },
+    input: { rating: number; locale: "ko" | "en"; email: string },
   ) {
-    return request<{ resultsUnlocked: boolean; emailSubscribed: boolean }>(
-      `/v1/sessions/${sessionId}/feedback`,
+    return request<{ emailAccepted: true; maskedEmail: string; expiresAt: string }>(
+      `/v1/sessions/${sessionId}/result-email`,
       { method: "POST", headers: auth(token), body: JSON.stringify(input) },
     );
   },
 
-  results(sessionId: string, token: string): Promise<Results> {
-    return request(`/v1/sessions/${sessionId}/results`, { headers: auth(token) });
+  results(token: string): Promise<Results> {
+    return request("/v1/results", { headers: auth(token) });
   },
 };

@@ -46,7 +46,10 @@ export interface TestSession {
   startedAt: string;
   expiresAt: string | null;
   submittedAt: string | null;
-  resultsUnlocked: boolean;
+  rating: number | null;
+  resultEmailSent: boolean;
+  maskedResultEmail: string | null;
+  resultLinkExpiresAt: string | null;
   serverTime: string;
   exam: { id?: string; slug: string; titleEn?: string; titleKo: string };
   questions: Question[];

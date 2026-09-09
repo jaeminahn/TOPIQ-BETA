@@ -49,7 +49,8 @@ describe("LandingPage", () => {
     vi.mocked(api.session).mockResolvedValue({
       sessionId: "active-session", userId: "user-1", mode: "timed", status: "in_progress",
       startedAt: "2026-08-19T00:00:00Z", expiresAt: "2026-08-19T01:00:00Z", submittedAt: null,
-      resultsUnlocked: false, serverTime: "2026-08-19T00:10:00Z",
+      rating: null, resultEmailSent: false, maskedResultEmail: null, resultLinkExpiresAt: null,
+      serverTime: "2026-08-19T00:10:00Z",
       exam: { id: "reading-1", slug: "topik-reading-1", titleKo: "읽기 1회", titleEn: "Reading 1" }, questions: [],
     });
     vi.mocked(api.abandon).mockResolvedValue({ status: "abandoned" });
