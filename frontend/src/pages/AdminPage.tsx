@@ -2,15 +2,16 @@ import { BookOpen, Download, Headphones, Home, LayoutDashboard, LogOut, MessageS
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api";
-import { AdminLogin } from "../components/admin/AdminLogin";
-import { AdminOverview } from "../components/admin/AdminOverview";
-import { AdminResponsesPanel, type DeleteDialog } from "../components/admin/AdminResponsesPanel";
-import { AdminDataExportPanel } from "../components/admin/AdminDataExportPanel";
-import { ListeningAdminPanel } from "../components/admin/ListeningAdminPanel";
-import { ReadingAdminPanel } from "../components/admin/ReadingAdminPanel";
-import { ResponseDeleteDialog } from "../components/admin/ResponseDeleteDialog";
+import { AdminLogin } from "../components/admin/common/AdminLogin";
+import { AdminOverview } from "../components/admin/common/AdminOverview";
+import { AdminDataExportPanel } from "../components/admin/exports/AdminDataExportPanel";
+import { ListeningAdminPanel } from "../components/admin/listening/ListeningAdminPanel";
+import { ReadingAdminPanel } from "../components/admin/reading/ReadingAdminPanel";
+import { AdminResponsesPanel } from "../components/admin/responses/AdminResponsesPanel";
+import { ResponseDeleteDialog } from "../components/admin/responses/ResponseDeleteDialog";
+import { useAdminResponses } from "../components/admin/responses/useAdminResponses";
 import { supabase } from "../supabase";
-import type { AdminListeningSet, AdminReadingSet, AdminResponseObservation, AdminResponseSession, AdminSummary, TtsJob } from "../types";
+import type { AdminListeningSet, AdminReadingSet, AdminSummary, TtsJob } from "../types";
 
 type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports";
 
@@ -29,17 +30,6 @@ export function AdminPage() {
   const [readingSets, setReadingSets] = useState<AdminReadingSet[]>([]);
   const [listeningSets, setListeningSets] = useState<AdminListeningSet[]>([]);
   const [jobs, setJobs] = useState<TtsJob[]>([]);
-  const [responseSessions, setResponseSessions] = useState<AdminResponseSession[]>([]);
-  const [responseDetails, setResponseDetails] = useState<Record<string, AdminResponseObservation[]>>({});
-  const [responseTotal, setResponseTotal] = useState(0);
-  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
-  const [expandedSession, setExpandedSession] = useState("");
-  const [responseStatus, setResponseStatus] = useState("");
-  const [responseSection, setResponseSection] = useState("");
-  const [responseCorrectness, setResponseCorrectness] = useState("");
-  const [responsePage, setResponsePage] = useState(1);
-  const [deleteDialog, setDeleteDialog] = useState<DeleteDialog>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -62,30 +52,22 @@ export function AdminPage() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [dashboard, jobData, listeningSetData, readingSetData, responseData] = await Promise.all([
+      const [dashboard, jobData, listeningSetData, readingSetData] = await Promise.all([
         adminApi.dashboard(token),
         adminApi.jobs(token),
         adminApi.listeningSets(token),
         adminApi.readingSets(token),
-        adminApi.responseSessions(token, {
-          status: responseStatus || undefined,
-          section: responseSection || undefined,
-          correctness: responseCorrectness || undefined,
-          page: responsePage,
-          pageSize: 20,
-        }),
       ]);
       setSummary(dashboard.summary);
       setJobs(jobData.jobs);
       setListeningSets(listeningSetData.sets);
       setReadingSets(readingSetData.sets);
-      setResponseSessions(responseData.sessions);
-      setResponseTotal(responseData.total);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "관리자 데이터를 불러오지 못했습니다.");
     }
-  }, [responseCorrectness, responsePage, responseSection, responseStatus, token]);
+  }, [token]);
+  const responses = useAdminResponses(token, setError, load);
 
   const loadListeningSets = useCallback(async () => {
     if (!token) return;
@@ -127,36 +109,6 @@ export function AdminPage() {
     }
   };
 
-  const toggleDetails = async (sessionId: string) => {
-    if (expandedSession === sessionId) return setExpandedSession("");
-    setExpandedSession(sessionId);
-    if (!responseDetails[sessionId] && token) {
-      try {
-        const detail = await adminApi.responseSession(token, sessionId);
-        setResponseDetails((current) => ({ ...current, [sessionId]: detail.responses }));
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "응답 상세를 불러오지 못했습니다.");
-      }
-    }
-  };
-
-  const confirmDeletion = async () => {
-    if (!token || !deleteDialog) return;
-    if (deleteDialog.mode === "all" && deleteConfirmation !== "전체 응답 삭제") return;
-    if (deleteDialog.mode === "abandoned" && deleteConfirmation !== "폐기 세션 전체 삭제") return;
-    const operation = deleteDialog.mode === "all"
-      ? adminApi.deleteAllResponseSessions(token, deleteConfirmation)
-      : deleteDialog.mode === "abandoned"
-        ? adminApi.deleteAllAbandonedSessions(token, deleteConfirmation)
-        : adminApi.deleteResponseSessions(token, Array.from(selectedSessions));
-    await action("delete-responses", () => operation);
-    setSelectedSessions(new Set());
-    setResponseDetails({});
-    setExpandedSession("");
-    setDeleteDialog(null);
-    setDeleteConfirmation("");
-  };
-
   const logout = () => {
     sessionStorage.removeItem("unigate.topik.admin.token");
     setToken(null);
@@ -167,17 +119,17 @@ export function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <header className="border-b border-gray-200 bg-white"><div className="mx-auto flex h-16 max-w-[1500px] flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8"><div><p className="text-xs font-semibold tracking-[.14em] text-primary">UNIGATE</p><h1 className="text-lg font-semibold text-gray-900">TOPIK 관리자</h1></div><div className="flex gap-2"><Link to="/" className="focus-ring flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-primary"><Home className="size-4" /> 일반 사이트</Link><button onClick={() => void load()} title="새로고침" className="focus-ring rounded-xl border border-gray-200 p-3 text-gray-600"><RefreshCw className="size-4" /></button><button onClick={logout} className="focus-ring flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white"><LogOut className="size-4" /> 로그아웃</button></div></div></header>
+      <header className="border-b border-gray-200 bg-white"><div className="mx-auto flex h-16 max-w-[1500px] flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8"><div><p className="text-xs font-semibold tracking-[.14em] text-primary">UNIGATE</p><h1 className="text-lg font-semibold text-gray-900">TOPIK 관리자</h1></div><div className="flex gap-2"><Link to="/" className="focus-ring flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-sm font-semibold text-primary"><Home className="size-4" /> 일반 사이트</Link><button onClick={() => void Promise.all([load(), responses.load()])} title="새로고침" className="focus-ring rounded-xl border border-gray-200 p-3 text-gray-600"><RefreshCw className="size-4" /></button><button onClick={logout} className="focus-ring flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-sm font-semibold text-white"><LogOut className="size-4" /> 로그아웃</button></div></div></header>
       <main className="mx-auto max-w-[1500px] px-5 py-7 sm:px-8">
         <nav className="mb-7 flex gap-2 overflow-x-auto rounded-2xl border border-gray-200 bg-white p-2" aria-label="관리자 메뉴">{tabs.map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setTab(id)} className={`focus-ring flex shrink-0 items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold ${tab === id ? "bg-primary text-white" : "text-gray-600 hover:bg-gray-50"}`}><Icon className="size-4" />{label}</button>)}</nav>
         {error && <p className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}
         {tab === "overview" && summary && <AdminOverview summary={summary} jobs={jobs} />}
         {tab === "listening" && <ListeningAdminPanel token={token} sets={listeningSets} onError={setError} onSetsChanged={loadListeningSets} />}
         {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onSetsChanged={loadReadingSets} onTogglePublish={(set) => action(`toggle-reading-${set.setId}-${set.setVersion}`, () => adminApi.publish(token, set.mockTestId!, !set.mockTestPublished))} onPublish={(set) => action(`publish-reading-${set.setId}-${set.setVersion}`, () => adminApi.publishReadingSet(token, set.setId, set.setVersion))} />}
-        {tab === "responses" && <AdminResponsesPanel token={token} sessions={responseSessions} total={responseTotal} details={responseDetails} selectedSessions={selectedSessions} setSelectedSessions={setSelectedSessions} expandedSession={expandedSession} onToggleDetails={(sessionId) => void toggleDetails(sessionId)} status={responseStatus} onStatusChange={(value) => { setResponseStatus(value); setResponsePage(1); setSelectedSessions(new Set()); setExpandedSession(""); }} section={responseSection} onSectionChange={(value) => { setResponseSection(value); setResponsePage(1); setSelectedSessions(new Set()); }} correctness={responseCorrectness} onCorrectnessChange={(value) => { setResponseCorrectness(value); setResponsePage(1); setSelectedSessions(new Set()); }} page={responsePage} onPageChange={setResponsePage} onDeleteRequest={setDeleteDialog} />}
+        {tab === "responses" && <AdminResponsesPanel token={token} sessions={responses.sessions} total={responses.total} details={responses.details} selectedSessions={responses.selectedSessions} setSelectedSessions={responses.setSelectedSessions} expandedSession={responses.expandedSession} onToggleDetails={(sessionId) => void responses.toggleDetails(sessionId)} status={responses.status} onStatusChange={responses.setStatus} section={responses.section} onSectionChange={responses.setSection} correctness={responses.correctness} onCorrectnessChange={responses.setCorrectness} page={responses.page} onPageChange={responses.setPage} onDeleteRequest={responses.setDeleteDialog} />}
         {tab === "exports" && <AdminDataExportPanel token={token} />}
       </main>
-      {deleteDialog && <ResponseDeleteDialog dialog={deleteDialog} selectedCount={selectedSessions.size} confirmation={deleteConfirmation} busy={Boolean(busy)} onConfirmationChange={setDeleteConfirmation} onCancel={() => { setDeleteDialog(null); setDeleteConfirmation(""); }} onConfirm={() => void confirmDeletion()} />}
+      {responses.deleteDialog && <ResponseDeleteDialog dialog={responses.deleteDialog} selectedCount={responses.selectedSessions.size} confirmation={responses.deleteConfirmation} busy={responses.deleting} onConfirmationChange={responses.setDeleteConfirmation} onCancel={responses.closeDeleteDialog} onConfirm={() => void responses.confirmDeletion()} />}
     </div>
   );
 }

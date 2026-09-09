@@ -13,7 +13,7 @@ type VisualJob = {
   };
 };
 
-export class VisualWorker {
+class VisualWorker {
   private running = false;
   private timer?: NodeJS.Timeout;
 

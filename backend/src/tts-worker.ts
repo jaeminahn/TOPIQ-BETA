@@ -16,7 +16,7 @@ type Job = {
 const validTurns = (turns: DialogueTurn[]) => turns.length > 0
   && turns.every((turn) => ["남자", "여자"].includes(turn.speaker) && Boolean(turn.text));
 
-export const EXAM_TRACK_SYNTHESIS_VERSION = "GEMINI_LITERAL_ATOMIC_V2_LONG_FALLBACK";
+export const EXAM_TRACK_SYNTHESIS_VERSION = "GEMINI_LITERAL_ATOMIC_V3_NO_DURATION_RETRY";
 export const EXAM_TRACK_COMPOSER_VERSION = "LINEAR16_FFMPEG_V4_BRIGHT_BELL";
 
 export function examTrackSourceHash(script: AdminNarrationScript, style: TtsStyle) {
@@ -85,7 +85,7 @@ export function splitLiteralUtterances(text: string) {
     ?.map((part) => part.trim()).filter(Boolean) ?? [normalized];
 }
 
-export class TtsWorker {
+class TtsWorker {
   private running = false;
   private timer?: NodeJS.Timeout;
 

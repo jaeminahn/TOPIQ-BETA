@@ -1,6 +1,5 @@
 import type {
   AdminListeningGroup,
-  AdminListeningMockTest,
   AdminListeningSet,
   AdminReadingItem,
   AdminReadingSet,
@@ -126,10 +125,6 @@ export const adminApi = {
     return request<{ jobs: TtsJob[] }>("/v1/admin/tts/jobs", { headers: auth(token) });
   },
 
-  mockTests(token: string) {
-    return request<{ mockTests: AdminListeningMockTest[] }>("/v1/admin/listening/mock-tests", { headers: auth(token) });
-  },
-
   listeningSets(token: string) {
     return request<{ sets: AdminListeningSet[] }>("/v1/admin/listening/sets", { headers: auth(token) });
   },
@@ -145,14 +140,6 @@ export const adminApi = {
     return request<{ audioUrl: string }>(`/v1/admin/listening/audio/${audioAssetId}/url`, { headers: auth(token) });
   },
 
-  generateItem(token: string, itemId: string, itemVersion: number, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
-    return request<{ jobId: string | null; queued: boolean; targetCount: number }>(`/v1/admin/listening/items/${itemId}/versions/${itemVersion}/tts`, {
-      method: "POST",
-      headers: auth(token),
-      body: JSON.stringify({ forceRegenerate, ttsStyle }),
-    });
-  },
-
   generateSet(token: string, setId: string, setVersion: number, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
     return request<{ queued: number; jobIds: string[] }>(`/v1/admin/listening/sets/${setId}/versions/${setVersion}/tts`, {
       method: "POST",
@@ -165,13 +152,6 @@ export const adminApi = {
     return request<{ jobId: string | null; queued: boolean; targetCount: number }>(
       `/v1/admin/listening/sets/${setId}/versions/${setVersion}/audio-groups/${leaderItemId}/tts`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate, ttsStyle }) },
-    );
-  },
-
-  deleteAudio(token: string, itemId: string, itemVersion: number, audioAssetId: string) {
-    return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained: boolean }>(
-      `/v1/admin/listening/items/${itemId}/versions/${itemVersion}/audio/${audioAssetId}`,
-      { method: "DELETE", headers: auth(token) },
     );
   },
 

@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --pool=threads --maxWorkers=1",
+    "test": "vitest run --pool=threads --maxWorkers=1 --exclude dist/**",
     "db:migrate": "tsx src/migrate.ts",
     "admin:bootstrap": "tsx src/bootstrap-admin.ts",
     "assets:seed": "tsx src/seed-listening-assets.ts"

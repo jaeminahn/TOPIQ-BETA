@@ -33,15 +33,3 @@ export function localizedExamTitle(
   if (!section) return "TOPIK II Mock Test";
   return `TOPIK II ${sectionNames[section]} Mock Test${round ? ` ${round}` : ""}`;
 }
-
-export function localizedExamDescription(
-  descriptionKo: string,
-  locale: Locale,
-  section: ExamSection,
-  questionCount: number,
-  descriptionEn?: string,
-) {
-  if (locale === "ko") return descriptionKo;
-  if (descriptionEn) return descriptionEn;
-  return `A ${questionCount}-question TOPIK II ${sectionNames[section].toLowerCase()} mock test.`;
-}

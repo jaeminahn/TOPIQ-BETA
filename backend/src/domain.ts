@@ -1,6 +1,5 @@
 export type Locale = "ko" | "en";
 export type ExamMode = "timed" | "practice";
-export type SessionStatus = "in_progress" | "submitted" | "abandoned";
 export type ResponseEventType =
   | "presented"
   | "hidden"

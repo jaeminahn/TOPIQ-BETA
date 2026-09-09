@@ -21,10 +21,6 @@ function objectUrl(bucket: string, objectPath: string, access: "public" | "authe
   return `${config.supabase.url.replace(/\/+$/, "")}/storage/v1/object/${access}/${encodeURIComponent(bucket)}/${path}`;
 }
 
-export function getPublicAssetUrl(objectPath: string, bucket = config.supabase.mediaBucket) {
-  return objectUrl(bucket, objectPath, "public");
-}
-
 export class SupabaseStorage {
   private readonly client = configuredClient();
 

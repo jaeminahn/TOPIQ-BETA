@@ -47,6 +47,7 @@ export function TestPage() {
   const exitGuard = useExitGuard(Boolean(session && session.status === "in_progress" && !submitting), allowedPath);
 
   const displayStartOrder = displayQuestions[0]?.itemOrder ?? currentOrder;
+  const showQuestionNavigator = session?.mode !== "timed" || current?.section !== "listening";
   useEffect(() => { setActiveOrder(displayStartOrder); }, [currentOrder, displayStartOrder]);
 
   useEffect(() => {
@@ -116,15 +117,15 @@ export function TestPage() {
         </div>
       </main>
 
-      <TestNavigation firstOrder={displayStartOrder} lastOrder={lastDisplayOrder} total={session.questions.length} navigatorButtonRef={navigatorButtonRef} onPrevious={() => go(displayStartOrder - 1)} onOpenNavigator={() => setNavigatorOpen(true)} onNext={() => go(lastDisplayOrder + 1)} onReview={() => navigate(`/session/${sessionId}/review`)} />
-      <QuestionNavigatorDialog
-        open={navigatorOpen}
-        questions={session.questions}
-        currentOrders={displayQuestions.map((question) => question.itemOrder)}
-        returnFocusRef={navigatorButtonRef}
-        onClose={closeNavigator}
-        onSelect={go}
-      />
+      <TestNavigation firstOrder={displayStartOrder} lastOrder={lastDisplayOrder} total={session.questions.length} showNavigator={showQuestionNavigator} navigatorButtonRef={navigatorButtonRef} onPrevious={() => go(displayStartOrder - 1)} onOpenNavigator={() => setNavigatorOpen(true)} onNext={() => go(lastDisplayOrder + 1)} onReview={() => navigate(`/session/${sessionId}/review`)} />
+      {showQuestionNavigator && <QuestionNavigatorDialog
+          open={navigatorOpen}
+          questions={session.questions}
+          currentOrders={displayQuestions.map((question) => question.itemOrder)}
+          returnFocusRef={navigatorButtonRef}
+          onClose={closeNavigator}
+          onSelect={go}
+        />}
       <ExitConfirmationDialog open={exitGuard.blocked} variant="test" answered={answered} total={session.questions.length} onStay={exitGuard.stay} onLeave={() => { activeTime?.flush("hidden"); exitGuard.leave(); }} />
     </div>
   );

@@ -1,5 +1,4 @@
 import { GoogleAuth } from "google-auth-library";
-import { readLinear16WaveFormat } from "./audio-composer.js";
 import { config } from "./config.js";
 import { AppError } from "./errors.js";
 
@@ -34,29 +33,8 @@ export function literalDeliveryStyle(stylePrompt: string) {
   return [...new Set(matched)].join(", ") || "neutral and clear";
 }
 
-export function maximumLiteralDurationMs(text: string, speakingRate: number) {
-  const spokenUnits = text.match(/[\p{L}\p{N}]/gu)?.length ?? 1;
-  const sentenceStops = text.match(/[.!?。！？]/g)?.length ?? 0;
-  const safeRate = Math.max(0.8, Math.min(1.2, speakingRate));
-  return Math.max(1_600, Math.round(900 + spokenUnits * 220 / safeRate + sentenceStops * 180));
-}
-
-function linear16DurationMs(audio: Buffer) {
-  const format = readLinear16WaveFormat(audio);
-  return format.dataBytes / format.byteRate * 1_000;
-}
-
-export async function synthesizeLiteralWithDurationRetry(
-  requestAudio: () => Promise<Buffer>,
-  maxDurationMs: number,
-) {
-  const first = await requestAudio();
-  const firstDurationMs = linear16DurationMs(first);
-  if (firstDurationMs <= maxDurationMs) return first;
-
-  const second = await requestAudio();
-  const secondDurationMs = linear16DurationMs(second);
-  return secondDurationMs <= firstDurationMs ? second : first;
+export async function synthesizeLiteralOnce(requestAudio: () => Promise<Buffer>) {
+  return requestAudio();
 }
 
 function paceInstruction(speakingRate: number) {
@@ -182,10 +160,6 @@ export class GoogleTtsClient {
 
   async synthesizeLiteral(turn: DialogueTurn, style: TtsStyle = defaultTtsStyle, audio: TtsAudioOptions = {}) {
     const request = buildLiteralGoogleTtsRequest(turn, style, audio);
-    if (audio.audioEncoding !== "LINEAR16") return this.request(request);
-    return synthesizeLiteralWithDurationRetry(
-      () => this.request(request),
-      maximumLiteralDurationMs(turn.text, style.speakingRate),
-    );
+    return synthesizeLiteralOnce(() => this.request(request));
   }
 }

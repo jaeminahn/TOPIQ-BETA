@@ -54,11 +54,6 @@ export interface TtsJob {
   attempts: number; errorMessage: string | null; audioAssetId: string | null; createdAt: string; completedAt: string | null;
 }
 
-export interface AdminListeningMockTest {
-  mockTestId: string; titleKo: string; published: boolean; setId: string; setVersion: number;
-  itemCount: number; audioReady: number; visualRequired: number; visualReady: number;
-}
-
 export type AdminListeningSetBlockReason = "SET_NOT_REVIEWED" | "SET_NOT_PUBLISHED" | "ITEM_COUNT_INVALID" | "ITEMS_INVALID";
 
 export interface AdminListeningSet {
@@ -105,6 +100,7 @@ export interface AdminReadingSet {
 export interface AdminResponseSession {
   sessionId: string; userId: string; mockTestTitle: string; mode: ExamMode; status: "submitted" | "abandoned";
   startedAt: string; submittedAt: string | null; abandonedAt: string | null; score: number | null; maxScore: number; rating: number | null;
+  resultEmail: string | null;
   section: "reading" | "listening"; responseCount: number; answeredCount: number;
   unansweredCount: number; correctCount: number; incorrectCount: number;
 }

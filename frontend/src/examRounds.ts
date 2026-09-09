@@ -6,7 +6,7 @@ export interface ExamRound {
   exams: Exam[];
 }
 
-export function examRoundNumber(slug: string) {
+function examRoundNumber(slug: string) {
   const match = /-(\d+)$/.exec(slug);
   return match ? Number(match[1]) : null;
 }
