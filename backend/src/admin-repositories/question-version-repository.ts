@@ -20,7 +20,7 @@ type QuestionSetMember = {
 
 const stringValue = (value: unknown) => typeof value === "string" ? value : "";
 
-function reusableListeningAudioPositions(
+function changedListeningAudioPositions(
   members: QuestionSetMember[],
   nextContentByPosition: ReadonlyMap<number, Record<string, unknown>>,
 ) {
@@ -33,7 +33,7 @@ function reusableListeningAudioPositions(
     groups.set(key, group);
   }
 
-  const reusable: number[] = [];
+  const changed: number[] = [];
   for (const group of groups.values()) {
     const targets = group.sort((left, right) => left.position - right.position);
     try {
@@ -50,18 +50,53 @@ function reusableListeningAudioPositions(
           dialogueTurns: content.dialogue_turns as DialogueTurn[],
         };
       }));
-      if (stableJson(previousScript) === stableJson(nextScript)) {
-        reusable.push(...targets.map((target) => target.position));
+      if (stableJson(previousScript) !== stableJson(nextScript)) {
+        changed.push(...targets.map((target) => target.position));
       }
     } catch {
-      // Invalid or incomplete narration is intentionally left without a copied binding.
+      // Invalid or incomplete narration must not retain a possibly stale exam track.
+      changed.push(...targets.map((target) => target.position));
     }
   }
-  return reusable;
+  return changed;
 }
 
 export class AdminQuestionVersionRepository extends AdminMediaRepository {
-  async reviseQuestionSet(setId: string, setVersion: number, revisions: QuestionRevisionInput[]) {
+  async listQuestionVersions(setId: string, itemId: string) {
+    const current = await pool.query<{ position: number; item_version: number }>(
+      `SELECT position,item_version
+         FROM topik_bank.question_set_items
+        WHERE set_id=$1 AND item_id=$2`,
+      [setId,itemId],
+    );
+    const member = current.rows[0];
+    if (!member) throw notFound("Question set item not found");
+    const versions = await pool.query(
+      `SELECT item_id AS "itemId",item_version AS "itemVersion",
+              item_type AS "itemType",target_level AS "targetLevel",
+              predicted_difficulty AS "predictedDifficulty",review_status AS "reviewStatus",
+              stem,choices,correct_answer AS "correctAnswer",explanation,
+              content_json AS "contentJson",created_at AS "createdAt",
+              item_version=$2 AS "isCurrent"
+         FROM topik_bank.item_versions
+        WHERE item_id=$1
+        ORDER BY item_version DESC`,
+      [itemId,member.item_version],
+    );
+    return {
+      setId,
+      itemId,
+      position: member.position,
+      currentVersion: member.item_version,
+      versions: versions.rows,
+    };
+  }
+
+  async reviseQuestionSet(setId: string, revisions: QuestionRevisionInput[]) {
+    if (new Set(revisions.map((revision) => revision.position)).size !== revisions.length
+      || new Set(revisions.map((revision) => revision.itemId)).size !== revisions.length) {
+      throw new AppError(400, "QUESTION_REVISION_DUPLICATE", "Each question can be revised only once per request");
+    }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -71,16 +106,16 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
         published_at: Date | null;
       }>(
         `SELECT review_status,default_target_level,default_predicted_difficulty,published_at
-           FROM topik_bank.question_set_versions WHERE set_id=$1 AND set_version=$2 FOR UPDATE`,
-        [setId, setVersion],
+           FROM topik_bank.question_sets WHERE set_id=$1 FOR UPDATE`,
+        [setId],
       );
-      if (!set.rows[0]) throw notFound("Question set version not found");
+      if (!set.rows[0]) throw notFound("Question set not found");
 
       const members = await client.query<QuestionSetMember>(
         `SELECT qsi.position,iv.* FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2 ORDER BY qsi.position FOR UPDATE OF qsi`,
-        [setId, setVersion],
+          WHERE qsi.set_id=$1 ORDER BY qsi.position FOR UPDATE OF qsi,iv`,
+        [setId],
       );
       if (!members.rowCount) throw notFound("Question set items not found");
 
@@ -193,64 +228,40 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
         nextVersions.set(revision.position, { itemId: current.item_id, itemVersion: nextVersion });
       }
 
-      const versionResult = await client.query<{ version: number }>(
-        "SELECT COALESCE(MAX(set_version),0)::int+1 AS version FROM topik_bank.question_set_versions WHERE set_id=$1",
-        [setId],
-      );
-      const nextSetVersion = versionResult.rows[0]?.version ?? setVersion + 1;
       const fingerprint = sha256(members.rows.map((member) => {
         const replacement = nextVersions.get(member.position);
         return `${member.position}:${replacement?.itemId ?? member.item_id}:${replacement?.itemVersion ?? member.item_version}`;
       }).join("|"));
-      const metadata = set.rows[0];
-      await client.query(
-        `INSERT INTO topik_bank.question_set_versions(
-           set_id,set_version,review_status,default_target_level,default_predicted_difficulty,set_fingerprint,published_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [setId,nextSetVersion,metadata.review_status,metadata.default_target_level,
-          metadata.default_predicted_difficulty,fingerprint,metadata.published_at],
-      );
-      const replacementPositions = [...nextVersions.keys()];
-      const replacementItemIds = replacementPositions.map((position) => nextVersions.get(position)!.itemId);
-      const replacementItemVersions = replacementPositions.map((position) => nextVersions.get(position)!.itemVersion);
-      const copiedItems = await client.query(
-        `INSERT INTO topik_bank.question_set_items(set_id,set_version,position,item_id,item_version)
-         SELECT source.set_id,$3,source.position,
-                COALESCE(replacement.item_id,source.item_id),
-                COALESCE(replacement.item_version,source.item_version)
-           FROM topik_bank.question_set_items source
-           LEFT JOIN unnest($4::smallint[],$5::uuid[],$6::integer[])
-             AS replacement(position,item_id,item_version)
-             ON replacement.position=source.position
-          WHERE source.set_id=$1 AND source.set_version=$2`,
-        [setId,setVersion,nextSetVersion,replacementPositions,replacementItemIds,replacementItemVersions],
-      );
-      if (copiedItems.rowCount !== members.rowCount) {
-        throw new AppError(409, "QUESTION_SET_COPY_CONFLICT", "The question set changed while the revision was being saved");
+      for (const [position, replacement] of nextVersions) {
+        const updated = await client.query(
+          `UPDATE topik_bank.question_set_items
+              SET item_version=$3
+            WHERE set_id=$1 AND position=$2 AND item_id=$4`,
+          [setId,position,replacement.itemVersion,replacement.itemId],
+        );
+        if (updated.rowCount !== 1) {
+          throw new AppError(409, "QUESTION_VERSION_CONFLICT", "The question has changed. Reload it before saving again.");
+        }
       }
 
-      const reusableAudioPositions = reusableListeningAudioPositions(members.rows, nextContentByPosition);
-      if (reusableAudioPositions.length) {
+      const staleAudioPositions = changedListeningAudioPositions(members.rows, nextContentByPosition);
+      if (staleAudioPositions.length) {
         await client.query(
-          `INSERT INTO topik_app.question_set_item_audio_bindings(
-             set_id,set_version,position,audio_asset_id,source_hash,is_current
-           )
-           SELECT binding.set_id,$3,binding.position,binding.audio_asset_id,binding.source_hash,TRUE
-             FROM topik_app.question_set_item_audio_bindings binding
-             JOIN topik_app.tts_audio_assets asset
-               ON asset.audio_asset_id=binding.audio_asset_id AND asset.deleted_at IS NULL
-            WHERE binding.set_id=$1 AND binding.set_version=$2 AND binding.is_current
-              AND binding.position=ANY($4::smallint[])
-           ON CONFLICT DO NOTHING`,
-          [setId,setVersion,nextSetVersion,reusableAudioPositions],
+          `UPDATE topik_app.question_set_item_audio_bindings
+              SET is_current=FALSE
+            WHERE set_id=$1 AND position=ANY($2::smallint[]) AND is_current`,
+          [setId,staleAudioPositions],
         );
       }
+      await client.query(
+        "UPDATE topik_bank.question_sets SET set_fingerprint=$2 WHERE set_id=$1",
+        [setId,fingerprint],
+      );
       const linked = await client.query<{ mock_test_id: string }>(
-        `UPDATE topik_app.mock_test_sections
-            SET set_version=$3
-          WHERE set_id=$1 AND set_version=$2
-        RETURNING mock_test_id`,
-        [setId,setVersion,nextSetVersion],
+        `SELECT DISTINCT mock_test_id
+           FROM topik_app.mock_test_sections
+          WHERE set_id=$1`,
+        [setId],
       );
       const mockTestIds = [...new Set(linked.rows.map((row) => row.mock_test_id))];
       if (mockTestIds.length) {
@@ -263,7 +274,6 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
       await client.query("COMMIT");
       return {
         setId,
-        setVersion: nextSetVersion,
         mockTestIds,
         published: false,
         revisions: [...nextVersions.entries()].map(([position, version]) => ({ position, ...version })),
@@ -294,11 +304,10 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
                     AND ((mts.section='listening' AND iva.visual_role='choice')
                       OR (mts.section='reading' AND qsi.position=10 AND iva.visual_role='material')))),0)::int visual_ready
            FROM topik_app.mock_test_sections mts
-           JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id AND qsi.set_version=mts.set_version
+           JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
            LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-             ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
-            AND set_binding.position=qsi.position AND set_binding.is_current
+             ON set_binding.set_id=qsi.set_id AND set_binding.position=qsi.position AND set_binding.is_current
            LEFT JOIN topik_app.tts_audio_assets audio
              ON audio.audio_asset_id=set_binding.audio_asset_id AND audio.deleted_at IS NULL
           WHERE mts.mock_test_id=$1

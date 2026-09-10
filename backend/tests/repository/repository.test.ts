@@ -8,6 +8,26 @@ import { TopikRepository } from "../../src/repository.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
 
+describe("TopikRepository session snapshots", () => {
+  beforeEach(() => poolMock.connect.mockReset());
+
+  it("copies only the current item pointers into a new session", async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes("FROM topik_app.mock_tests")) return { rowCount: 1, rows: [{ duration_seconds: 3600, question_count: 50, max_score: 100 }] };
+      if (sql.includes("INSERT INTO topik_app.session_items")) return { rowCount: 50, rows: Array.from({ length: 50 }, (_, index) => ({ item_order: index + 1 })) };
+      return { rowCount: 1, rows: [] };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    await new TopikRepository().createSession("exam-1", "timed");
+    const insertSql = String(query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.session_items"))?.[0]);
+    expect(insertSql).toContain("qsi.item_version");
+    expect(insertSql).toContain("ON qsi.set_id = mts.set_id");
+    expect(insertSql).not.toContain("set_version");
+    expect(query).toHaveBeenCalledWith("COMMIT");
+  });
+});
+
 describe("TopikRepository session audio selection", () => {
   beforeEach(() => {
     poolMock.query.mockReset();

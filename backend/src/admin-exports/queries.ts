@@ -46,7 +46,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
        WHERE ${sessionFilters.join(" AND ")}
     ), question_inventory AS (
       SELECT mt.mock_test_id,mt.slug AS mock_test_slug,mt.title_ko AS mock_test_title_ko,
-             mt.title_en AS mock_test_title_en,mts.section,qsi.set_id,qsi.set_version,
+             mt.title_en AS mock_test_title_en,mts.section,qsi.set_id,
              qsi.position AS test_position,iv.item_id,iv.item_version,iv.item_type,
              iv.primary_skill,iv.target_level,iv.predicted_difficulty,iv.irt_difficulty,
              iv.irt_discrimination,COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
@@ -60,11 +60,11 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
              iv.content_json
         FROM topik_app.mock_tests mt
         JOIN topik_app.mock_test_sections mts ON mts.mock_test_id=mt.mock_test_id
-        JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id AND qsi.set_version=mts.set_version
+        JOIN topik_bank.question_set_items qsi ON qsi.set_id=mts.set_id
         JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
        ${inventoryFilters.length ? `WHERE ${inventoryFilters.join(" AND ")}` : ""}
       UNION
-      SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.title_en,si.section,si.set_id,si.set_version,
+      SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.title_en,si.section,si.set_id,
              si.test_position,iv.item_id,iv.item_version,iv.item_type,iv.primary_skill,
              iv.target_level,iv.predicted_difficulty,iv.irt_difficulty,iv.irt_discrimination,
              COALESCE(iv.content_json->>'question_prompt',''),
@@ -80,7 +80,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
         JOIN topik_bank.item_versions iv ON iv.item_id=si.item_id AND iv.item_version=si.item_version
        ${responseFilters.length ? `WHERE ${responseFilters.join(" AND ")}` : ""}
     ), response_rows AS (
-      SELECT fs.mock_test_id,si.section,si.set_id,si.set_version,si.test_position,si.item_id,si.item_version,
+      SELECT fs.mock_test_id,si.section,si.set_id,si.test_position,si.item_id,si.item_version,
              COALESCE(ro.selected_option,a.selected_option) AS selected_option,
              iv.correct_answer,
              CASE WHEN ro.observation_id IS NOT NULL THEN ro.response_time_ms ELSE COALESCE((
@@ -95,7 +95,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
         LEFT JOIN topik_app.answer_states a ON a.session_id=si.session_id AND a.item_order=si.item_order
        ${responseFilters.length ? `WHERE ${responseFilters.join(" AND ")}` : ""}
     ), stats AS (
-      SELECT mock_test_id,section,set_id,set_version,test_position,item_id,item_version,
+      SELECT mock_test_id,section,set_id,test_position,item_id,item_version,
              COUNT(*)::int AS assigned_count,
              COUNT(*) FILTER (WHERE selected_option IS NOT NULL)::int AS answered_count,
              COUNT(*) FILTER (WHERE selected_option IS NULL)::int AS unanswered_count,
@@ -110,10 +110,10 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
                FILTER (WHERE selected_option IS NOT NULL))::numeric,2) AS median_answered_response_time_ms,
              COUNT(*) FILTER (WHERE selected_option IS NOT NULL AND answer_changed)::int AS answer_changed_count
         FROM response_rows
-       GROUP BY mock_test_id,section,set_id,set_version,test_position,item_id,item_version
+       GROUP BY mock_test_id,section,set_id,test_position,item_id,item_version
     )
     SELECT qi.mock_test_id,qi.mock_test_slug,qi.mock_test_title_ko,qi.mock_test_title_en,
-           qi.section,qi.set_id,qi.set_version,qi.test_position,qi.item_id,qi.item_version,
+           qi.section,qi.set_id,qi.test_position,qi.item_id,qi.item_version,
            qi.item_type,qi.primary_skill,qi.target_level,qi.predicted_difficulty,qi.irt_difficulty,
            qi.irt_discrimination,qi.question_prompt,qi.stem,qi.passage,qi.auxiliary_text,
            qi.highlight_text,qi.export_choices->>0 AS choice_1,qi.export_choices->>1 AS choice_2,
@@ -136,10 +136,10 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
            CASE WHEN st.answered_count>0 THEN ROUND(st.answer_changed_count*100.0/st.answered_count,2) END AS answer_changed_rate_pct
       FROM question_inventory qi
       LEFT JOIN stats st ON st.mock_test_id=qi.mock_test_id AND st.section=qi.section
-       AND st.set_id=qi.set_id AND st.set_version=qi.set_version AND st.test_position=qi.test_position
+       AND st.set_id=qi.set_id AND st.test_position=qi.test_position
        AND st.item_id=qi.item_id AND st.item_version=qi.item_version
      WHERE COALESCE(st.assigned_count,0) >= ${minimum}
-     ${ordered ? "ORDER BY qi.mock_test_slug,qi.section,qi.test_position,qi.set_version,qi.item_version" : ""}`;
+     ${ordered ? "ORDER BY qi.mock_test_slug,qi.section,qi.test_position,qi.item_version" : ""}`;
   return { text, values };
 }
 
@@ -166,7 +166,7 @@ function responseQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
              fs.mode,fs.status,fs.started_at,fs.completed_at,fs.timed_out_submission,
              fs.score AS session_score,fs.max_score,
              CASE WHEN fs.score IS NOT NULL AND fs.max_score>0 THEN ROUND(fs.score*100.0/fs.max_score,2) END AS score_pct,
-             af.rating,af.locale AS feedback_locale,si.section,si.set_id,si.set_version,si.item_order,
+             af.rating,af.locale AS feedback_locale,si.section,si.set_id,si.item_order,
              si.test_position,si.item_id,si.item_version,iv.item_type,
              COALESCE(ro.selected_option,a.selected_option) AS selected_option,iv.correct_answer,
              CASE WHEN COALESCE(ro.selected_option,a.selected_option) IS NULL THEN 'unanswered'

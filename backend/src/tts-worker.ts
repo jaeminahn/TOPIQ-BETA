@@ -9,7 +9,7 @@ import { SupabaseStorage } from "./storage.js";
 type Job = {
   job_id: string; item_id: string; item_version: number; requested_by: string;
   force_regenerate: boolean; attempts: number; tts_style: TtsStyle;
-  set_id: string | null; set_version: number | null; group_start_position: number | null;
+  set_id: string | null; group_start_position: number | null;
   script_snapshot: unknown;
 };
 
@@ -132,7 +132,7 @@ class TtsWorker {
 
   private async process(job: Job) {
     try {
-      if (job.set_id && job.set_version && isAdminNarrationScript(job.script_snapshot)) {
+      if (job.set_id && isAdminNarrationScript(job.script_snapshot)) {
         await this.processExamTrack(job, job.script_snapshot);
       } else {
         await this.processLegacyDialogue(job);
@@ -194,13 +194,21 @@ class TtsWorker {
       ).then((result) => { audioAssetId = result.rows[0].audio_asset_id; });
     }
 
-    const targets = await pool.query<{ set_id: string; set_version: number; position: number }>(
-      `SELECT set_id,set_version,position FROM topik_app.tts_generation_job_targets
-        WHERE job_id=$1 AND set_id IS NOT NULL AND set_version IS NOT NULL AND position IS NOT NULL
+    const targets = await pool.query<{
+      set_id: string; position: number; item_id: string; item_version: number; is_current: boolean;
+    }>(
+      `SELECT target.set_id,target.position,target.item_id,target.item_version,
+              EXISTS (
+                SELECT 1 FROM topik_bank.question_set_items member
+                 WHERE member.set_id=target.set_id AND member.position=target.position
+                   AND member.item_id=target.item_id AND member.item_version=target.item_version
+              ) AS is_current
+         FROM topik_app.tts_generation_job_targets target
+        WHERE job_id=$1 AND set_id IS NOT NULL AND position IS NOT NULL
         ORDER BY position`,
       [job.job_id],
     );
-    if (!targets.rowCount || targets.rows.some((target) => target.set_id !== job.set_id || target.set_version !== job.set_version)
+    if (!targets.rowCount || targets.rows.some((target) => target.set_id !== job.set_id || !target.is_current)
       || JSON.stringify(targets.rows.map((target) => target.position)) !== JSON.stringify(script.positions)) {
       throw new Error("Listening exam-track targets do not match the script snapshot");
     }
@@ -210,16 +218,16 @@ class TtsWorker {
       await client.query("BEGIN");
       await client.query(
         `UPDATE topik_app.question_set_item_audio_bindings SET is_current=FALSE
-          WHERE set_id=$1 AND set_version=$2 AND is_current AND position=ANY($3::smallint[])`,
-        [job.set_id, job.set_version, positions],
+          WHERE set_id=$1 AND is_current AND position=ANY($2::smallint[])`,
+        [job.set_id, positions],
       );
       await client.query(
         `INSERT INTO topik_app.question_set_item_audio_bindings(
-           set_id,set_version,position,audio_asset_id,source_hash
-         ) SELECT $1,$2,position,$4,$5 FROM unnest($3::smallint[]) AS position
-         ON CONFLICT (set_id,set_version,position,audio_asset_id)
+           set_id,position,audio_asset_id,source_hash
+         ) SELECT $1,position,$3,$4 FROM unnest($2::smallint[]) AS position
+         ON CONFLICT (set_id,position,audio_asset_id)
          DO UPDATE SET source_hash=EXCLUDED.source_hash,is_current=TRUE`,
-        [job.set_id, job.set_version, positions, audioAssetId, sourceHash],
+        [job.set_id, positions, audioAssetId, sourceHash],
       );
       await client.query(
         `UPDATE topik_app.tts_generation_jobs SET status='succeeded',audio_asset_id=$2,

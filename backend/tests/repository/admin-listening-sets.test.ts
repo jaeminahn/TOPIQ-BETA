@@ -12,8 +12,8 @@ describe("listening set administration",()=>{
 
   it("detects unlinked SQL sets and sorts registered rounds first",async()=>{
     poolMock.query.mockResolvedValue({rows:[
-      {setId:"set-new",setVersion:1,setSequence:2,createdAt:new Date("2026-08-12"),reviewStatus:"reviewed",publishedAt:new Date(),itemCount:50,validItemCount:50,audioReady:0,visualRequired:12,visualReady:0,mockTestId:null,slug:null,titleKo:null,mockTestPublished:null},
-      {setId:"set-one",setVersion:1,setSequence:1,createdAt:new Date("2026-08-10"),reviewStatus:"reviewed",publishedAt:new Date(),itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"mock-one",slug:"topik-ii-listening-1",titleKo:"듣기 1회",mockTestPublished:true},
+      {setId:"set-new",setSequence:2,createdAt:new Date("2026-08-12"),reviewStatus:"reviewed",publishedAt:new Date(),itemCount:50,validItemCount:50,audioReady:0,visualRequired:12,visualReady:0,mockTestId:null,slug:null,titleKo:null,mockTestPublished:null},
+      {setId:"set-one",setSequence:1,createdAt:new Date("2026-08-10"),reviewStatus:"reviewed",publishedAt:new Date(),itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"mock-one",slug:"topik-ii-listening-1",titleKo:"듣기 1회",mockTestPublished:true},
     ]});
     const result=await new AdminRepository().listListeningSets();
     expect(result.map((set)=>set.setId)).toEqual(["set-one","set-new"]);
@@ -29,7 +29,7 @@ describe("listening set administration",()=>{
       return {rows:[],rowCount:1};
     });
     poolMock.connect.mockResolvedValue({query,release:vi.fn()});
-    const result=await new AdminRepository().registerListeningSet("10000000-0000-4000-8000-000000000020",1);
+    const result=await new AdminRepository().registerListeningSet("10000000-0000-4000-8000-000000000020");
     expect(result).toMatchObject({slug:"topik-ii-listening-3",round:3,published:false,created:true});
     const insert=String(query.mock.calls.find(([sql])=>String(sql).includes("INSERT INTO topik_app.mock_tests"))?.[0]);
     expect(insert).toContain("FALSE");
@@ -41,7 +41,7 @@ describe("listening set administration",()=>{
       ?{rows:[{mock_test_id:"mock-three",slug:"topik-ii-listening-3",is_published:false}]}
       :{rows:[],rowCount:1});
     poolMock.connect.mockResolvedValue({query,release:vi.fn()});
-    await expect(new AdminRepository().registerListeningSet("10000000-0000-4000-8000-000000000020",1)).resolves.toEqual({mockTestId:"mock-three",slug:"topik-ii-listening-3",round:3,published:false,created:false});
+    await expect(new AdminRepository().registerListeningSet("10000000-0000-4000-8000-000000000020")).resolves.toEqual({mockTestId:"mock-three",slug:"topik-ii-listening-3",round:3,published:false,created:false});
     expect(query.mock.calls.some(([sql])=>String(sql).includes("INSERT INTO"))).toBe(false);
   });
 
@@ -67,5 +67,21 @@ describe("listening set administration",()=>{
     await expect(new AdminRepository().deleteVisualAsset("10000000-0000-4000-8000-000000000011",1,2,"20000000-0000-4000-8000-000000000011","choice",vi.fn().mockRejectedValue(new Error("storage failed")))).rejects.toThrow("storage failed");
     expect(query.mock.calls.some(([sql])=>String(sql).includes("DELETE FROM topik_app.item_visual_assets"))).toBe(false);
     expect(query).toHaveBeenCalledWith("ROLLBACK");
+  });
+
+  it("rejects image writes and deletes for a historical item version",async()=>{
+    const query=vi.fn(async(sql:string)=>{
+      if(sql.includes("FROM topik_bank.question_set_items"))return {rows:[],rowCount:0};
+      return {rows:[],rowCount:0};
+    });
+    poolMock.connect.mockResolvedValue({query,release:vi.fn()});
+
+    await expect(new AdminRepository().enqueueVisualOption("admin-1","item-1",1,1,false))
+      .rejects.toMatchObject({statusCode:404});
+    expect(query.mock.calls.some(([sql])=>String(sql).includes("INSERT INTO topik_app.visual_generation_jobs"))).toBe(false);
+
+    await expect(new AdminRepository().deleteVisualAsset("item-1",1,1,"asset-1","choice",vi.fn()))
+      .rejects.toMatchObject({statusCode:404});
+    expect(query.mock.calls.some(([sql])=>String(sql).includes("DELETE FROM topik_app.item_visual_assets"))).toBe(false);
   });
 });

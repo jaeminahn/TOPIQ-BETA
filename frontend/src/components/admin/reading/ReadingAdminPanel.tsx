@@ -1,9 +1,10 @@
-import { Image, LoaderCircle, Pencil, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
+import { History, Image, LoaderCircle, Pencil, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../../api";
 import type { AdminReadingItem, AdminReadingSet } from "../../../types";
 import { AdminRoundDetailHeader, AdminRoundEmpty, AdminRoundLoading, AdminRoundSearch } from "../common/AdminRoundUi";
 import { AdminQuestionEditorDialog } from "../common/AdminQuestionEditorDialog";
+import { AdminQuestionHistoryDialog } from "../common/AdminQuestionHistoryDialog";
 import { AdminPublishDialog } from "../common/AdminPublishDialog";
 import { AdminPromptCopyButton } from "../common/AdminPromptCopyButton";
 import { AdminImageCropDialog } from "../common/AdminImageCropDialog";
@@ -34,6 +35,7 @@ export function ReadingAdminPanel({
   const [loadingItems, setLoadingItems] = useState(false);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<AdminReadingItem | null>(null);
+  const [historyItem, setHistoryItem] = useState<AdminReadingItem | null>(null);
   const [publishConfirm, setPublishConfirm] = useState(false);
   const [visualBusy, setVisualBusy] = useState("");
   const [cropTarget, setCropTarget] = useState<{
@@ -42,9 +44,9 @@ export function ReadingAdminPanel({
 
   useEffect(() => {
     if (!selectedSet) return;
-    const refreshed = sets.find((set) => set.setId === selectedSet.setId && set.setVersion === selectedSet.setVersion);
+    const refreshed = sets.find((set) => set.setId === selectedSet.setId);
     if (refreshed) setSelectedSet(refreshed);
-  }, [sets, selectedSet?.setId, selectedSet?.setVersion]);
+  }, [sets, selectedSet?.setId]);
 
   const visibleItems = useMemo(() => {
     const query = search.trim().toLocaleLowerCase();
@@ -55,7 +57,7 @@ export function ReadingAdminPanel({
   const loadItems = useCallback(async (set: AdminReadingSet, showLoading = false) => {
     if (showLoading) setLoadingItems(true);
     try {
-      const result = await adminApi.readingItems(token, { setId: set.setId, setVersion: set.setVersion });
+      const result = await adminApi.readingItems(token, { setId: set.setId });
       setItems(result.items);
     } catch (cause) {
       onError(cause instanceof Error ? cause.message : "읽기 문항을 불러오지 못했습니다.");
@@ -104,9 +106,10 @@ export function ReadingAdminPanel({
 
   return (
     <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-7">
-      <AdminRoundDetailHeader eyebrow="READING BANK" title={`${selectedSet.round !== null ? `읽기 ${selectedSet.round}회` : "새 읽기 세트"} · 문항 관리`} summary={`문항 ${selectedSet.itemCount}/50 · 유효 ${selectedSet.validItemCount}/50 · 그래프 ${selectedSet.visualReady}/${selectedSet.visualRequired} · 세트 v${selectedSet.setVersion}`} onBack={() => { setCropTarget(null); setSelectedSet(null); setItems([]); setSearch(""); }} actions={<><AdminRoundSearch value={search} onChange={setSearch} placeholder="번호·유형·본문 검색" /><button type="button" disabled={Boolean(visualBusy) || selectedSet.visualRequired === 0 || selectedSet.visualReady >= selectedSet.visualRequired} onClick={() => void runVisualAction("generate-set", () => adminApi.generateReadingSetVisuals(token, selectedSet.setId, selectedSet.setVersion))} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-primary-100 px-4 text-sm font-semibold text-primary disabled:opacity-40">{visualBusy === "generate-set" ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />} 누락 그래프 생성</button>{selectedSet.mockTestId && <button type="button" title={!selectedSet.mockTestPublished && selectedSet.visualReady < selectedSet.visualRequired ? "10번 그래프를 준비한 뒤 공개할 수 있습니다." : undefined} disabled={Boolean(busy) || (!selectedSet.mockTestPublished && selectedSet.visualReady < selectedSet.visualRequired)} onClick={() => setPublishConfirm(true)} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold disabled:opacity-40 ${selectedSet.mockTestPublished ? "border-red-200 text-red-700" : "border-green-200 text-green-700"}`}>{selectedSet.mockTestPublished ? "비공개 전환" : "시험 공개"}</button>}</>} />
+      <AdminRoundDetailHeader eyebrow="READING BANK" title={`${selectedSet.round !== null ? `읽기 ${selectedSet.round}회` : "새 읽기 세트"} · 문항 관리`} summary={`문항 ${selectedSet.itemCount}/50 · 유효 ${selectedSet.validItemCount}/50 · 그래프 ${selectedSet.visualReady}/${selectedSet.visualRequired}`} onBack={() => { setCropTarget(null); setHistoryItem(null); setSelectedSet(null); setItems([]); setSearch(""); }} actions={<><AdminRoundSearch value={search} onChange={setSearch} placeholder="번호·유형·본문 검색" /><button type="button" disabled={Boolean(visualBusy) || selectedSet.visualRequired === 0 || selectedSet.visualReady >= selectedSet.visualRequired} onClick={() => void runVisualAction("generate-set", () => adminApi.generateReadingSetVisuals(token, selectedSet.setId))} className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-primary-100 px-4 text-sm font-semibold text-primary disabled:opacity-40">{visualBusy === "generate-set" ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />} 누락 그래프 생성</button>{selectedSet.mockTestId && <button type="button" title={!selectedSet.mockTestPublished && selectedSet.visualReady < selectedSet.visualRequired ? "10번 그래프를 준비한 뒤 공개할 수 있습니다." : undefined} disabled={Boolean(busy) || (!selectedSet.mockTestPublished && selectedSet.visualReady < selectedSet.visualRequired)} onClick={() => setPublishConfirm(true)} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold disabled:opacity-40 ${selectedSet.mockTestPublished ? "border-red-200 text-red-700" : "border-green-200 text-green-700"}`}>{selectedSet.mockTestPublished ? "비공개 전환" : "시험 공개"}</button>}</>} />
 
       {loadingItems ? <AdminRoundLoading /> : <div className="mt-6 space-y-3">
+        <div className="flex flex-wrap gap-2">{visibleItems.map((item) => <button key={item.itemId} type="button" onClick={() => setHistoryItem(item)} className="flex min-h-10 items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700"><History className="size-3" /> {item.position}번 버전 이력</button>)}</div>
         {visibleItems.map((item) => {
           const material = item.materialVisual;
           const active = material?.generationStatus === "queued" || material?.generationStatus === "processing";
@@ -115,7 +118,8 @@ export function ReadingAdminPanel({
         })}
         {!visibleItems.length && <AdminRoundEmpty>표시할 문항이 없습니다.</AdminRoundEmpty>}
       </div>}
-      {editing && <AdminQuestionEditorDialog token={token} section="reading" setId={editing.setId} setVersion={editing.setVersion} question={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setSelectedSet(null); setItems([]); void onSetsChanged(); }} />}
+      {editing && <AdminQuestionEditorDialog token={token} section="reading" setId={editing.setId} question={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void Promise.all([loadItems(selectedSet), onSetsChanged()]); }} />}
+      {historyItem && <AdminQuestionHistoryDialog token={token} setId={historyItem.setId} itemId={historyItem.itemId} position={historyItem.position} onClose={() => setHistoryItem(null)} />}
       <AdminPublishDialog open={publishConfirm} publishing={!selectedSet.mockTestPublished} busy={Boolean(busy)} onClose={() => setPublishConfirm(false)} onConfirm={() => { void onTogglePublish(selectedSet).finally(() => setPublishConfirm(false)); }} />
       {cropTarget && <AdminImageCropDialog file={cropTarget.file} title={`${cropTarget.position}번 그래프 크롭`} onCancel={() => setCropTarget(null)} onConfirm={(file) => {
         const target = cropTarget;

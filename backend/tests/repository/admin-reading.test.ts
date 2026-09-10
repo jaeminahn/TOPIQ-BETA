@@ -18,13 +18,13 @@ describe("reading set administration", () => {
   it("lists linked rounds first and marks a valid unlinked set ready", async () => {
     poolMock.query.mockResolvedValue({ rows: [
       {
-        setId: "set-new", setVersion: 1, setSequence: 2, createdAt: new Date("2026-08-11T12:00:00Z"),
+        setId: "set-new", setSequence: 2, createdAt: new Date("2026-08-11T12:00:00Z"),
         reviewStatus: "reviewed", publishedAt: new Date("2026-08-11T12:00:00Z"), itemCount: 50, validItemCount: 50,
         visualRequired: 1, visualReady: 1,
         mockTestId: null, slug: null, titleKo: null, mockTestPublished: null,
       },
       {
-        setId: "set-one", setVersion: 1, setSequence: 1, createdAt: new Date("2026-08-10T12:00:00Z"),
+        setId: "set-one", setSequence: 1, createdAt: new Date("2026-08-10T12:00:00Z"),
         reviewStatus: "reviewed", publishedAt: new Date("2026-08-10T12:00:00Z"), itemCount: 50, validItemCount: 50,
         visualRequired: 1, visualReady: 0,
         mockTestId: "mock-one", slug: "topik-ii-reading-1", titleKo: "읽기 1회", mockTestPublished: true,
@@ -48,7 +48,7 @@ describe("reading set administration", () => {
     });
     poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
 
-    const result = await new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1);
+    const result = await new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010");
 
     expect(result).toMatchObject({ slug: "topik-ii-reading-3", round: 3, published: true, created: true });
     expect(query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO topik_app.mock_tests"))).toBe(true);
@@ -63,7 +63,7 @@ describe("reading set administration", () => {
     });
     poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
 
-    const result = await new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1);
+    const result = await new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010");
 
     expect(result).toEqual({ mockTestId: "mock-three", slug: "topik-ii-reading-3", round: 3, published: true, created: false });
     expect(query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO"))).toBe(false);
@@ -78,7 +78,7 @@ describe("reading set administration", () => {
     });
     poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
 
-    await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1)).rejects.toMatchObject({ code: "READING_SET_NOT_READY" });
+    await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010")).rejects.toMatchObject({ code: "READING_SET_NOT_READY" });
     expect(query).toHaveBeenCalledWith("ROLLBACK");
   });
 
@@ -90,7 +90,7 @@ describe("reading set administration", () => {
     });
     poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
 
-    await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010", 1))
+    await expect(new AdminRepository().publishReadingSet("10000000-0000-4000-8000-000000000010"))
       .rejects.toMatchObject({ code: "READING_VISUALS_INCOMPLETE" });
     expect(query).toHaveBeenCalledWith("ROLLBACK");
   });

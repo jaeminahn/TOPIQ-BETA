@@ -4,13 +4,14 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pool } from "./db.js";
 
-// These checksums were recorded by the production database before migrations
-// 002-004 were checked into this repository in their current form. Keep this
-// allow-list narrow: all newer migrations still fail if an applied file changes.
+// These checksums were recorded by existing databases before the corresponding
+// migrations were checked into this repository in their current form. Keep this
+// allow-list narrow: every unknown change to an applied migration still fails.
 const acceptedLegacyChecksums: Readonly<Record<string, readonly string[]>> = {
   "002_admin_listening.sql": ["f48dd01b46b3832f2521a7c5f2e8f90f02cb0462ce789f42ec7662e7f12a7098"],
   "003_admin_management.sql": ["d3f069112066fc387f81d90313c971c4c92e1645125953aa21e26314bf1b9306"],
   "004_admin_response_audio_groups.sql": ["7edb58d8435cfdc7505c78cd17256613efce2c4009c861b8c4fc0a5f7b5555e4"],
+  "014_repair_listening_revision_audio_bindings.sql": ["c4e2098d21ac207243469dfc3875509bb387dce5246acb8ace4258c305fc5f45"],
 };
 
 export function migrationChecksum(sql: string) {

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --pool=threads --maxWorkers=1 --exclude dist/**",
     "db:migrate": "tsx src/migrate.ts",
+    "db:copy-to-supabase": "node scripts/copy-postgres-to-supabase.mjs",
     "admin:bootstrap": "tsx src/bootstrap-admin.ts",
     "assets:seed": "tsx src/seed-listening-assets.ts"
   },

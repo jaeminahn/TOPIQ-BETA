@@ -1,0 +1,2 @@
+# Keep database migrations consistent across operating systems.
+backend/migrations/*.sql text eol=lf

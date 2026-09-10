@@ -22,8 +22,8 @@ export function ReadingSetList({ sets, busy, onOpen, onPublish }: {
     <AdminRoundListHeader eyebrow="READING ROUNDS" title="읽기 회차 관리" description="회차를 선택해 세트의 문항과 공개 준비 상태를 확인합니다." registeredCount={linkedCount} newCount={pendingCount} />
     <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{sets.map((set) => {
       const linked = Boolean(set.mockTestId);
-      const publishKey = `publish-reading-${set.setId}-${set.setVersion}`;
-      return <AdminRoundCard key={`${set.setId}-${set.setVersion}`} testId="reading-set-card" roundLabel={set.round !== null ? `읽기 ${set.round}회` : "새 읽기 세트"} linked={linked} published={set.mockTestPublished} title={set.titleKo ?? `읽기 세트 · v${set.setVersion}`} setId={set.setId} createdAt={set.createdAt} metrics={[
+      const publishKey = `publish-reading-${set.setId}`;
+      return <AdminRoundCard key={set.setId} testId="reading-set-card" roundLabel={set.round !== null ? `읽기 ${set.round}회` : "새 읽기 세트"} linked={linked} published={set.mockTestPublished} title={set.titleKo ?? "새 읽기 세트"} setId={set.setId} createdAt={set.createdAt} metrics={[
         { label: "문항", value: `${set.itemCount}/50`, icon: BookOpen },
         { label: "유효", value: `${set.validItemCount}/50`, icon: FileCheck2 },
         { label: "그래프", value: `${set.visualReady}/${set.visualRequired}`, icon: Image },

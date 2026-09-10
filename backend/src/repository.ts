@@ -263,21 +263,20 @@ export class TopikRepository {
       const inserted = await client.query(
          `INSERT INTO topik_app.session_items(
            session_id, item_order, section, test_position,
-           set_id, set_version, item_id, item_version, score_weight, policy_version
+           set_id, item_id, item_version, score_weight, policy_version
          )
          SELECT $1,
                 ROW_NUMBER() OVER (ORDER BY mts.section_order, qsi.position),
                 mts.section,
                 qsi.position,
                 mts.set_id,
-                mts.set_version,
                 qsi.item_id,
                 qsi.item_version,
                 2,
                 'STATIC_MOCK_V1'
            FROM topik_app.mock_test_sections mts
            JOIN topik_bank.question_set_items qsi
-             ON qsi.set_id = mts.set_id AND qsi.set_version = mts.set_version
+             ON qsi.set_id = mts.set_id
           WHERE mts.mock_test_id = $2
           ORDER BY mts.section_order, qsi.position
         RETURNING item_order`,
@@ -356,8 +355,8 @@ export class TopikRepository {
          LEFT JOIN topik_app.answer_states a
            ON a.session_id = si.session_id AND a.item_order = si.item_order
          LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
-          AND set_binding.position=si.test_position AND set_binding.is_current
+           ON set_binding.set_id=si.set_id AND set_binding.position=si.test_position
+          AND set_binding.is_current
          LEFT JOIN topik_app.tts_audio_assets set_asset
            ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
          LEFT JOIN topik_app.item_audio_bindings legacy_binding
@@ -524,8 +523,8 @@ export class TopikRepository {
            FROM topik_app.session_items si
            JOIN topik_bank.item_versions iv ON iv.item_id=si.item_id AND iv.item_version=si.item_version
            LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-             ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
-            AND set_binding.position=si.test_position AND set_binding.is_current
+             ON set_binding.set_id=si.set_id AND set_binding.position=si.test_position
+            AND set_binding.is_current
            LEFT JOIN topik_app.tts_audio_assets set_asset
              ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
            LEFT JOIN topik_app.item_audio_bindings legacy_binding
@@ -817,8 +816,8 @@ export class TopikRepository {
          JOIN topik_bank.item_versions iv
            ON iv.item_id = si.item_id AND iv.item_version = si.item_version
          LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
-          AND set_binding.position=si.test_position AND set_binding.is_current
+           ON set_binding.set_id=si.set_id AND set_binding.position=si.test_position
+          AND set_binding.is_current
          LEFT JOIN topik_app.tts_audio_assets set_asset
            ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
          LEFT JOIN topik_app.item_audio_bindings legacy_binding

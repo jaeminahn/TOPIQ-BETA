@@ -11,6 +11,7 @@ import type {
   AdminExportOptions,
   AdminExportPreview,
   AdminQuestionRevision,
+  AdminQuestionVersion,
   TtsJob,
   TtsStyle,
 } from "../types";
@@ -58,14 +59,14 @@ export const adminApi = {
     );
   },
 
-  listeningItems(token: string, filters: { setId?: string; setVersion?: number; status?: string } = {}) {
+  listeningItems(token: string, filters: { setId?: string; status?: string } = {}) {
     return request<{ items: AdminListeningGroup[] }>(
       `/v1/admin/listening/items${queryString(filters)}`,
       { headers: auth(token) },
     );
   },
 
-  readingItems(token: string, filters: { setId?: string; setVersion?: number; search?: string } = {}) {
+  readingItems(token: string, filters: { setId?: string; search?: string } = {}) {
     return request<{ items: AdminReadingItem[] }>(
       `/v1/admin/reading/items${queryString(filters)}`,
       { headers: auth(token) },
@@ -76,9 +77,9 @@ export const adminApi = {
     return request<{ sets: AdminReadingSet[] }>("/v1/admin/reading/sets", { headers: auth(token) });
   },
 
-  publishReadingSet(token: string, setId: string, setVersion: number) {
+  publishReadingSet(token: string, setId: string) {
     return request<{ mockTestId: string; slug: string; round: number | null; published: boolean; created: boolean }>(
-      `/v1/admin/reading/sets/${setId}/versions/${setVersion}/publish`,
+      `/v1/admin/reading/sets/${setId}/publish`,
       { method: "POST", headers: auth(token) },
     );
   },
@@ -129,9 +130,9 @@ export const adminApi = {
     return request<{ sets: AdminListeningSet[] }>("/v1/admin/listening/sets", { headers: auth(token) });
   },
 
-  registerListeningSet(token: string, setId: string, setVersion: number) {
+  registerListeningSet(token: string, setId: string) {
     return request<{ mockTestId: string; slug: string; round: number | null; published: boolean; created: boolean }>(
-      `/v1/admin/listening/sets/${setId}/versions/${setVersion}/register`,
+      `/v1/admin/listening/sets/${setId}/register`,
       { method: "POST", headers: auth(token) },
     );
   },
@@ -140,24 +141,24 @@ export const adminApi = {
     return request<{ audioUrl: string }>(`/v1/admin/listening/audio/${audioAssetId}/url`, { headers: auth(token) });
   },
 
-  generateSet(token: string, setId: string, setVersion: number, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
-    return request<{ queued: number; jobIds: string[] }>(`/v1/admin/listening/sets/${setId}/versions/${setVersion}/tts`, {
+  generateSet(token: string, setId: string, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
+    return request<{ queued: number; jobIds: string[] }>(`/v1/admin/listening/sets/${setId}/tts`, {
       method: "POST",
       headers: auth(token),
       body: JSON.stringify({ forceRegenerate, ttsStyle }),
     });
   },
 
-  generateGroup(token: string, setId: string, setVersion: number, leaderItemId: string, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
+  generateGroup(token: string, setId: string, leaderItemId: string, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
     return request<{ jobId: string | null; queued: boolean; targetCount: number }>(
-      `/v1/admin/listening/sets/${setId}/versions/${setVersion}/audio-groups/${leaderItemId}/tts`,
+      `/v1/admin/listening/sets/${setId}/audio-groups/${leaderItemId}/tts`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate, ttsStyle }) },
     );
   },
 
-  deleteGroupAudio(token: string, setId: string, setVersion: number, leaderItemId: string, audioAssetId: string) {
+  deleteGroupAudio(token: string, setId: string, leaderItemId: string, audioAssetId: string) {
     return request<{ deleted: boolean; deletedBindings: number; storageDeleted: boolean; sharedAssetRetained: boolean }>(
-      `/v1/admin/listening/sets/${setId}/versions/${setVersion}/audio-groups/${leaderItemId}/audio/${audioAssetId}`,
+      `/v1/admin/listening/sets/${setId}/audio-groups/${leaderItemId}/audio/${audioAssetId}`,
       { method: "DELETE", headers: auth(token) },
     );
   },
@@ -178,9 +179,9 @@ export const adminApi = {
     );
   },
 
-  generateSetVisuals(token: string, setId: string, setVersion: number, forceRegenerate = false) {
+  generateSetVisuals(token: string, setId: string, forceRegenerate = false) {
     return request<{ queued: number; jobIds: string[] }>(
-      `/v1/admin/listening/sets/${setId}/versions/${setVersion}/visuals/generate`,
+      `/v1/admin/listening/sets/${setId}/visuals/generate`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
     );
   },
@@ -208,9 +209,9 @@ export const adminApi = {
     );
   },
 
-  generateReadingSetVisuals(token: string, setId: string, setVersion: number, forceRegenerate = false) {
+  generateReadingSetVisuals(token: string, setId: string, forceRegenerate = false) {
     return request<{ queued: number; jobIds: string[] }>(
-      `/v1/admin/reading/sets/${setId}/versions/${setVersion}/visuals/generate`,
+      `/v1/admin/reading/sets/${setId}/visuals/generate`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
     );
   },
@@ -230,14 +231,21 @@ export const adminApi = {
     });
   },
 
-  reviseQuestionSet(token: string, setId: string, setVersion: number, revisions: AdminQuestionRevision[]) {
+  reviseQuestionSet(token: string, setId: string, revisions: AdminQuestionRevision[]) {
     return request<{
-      setId: string; setVersion: number; mockTestIds: string[]; published: false;
+      setId: string; mockTestIds: string[]; published: false;
       revisions: Array<{ position: number; itemId: string; itemVersion: number }>;
-    }>(`/v1/admin/question-sets/${setId}/versions/${setVersion}/revisions`, {
+    }>(`/v1/admin/question-sets/${setId}/revisions`, {
       method: "POST",
       headers: auth(token),
       body: JSON.stringify({ revisions }),
     });
+  },
+
+  questionVersions(token: string, setId: string, itemId: string) {
+    return request<{ setId: string; itemId: string; position: number; currentVersion: number; versions: AdminQuestionVersion[] }>(
+      `/v1/admin/question-sets/${setId}/items/${itemId}/versions`,
+      { headers: auth(token) },
+    );
   },
 };

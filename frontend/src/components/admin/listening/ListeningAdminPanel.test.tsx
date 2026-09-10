@@ -14,10 +14,10 @@ vi.mock("../common/AdminImageCropDialog",()=>({
   AdminImageCropDialog:({title,onCancel,onConfirm}:{title:string;onCancel:()=>void;onConfirm:(file:File)=>void})=><div role="dialog"><h2>{title}</h2><button onClick={onCancel}>크롭 취소</button><button onClick={()=>onConfirm(new File(["cropped"],"cropped.webp",{type:"image/webp"}))}>크롭 후 업로드</button></div>,
 }));
 
-const linked:AdminListeningSet={setId:"10000000-0000-4000-8000-000000000001",setVersion:1,setSequence:1,createdAt:"2026-08-10T00:00:00Z",reviewStatus:"reviewed",publishedAt:"2026-08-10T00:00:00Z",itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"20000000-0000-4000-8000-000000000001",slug:"topik-ii-listening-1",titleKo:"TOPIK II 듣기 모의고사 1회",mockTestPublished:true,round:1,readyToRegister:false,readyToPublish:true,blockingReasons:[]};
+const linked:AdminListeningSet={setId:"10000000-0000-4000-8000-000000000001",setSequence:1,createdAt:"2026-08-10T00:00:00Z",reviewStatus:"reviewed",publishedAt:"2026-08-10T00:00:00Z",itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"20000000-0000-4000-8000-000000000001",slug:"topik-ii-listening-1",titleKo:"TOPIK II 듣기 모의고사 1회",mockTestPublished:true,round:1,readyToRegister:false,readyToPublish:true,blockingReasons:[]};
 const pending:AdminListeningSet={...linked,setId:"10000000-0000-4000-8000-000000000003",setSequence:2,createdAt:"2026-08-12T00:00:00Z",audioReady:0,visualReady:0,mockTestId:null,slug:null,titleKo:null,mockTestPublished:null,round:null,readyToRegister:true,readyToPublish:false};
 const readyGroup:AdminListeningGroup={
-  setId:linked.setId,setVersion:1,positions:[1],leaderItemId:"item-1",leaderItemVersion:1,
+  setId:linked.setId,positions:[1],leaderItemId:"item-1",leaderItemVersion:1,
   itemType:"listen_and_choose",dialogueTurns:[{speaker:"여자",text:"안녕하세요."}],questionPrompts:["들은 내용과 같은 것을 고르십시오."],repeatCount:2,
   audioAssetId:"audio-1",audioStorageUrl:"storage/audio-1.mp3",audioStatus:"ready",targets:[],
   narrationVersion:"exam_track_v4",appliedScript:{version:"exam_track_v4",kind:"single",positions:[1],segments:[
@@ -50,7 +50,7 @@ describe("ListeningAdminPanel",()=>{
     render(<ListeningAdminPanel token="token" sets={[linked,pending]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
     expect(screen.getAllByTestId("listening-set-card")).toHaveLength(2);
     await userEvent.click(within(screen.getAllByTestId("listening-set-card")[0]!).getByRole("button",{name:"문항 보기"}));
-    await waitFor(()=>expect(adminApi.listeningItems).toHaveBeenCalledWith("token",{setId:linked.setId,setVersion:linked.setVersion}));
+    await waitFor(()=>expect(adminApi.listeningItems).toHaveBeenCalledWith("token",{setId:linked.setId}));
     expect(screen.getByRole("heading",{name:"듣기 1회 · 문항 관리"})).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe("ListeningAdminPanel",()=>{
     const changed=vi.fn().mockResolvedValue(undefined);
     render(<ListeningAdminPanel token="token" sets={[pending]} onSetsChanged={changed} onError={vi.fn()}/>);
     await userEvent.click(screen.getByRole("button",{name:/비공개 회차 생성/}));
-    await waitFor(()=>expect(adminApi.registerListeningSet).toHaveBeenCalledWith("token",pending.setId,1));
+    await waitFor(()=>expect(adminApi.registerListeningSet).toHaveBeenCalledWith("token",pending.setId));
     expect(changed).toHaveBeenCalled();
   });
 
@@ -128,7 +128,7 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.type(screen.getByLabelText("음원 스타일"),"밝고 또렷하게");
     await userEvent.click(screen.getByRole("button",{name:"음원 재생성 시작"}));
 
-    await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",linked.setId,1,"item-1",true,{speakingRate:1.025,stylePrompt:"밝고 또렷하게"}));
+    await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",linked.setId,"item-1",true,{speakingRate:1.025,stylePrompt:"밝고 또렷하게"}));
     expect(screen.getByRole("button",{name:"재생"})).toBeDisabled();
     expect(screen.getByText("음원 생성 대기 중")).toBeInTheDocument();
     expect(document.querySelector("audio")).not.toBeInTheDocument();
@@ -145,7 +145,7 @@ describe("ListeningAdminPanel",()=>{
     expect(adminApi.generateSet).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button",{name:"누락 음원 생성 시작"}));
 
-    await waitFor(()=>expect(adminApi.generateSet).toHaveBeenCalledWith("token",pending.setId,1,false,{speakingRate:1,stylePrompt:""}));
+    await waitFor(()=>expect(adminApi.generateSet).toHaveBeenCalledWith("token",pending.setId,false,{speakingRate:1,stylePrompt:""}));
     expect(await screen.findByText("1개 중 0개 완료 · 1개 진행 중")).toBeInTheDocument();
   });
 
