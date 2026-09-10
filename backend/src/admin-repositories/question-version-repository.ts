@@ -1,11 +1,64 @@
 import { randomUUID } from "node:crypto";
 import { pool } from "../db.js";
 import { AppError, notFound } from "../errors.js";
+import type { DialogueTurn } from "../google-tts.js";
+import { buildNarrationScript } from "../listening-narration.js";
 import { normalizeReadingMaterial } from "../reading-visual.js";
+import { AdminMediaRepository } from "./media-repository.js";
 import { sha256, stableJson, type QuestionRevisionInput } from "./shared.js";
 
 type VisualRole = "choice" | "material";
-import { AdminMediaRepository } from "./media-repository.js";
+
+type QuestionSetMember = {
+  position: number; item_id: string; item_version: number; section: string; item_type: string;
+  type_slot: number; primary_skill: string; target_level: number; predicted_difficulty: number;
+  irt_difficulty: number | null; irt_discrimination: number | null; generator_provider: string;
+  generator_model: string; generator_version: string; prompt_version: string; review_status: string;
+  stem: string; choices: unknown; correct_answer: number | null; explanation: string;
+  content_json: Record<string, unknown>; source_provenance: Record<string, unknown>;
+};
+
+const stringValue = (value: unknown) => typeof value === "string" ? value : "";
+
+function reusableListeningAudioPositions(
+  members: QuestionSetMember[],
+  nextContentByPosition: ReadonlyMap<number, Record<string, unknown>>,
+) {
+  const groups = new Map<string, QuestionSetMember[]>();
+  for (const member of members) {
+    if (member.section !== "listening") continue;
+    const key = member.item_type.startsWith("paired_") ? member.item_type : `position:${member.position}`;
+    const group = groups.get(key) ?? [];
+    group.push(member);
+    groups.set(key, group);
+  }
+
+  const reusable: number[] = [];
+  for (const group of groups.values()) {
+    const targets = group.sort((left, right) => left.position - right.position);
+    try {
+      const previousScript = buildNarrationScript(targets.map((target) => ({
+        position: target.position,
+        questionPrompt: stringValue(target.content_json.question_prompt),
+        dialogueTurns: target.content_json.dialogue_turns as DialogueTurn[],
+      })));
+      const nextScript = buildNarrationScript(targets.map((target) => {
+        const content = nextContentByPosition.get(target.position) ?? target.content_json;
+        return {
+          position: target.position,
+          questionPrompt: stringValue(content.question_prompt),
+          dialogueTurns: content.dialogue_turns as DialogueTurn[],
+        };
+      }));
+      if (stableJson(previousScript) === stableJson(nextScript)) {
+        reusable.push(...targets.map((target) => target.position));
+      }
+    } catch {
+      // Invalid or incomplete narration is intentionally left without a copied binding.
+    }
+  }
+  return reusable;
+}
 
 export class AdminQuestionVersionRepository extends AdminMediaRepository {
   async reviseQuestionSet(setId: string, setVersion: number, revisions: QuestionRevisionInput[]) {
@@ -23,14 +76,7 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
       );
       if (!set.rows[0]) throw notFound("Question set version not found");
 
-      const members = await client.query<{
-        position: number; item_id: string; item_version: number; section: string; item_type: string;
-        type_slot: number; primary_skill: string; target_level: number; predicted_difficulty: number;
-        irt_difficulty: number | null; irt_discrimination: number | null; generator_provider: string;
-        generator_model: string; generator_version: string; prompt_version: string; review_status: string;
-        stem: string; choices: unknown; correct_answer: number | null; explanation: string;
-        content_json: Record<string, unknown>; source_provenance: Record<string, unknown>;
-      }>(
+      const members = await client.query<QuestionSetMember>(
         `SELECT qsi.position,iv.* FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
           WHERE qsi.set_id=$1 AND qsi.set_version=$2 ORDER BY qsi.position FOR UPDATE OF qsi`,
@@ -40,6 +86,7 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
 
       const byPosition = new Map(members.rows.map((row) => [row.position, row]));
       const nextVersions = new Map<number, { itemId: string; itemVersion: number }>();
+      const nextContentByPosition = new Map<number, Record<string, unknown>>();
       for (const revision of revisions) {
         const current = byPosition.get(revision.position);
         if (!current || current.item_id !== revision.itemId || current.item_version !== revision.itemVersion) {
@@ -67,6 +114,7 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
             source_text:nextMaterial.sourceText,
           };
         }
+        nextContentByPosition.set(revision.position, contentJson);
         const contentHash = sha256({
           stem: revision.stem,
           choices: revision.choices,
@@ -162,13 +210,39 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
         [setId,nextSetVersion,metadata.review_status,metadata.default_target_level,
           metadata.default_predicted_difficulty,fingerprint,metadata.published_at],
       );
-      for (const member of members.rows) {
-        const replacement = nextVersions.get(member.position);
+      const replacementPositions = [...nextVersions.keys()];
+      const replacementItemIds = replacementPositions.map((position) => nextVersions.get(position)!.itemId);
+      const replacementItemVersions = replacementPositions.map((position) => nextVersions.get(position)!.itemVersion);
+      const copiedItems = await client.query(
+        `INSERT INTO topik_bank.question_set_items(set_id,set_version,position,item_id,item_version)
+         SELECT source.set_id,$3,source.position,
+                COALESCE(replacement.item_id,source.item_id),
+                COALESCE(replacement.item_version,source.item_version)
+           FROM topik_bank.question_set_items source
+           LEFT JOIN unnest($4::smallint[],$5::uuid[],$6::integer[])
+             AS replacement(position,item_id,item_version)
+             ON replacement.position=source.position
+          WHERE source.set_id=$1 AND source.set_version=$2`,
+        [setId,setVersion,nextSetVersion,replacementPositions,replacementItemIds,replacementItemVersions],
+      );
+      if (copiedItems.rowCount !== members.rowCount) {
+        throw new AppError(409, "QUESTION_SET_COPY_CONFLICT", "The question set changed while the revision was being saved");
+      }
+
+      const reusableAudioPositions = reusableListeningAudioPositions(members.rows, nextContentByPosition);
+      if (reusableAudioPositions.length) {
         await client.query(
-          `INSERT INTO topik_bank.question_set_items(set_id,set_version,position,item_id,item_version)
-           VALUES ($1,$2,$3,$4,$5)`,
-          [setId,nextSetVersion,member.position,replacement?.itemId ?? member.item_id,
-            replacement?.itemVersion ?? member.item_version],
+          `INSERT INTO topik_app.question_set_item_audio_bindings(
+             set_id,set_version,position,audio_asset_id,source_hash,is_current
+           )
+           SELECT binding.set_id,$3,binding.position,binding.audio_asset_id,binding.source_hash,TRUE
+             FROM topik_app.question_set_item_audio_bindings binding
+             JOIN topik_app.tts_audio_assets asset
+               ON asset.audio_asset_id=binding.audio_asset_id AND asset.deleted_at IS NULL
+            WHERE binding.set_id=$1 AND binding.set_version=$2 AND binding.is_current
+              AND binding.position=ANY($4::smallint[])
+           ON CONFLICT DO NOTHING`,
+          [setId,setVersion,nextSetVersion,reusableAudioPositions],
         );
       }
       const linked = await client.query<{ mock_test_id: string }>(

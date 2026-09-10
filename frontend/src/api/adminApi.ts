@@ -58,14 +58,14 @@ export const adminApi = {
     );
   },
 
-  listeningItems(token: string, filters: { setId?: string; status?: string } = {}) {
+  listeningItems(token: string, filters: { setId?: string; setVersion?: number; status?: string } = {}) {
     return request<{ items: AdminListeningGroup[] }>(
       `/v1/admin/listening/items${queryString(filters)}`,
       { headers: auth(token) },
     );
   },
 
-  readingItems(token: string, filters: { setId?: string; search?: string } = {}) {
+  readingItems(token: string, filters: { setId?: string; setVersion?: number; search?: string } = {}) {
     return request<{ items: AdminReadingItem[] }>(
       `/v1/admin/reading/items${queryString(filters)}`,
       { headers: auth(token) },

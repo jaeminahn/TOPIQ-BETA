@@ -33,4 +33,20 @@ describe("AdminQuestionEditorDialog", () => {
     expect(revisions?.every((revision) => revision.contentJson.dialogue_turns)).toBe(true);
     expect(saved).toHaveBeenCalledWith(2);
   });
+
+  it("keeps the active field focused when its parent rerenders", async () => {
+    const firstClose = vi.fn();
+    const view = render(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" setVersion={1} question={first} onClose={firstClose} onSaved={vi.fn()} /></I18nProvider>);
+    const transcript = screen.getByLabelText(/공통 대본/);
+    await userEvent.click(transcript);
+    expect(transcript).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    view.rerender(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" setVersion={1} question={first} onClose={vi.fn()} onSaved={vi.fn()} /></I18nProvider>);
+
+    expect(transcript).toHaveFocus();
+    expect(document.body.style.overflow).toBe("hidden");
+    view.unmount();
+    expect(document.body.style.overflow).toBe("");
+  });
 });

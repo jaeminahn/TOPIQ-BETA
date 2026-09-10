@@ -59,7 +59,7 @@ export function ListeningAdminPanel({
   const loadItems = async (set = selectedSet) => {
     if (!set) return;
     try {
-      const result = await adminApi.listeningItems(token,{ setId:set.setId });
+      const result = await adminApi.listeningItems(token,{ setId:set.setId,setVersion:set.setVersion });
       setItems(result.items);
     } catch (cause) { onError(cause instanceof Error ? cause.message:"듣기 문항을 불러오지 못했습니다."); }
   };
@@ -79,10 +79,10 @@ export function ListeningAdminPanel({
   };
 
   useEffect(() => {
-    if (!selectedSet) return;
+    if (!selectedSet || editing) return;
     const timer = window.setInterval(() => void Promise.all([loadItems(selectedSet),onSetsChanged()]),4000);
     return () => window.clearInterval(timer);
-  }, [selectedSet,token,onSetsChanged]);
+  }, [editing,selectedSet,token,onSetsChanged]);
 
   useEffect(() => {
     if (!selectedSet) return;
