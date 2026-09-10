@@ -80,11 +80,16 @@ export function ListeningAdminPanel({
     finally { setBusy(""); }
   };
 
+  const hasGeneratingAudio = items.some(isAudioGenerating);
+
   useEffect(() => {
     if (!selectedSet || editing) return;
-    const timer = window.setInterval(() => void Promise.all([loadItems(selectedSet),onSetsChanged()]),4000);
+    const timer = window.setInterval(
+      () => void Promise.all([loadItems(selectedSet),onSetsChanged()]),
+      hasGeneratingAudio ? 1_000 : 4_000,
+    );
     return () => window.clearInterval(timer);
-  }, [editing,selectedSet,token,onSetsChanged]);
+  }, [editing,selectedSet,token,onSetsChanged,hasGeneratingAudio]);
 
   useEffect(() => {
     if (!selectedSet) return;

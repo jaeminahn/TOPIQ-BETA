@@ -85,7 +85,7 @@ export function splitLiteralUtterances(text: string) {
     ?.map((part) => part.trim()).filter(Boolean) ?? [normalized];
 }
 
-class TtsWorker {
+export class TtsWorker {
   private running = false;
   private timer?: NodeJS.Timeout;
 
@@ -106,10 +106,18 @@ class TtsWorker {
 
   private async claim(): Promise<Job | null> {
     const result = await pool.query<Job>(
-      `WITH candidate AS (
+      `WITH abandoned AS (
+         UPDATE topik_app.tts_generation_jobs
+            SET status='failed',
+                error_message=COALESCE(NULLIF(error_message,''),'TTS worker stopped before the attempt completed'),
+                completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL
+          WHERE (status='queued' AND attempts>0)
+             OR (status='processing' AND (lease_expires_at IS NULL OR lease_expires_at<CURRENT_TIMESTAMP))
+         RETURNING job_id
+       ), candidate AS (
          SELECT job_id FROM topik_app.tts_generation_jobs
-          WHERE (status='queued' OR (status='processing' AND lease_expires_at<CURRENT_TIMESTAMP))
-            AND attempts<3 ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
+          WHERE status='queued' AND attempts=0
+          ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1
        )
        UPDATE topik_app.tts_generation_jobs j
           SET status='processing', attempts=attempts+1, started_at=COALESCE(started_at,CURRENT_TIMESTAMP),
@@ -140,9 +148,8 @@ class TtsWorker {
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
       await pool.query(
-        `UPDATE topik_app.tts_generation_jobs SET status=CASE WHEN attempts>=3 THEN 'failed' ELSE 'queued' END,
-           error_message=$2,completed_at=CASE WHEN attempts>=3 THEN CURRENT_TIMESTAMP ELSE NULL END,
-           lease_expires_at=NULL WHERE job_id=$1`,
+        `UPDATE topik_app.tts_generation_jobs SET status='failed',error_message=$2,
+           completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL WHERE job_id=$1`,
         [job.job_id, message],
       );
     }

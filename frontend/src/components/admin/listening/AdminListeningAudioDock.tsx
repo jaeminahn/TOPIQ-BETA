@@ -155,7 +155,7 @@ export function AdminListeningAudioDock({
                   : <button type="button" disabled={!canPlay} onClick={onPlay} className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">
                     {audioLoading ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : <Play className="size-4" />}{audioLoading ? "불러오는 중" : generating ? "적용 후 재생 가능" : "음원 재생"}
                   </button>}
-                {(audioError || group.lastError) && <p role="alert" className="mt-2 line-clamp-2 text-xs font-semibold text-red-600">{audioError || group.lastError}</p>}
+                {(audioError || group.lastError) && <p role="alert" className="mt-2 max-h-24 overflow-auto break-words text-xs font-semibold text-red-600">{audioError || group.lastError}</p>}
               </>
             ) : (
               <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
