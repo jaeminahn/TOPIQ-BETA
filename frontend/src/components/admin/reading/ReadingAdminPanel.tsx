@@ -55,7 +55,7 @@ export function ReadingAdminPanel({
   const loadItems = useCallback(async (set: AdminReadingSet, showLoading = false) => {
     if (showLoading) setLoadingItems(true);
     try {
-      const result = await adminApi.readingItems(token, { setId: set.setId });
+      const result = await adminApi.readingItems(token, { setId: set.setId, setVersion: set.setVersion });
       setItems(result.items);
     } catch (cause) {
       onError(cause instanceof Error ? cause.message : "읽기 문항을 불러오지 못했습니다.");

@@ -7,10 +7,21 @@ import { buildNarrationScript, EXAM_TRACK_VERSION } from "../listening-narration
 import { AdminOverviewRepository } from "./overview-repository.js";
 
 export class AdminListeningRepository extends AdminOverviewRepository {
-  async listListeningItems(setId?: string, status?: "ready" | "missing" | "failed") {
+  async listListeningItems(setId?: string, setVersion?: number, status?: "ready" | "missing" | "failed") {
     const values: unknown[] = [];
     const filters = ["iv.section = 'listening'"];
     if (setId) { values.push(setId); filters.push(`qsi.set_id = $${values.length}`); }
+    if (setVersion !== undefined) {
+      if (!setId) throw new AppError(400, "SET_ID_REQUIRED", "setId is required when setVersion is provided");
+      values.push(setVersion);
+      filters.push(`qsi.set_version = $${values.length}`);
+    } else {
+      filters.push(`qsi.set_version = (
+        SELECT MAX(latest_qsi.set_version)
+          FROM topik_bank.question_set_items latest_qsi
+         WHERE latest_qsi.set_id=qsi.set_id
+      )`);
+    }
     const result = await pool.query(
       `WITH item_rows AS (
          SELECT qsi.set_id, qsi.set_version, qsi.position,

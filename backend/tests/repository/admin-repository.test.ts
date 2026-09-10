@@ -119,11 +119,13 @@ describe("AdminRepository reading graph materials", () => {
       materialGenerationStatus: "succeeded", materialGenerationError: null, visualOptions: [],
     }] });
 
-    const [item] = await new AdminRepository().listReadingItems("set-1");
-    const sql = String(poolMock.query.mock.calls[0]?.[0]);
+    const [item] = await new AdminRepository().listReadingItems("set-1", 2);
+    const [sql, values] = poolMock.query.mock.calls[0] as [string, unknown[]];
 
     expect(sql).toContain("iva.visual_role='material'");
     expect(sql).toContain("vgj.visual_role='material'");
+    expect(sql).toContain("qsi.set_version = $2");
+    expect(values).toEqual(["set-1", 2]);
     expect(item!.materialVisual).toMatchObject({
       sourceText: "독서 34%, 운동 28%",
       imagePrompt: expect.stringContaining("독서 34%, 운동 28%"),
@@ -191,8 +193,8 @@ describe("AdminRepository listening generation state", () => {
       appliedScript: { version: "exam_track_v4" },
     }] });
 
-    const result = await new AdminRepository().listListeningItems("set-1");
-    const [sql] = poolMock.query.mock.calls[0] as [string, unknown[]];
+    const result = await new AdminRepository().listListeningItems("set-1", 2);
+    const [sql, values] = poolMock.query.mock.calls[0] as [string, unknown[]];
 
     expect(sql).toContain('recent.job_id AS "generationJobId"');
     expect(sql).toContain('recent.status AS "generationStatus"');
@@ -201,6 +203,8 @@ describe("AdminRepository listening generation state", () => {
     expect(sql).toContain('g.narration_version END AS "narrationVersion"');
     expect(sql).toContain("question_set_item_audio_bindings");
     expect(sql).toContain("set_asset.narration_version='exam_track_v4'");
+    expect(sql).toContain("qsi.set_version = $2");
+    expect(values).toEqual(["set-1", 2, null]);
     expect(result[0]).toMatchObject({
       ttsStyle: { speakingRate: 1, stylePrompt: "applied" },
       generationJobId: "job-1",
@@ -208,6 +212,16 @@ describe("AdminRepository listening generation state", () => {
       generationTtsStyle: { speakingRate: .9, stylePrompt: "requested" },
       narrationVersion: "exam_track_v4",
     });
+  });
+
+  it("falls back to the latest version when an older client omits setVersion", async () => {
+    poolMock.query.mockResolvedValue({ rowCount: 0, rows: [] });
+
+    await new AdminRepository().listListeningItems("set-1");
+    const [sql, values] = poolMock.query.mock.calls[0] as [string, unknown[]];
+
+    expect(sql).toContain("SELECT MAX(latest_qsi.set_version)");
+    expect(values).toEqual(["set-1", null]);
   });
 
   it("snapshots a set-specific complete narration script when a group is queued", async () => {
@@ -246,6 +260,41 @@ describe("AdminRepository listening generation state", () => {
 describe("AdminRepository question revisions", () => {
   beforeEach(() => poolMock.connect.mockReset());
 
+  const listeningMember = (
+    position: number,
+    itemId: string,
+    itemType: string,
+    questionPrompt: string,
+    dialogueTurns: Array<{ speaker: "남자" | "여자"; text: string }>,
+  ) => ({
+    position, item_id: itemId, item_version: 1,
+    section: "listening", item_type: itemType, type_slot: position, primary_skill: "listening",
+    target_level: 3, predicted_difficulty: 0, irt_difficulty: null, irt_discrimination: null,
+    generator_provider: "test", generator_model: "test", generator_version: "v1", prompt_version: "a".repeat(64),
+    review_status: "reviewed", stem: "", choices: ["1", "2", "3", "4"], correct_answer: 1,
+    explanation: "old explanation",
+    content_json: {
+      stem: "", choices: ["1", "2", "3", "4"], question_prompt: questionPrompt,
+      dialogue_turns: dialogueTurns, repeat_count: 1,
+    },
+    source_provenance: {},
+  });
+
+  const revisionQuery = (members: ReturnType<typeof listeningMember>[]) => vi.fn(async (sql: string, _params?: unknown[]) => {
+    if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
+    if (sql.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
+    if (sql.includes("FROM topik_bank.question_set_versions") && sql.includes("FOR UPDATE")) {
+      return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, default_predicted_difficulty: 0, published_at: new Date() }] };
+    }
+    if (sql.includes("SELECT qsi.position,iv.*")) return { rowCount: members.length, rows: members };
+    if (sql.includes("MAX(item_version)")) return { rowCount: 1, rows: [{ version: 2 }] };
+    if (sql.includes("FROM topik_app.item_visual_assets") && sql.includes("SELECT option_number")) return { rowCount: 0, rows: [] };
+    if (sql.includes("MAX(set_version)")) return { rowCount: 1, rows: [{ version: 2 }] };
+    if (sql.includes("INSERT INTO topik_bank.question_set_items")) return { rowCount: members.length, rows: [] };
+    if (sql.includes("UPDATE topik_app.mock_test_sections")) return { rowCount: 0, rows: [] };
+    return { rowCount: 1, rows: [] };
+  });
+
   it("creates an immutable item and set version, repoints the round, and unpublishes it", async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
@@ -279,6 +328,81 @@ describe("AdminRepository question revisions", () => {
 
     expect(result).toMatchObject({ setVersion: 2, published: false, revisions: [{ position: 1, itemVersion: 2 }] });
     expect(query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO topik_bank.item_versions"))).toBe(true);
+    const setItemInserts = query.mock.calls.filter(([sql]) => String(sql).includes("INSERT INTO topik_bank.question_set_items"));
+    expect(setItemInserts).toHaveLength(1);
+    expect(String(setItemInserts[0]?.[0])).toContain("LEFT JOIN unnest");
     expect(query.mock.calls.some(([sql]) => String(sql).includes("SET is_published=FALSE"))).toBe(true);
+  });
+
+  it("reuses every group audio binding when only answers and choices change", async () => {
+    const singleDialogue = [{ speaker: "여자" as const, text: "안녕하세요." }];
+    const pairDialogue = [{ speaker: "남자" as const, text: "회의가 시작됩니다." }];
+    const members = [
+      listeningMember(1, "30000000-0000-4000-8000-000000000001", "listen_and_choose", "들은 내용을 고르십시오.", singleDialogue),
+      listeningMember(13, "30000000-0000-4000-8000-000000000013", "paired_13_14", "남자의 생각을 고르십시오.", pairDialogue),
+      listeningMember(14, "30000000-0000-4000-8000-000000000014", "paired_13_14", "들은 내용과 같은 것을 고르십시오.", pairDialogue),
+    ];
+    const query = revisionQuery(members);
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    await new AdminRepository().reviseQuestionSet("10000000-0000-4000-8000-000000000001", 1, [{
+      position: 1, itemId: members[0]!.item_id, itemVersion: 1, stem: "",
+      choices: ["가", "2", "3", "4"], correctAnswer: 2, explanation: "new explanation",
+      contentJson: { ...members[0]!.content_json, choices: ["가", "2", "3", "4"] },
+    }]);
+
+    const itemVersions = query.mock.calls.filter(([sql]) => String(sql).includes("INSERT INTO topik_bank.item_versions"));
+    expect(itemVersions).toHaveLength(1);
+    const snapshot = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_bank.question_set_items"));
+    expect(snapshot?.[1]).toEqual(expect.arrayContaining([[1], [members[0]!.item_id], [2]]));
+    const audioCopy = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.question_set_item_audio_bindings"));
+    expect(audioCopy?.[1]).toEqual(expect.arrayContaining([[1, 13, 14]]));
+  });
+
+  it("leaves only the changed narration group without a copied audio binding", async () => {
+    const singleDialogue = [{ speaker: "여자" as const, text: "안녕하세요." }];
+    const pairDialogue = [{ speaker: "남자" as const, text: "회의가 시작됩니다." }];
+    const members = [
+      listeningMember(1, "30000000-0000-4000-8000-000000000001", "listen_and_choose", "들은 내용을 고르십시오.", singleDialogue),
+      listeningMember(13, "30000000-0000-4000-8000-000000000013", "paired_13_14", "남자의 생각을 고르십시오.", pairDialogue),
+      listeningMember(14, "30000000-0000-4000-8000-000000000014", "paired_13_14", "들은 내용과 같은 것을 고르십시오.", pairDialogue),
+    ];
+    const query = revisionQuery(members);
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    await new AdminRepository().reviseQuestionSet("10000000-0000-4000-8000-000000000001", 1, [{
+      position: 1, itemId: members[0]!.item_id, itemVersion: 1, stem: "",
+      choices: ["1", "2", "3", "4"], correctAnswer: 1, explanation: "old explanation",
+      contentJson: { ...members[0]!.content_json, question_prompt: "새 문제 문장을 고르십시오." },
+    }]);
+
+    const audioCopy = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.question_set_item_audio_bindings"));
+    expect(audioCopy?.[1]).toEqual(expect.arrayContaining([[13, 14]]));
+  });
+
+  it("versions and invalidates only a changed shared-dialogue group", async () => {
+    const singleDialogue = [{ speaker: "여자" as const, text: "안녕하세요." }];
+    const pairDialogue = [{ speaker: "남자" as const, text: "회의가 시작됩니다." }];
+    const changedPairDialogue = [{ speaker: "남자" as const, text: "회의 시간이 변경됐습니다." }];
+    const members = [
+      listeningMember(1, "30000000-0000-4000-8000-000000000001", "listen_and_choose", "들은 내용을 고르십시오.", singleDialogue),
+      listeningMember(13, "30000000-0000-4000-8000-000000000013", "paired_13_14", "남자의 생각을 고르십시오.", pairDialogue),
+      listeningMember(14, "30000000-0000-4000-8000-000000000014", "paired_13_14", "들은 내용과 같은 것을 고르십시오.", pairDialogue),
+    ];
+    const query = revisionQuery(members);
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+
+    await new AdminRepository().reviseQuestionSet("10000000-0000-4000-8000-000000000001", 1, members.slice(1).map((member) => ({
+      position: member.position, itemId: member.item_id, itemVersion: 1, stem: "",
+      choices: ["1", "2", "3", "4"], correctAnswer: 1, explanation: "old explanation",
+      contentJson: { ...member.content_json, dialogue_turns: changedPairDialogue },
+    })));
+
+    const itemVersions = query.mock.calls.filter(([sql]) => String(sql).includes("INSERT INTO topik_bank.item_versions"));
+    expect(itemVersions).toHaveLength(2);
+    const snapshot = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_bank.question_set_items"));
+    expect(snapshot?.[1]).toEqual(expect.arrayContaining([[13, 14], [2, 2]]));
+    const audioCopy = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.question_set_item_audio_bindings"));
+    expect(audioCopy?.[1]).toEqual(expect.arrayContaining([[1]]));
   });
 });

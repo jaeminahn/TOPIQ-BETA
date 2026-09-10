@@ -36,6 +36,10 @@ export function AdminQuestionEditorDialog({ token, section, setId, setVersion, q
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const busyRef = useRef(busy);
+  const onCloseRef = useRef(onClose);
+  busyRef.current = busy;
+  onCloseRef.current = onClose;
   const originalDialogue = JSON.stringify(turns(question.contentJson.dialogue_turns));
   const parsedDialogue = dialogue.split("\n").flatMap((line) => {
     const divider = line.indexOf("|");
@@ -47,11 +51,17 @@ export function AdminQuestionEditorDialog({ token, section, setId, setVersion, q
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    document.body.style.overflow = "hidden"; closeRef.current?.focus();
-    const keydown = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) onClose(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus({ preventScroll: true });
+    const keydown = (event: KeyboardEvent) => { if (event.key === "Escape" && !busyRef.current) onCloseRef.current(); };
     document.addEventListener("keydown", keydown);
-    return () => { document.body.style.overflow = ""; document.removeEventListener("keydown", keydown); previous?.focus(); };
-  }, [busy, onClose]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", keydown);
+      previous?.focus({ preventScroll: true });
+    };
+  }, []);
 
   const preview = useMemo(() => ({
     itemOrder: question.position, section, testPosition: question.position, itemId: question.itemId,

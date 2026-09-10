@@ -2,6 +2,7 @@ import { fireEvent,render,screen,waitFor,within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach,describe,expect,it,vi } from "vitest";
 import { adminApi } from "../../../api";
+import { I18nProvider } from "../../../i18n";
 import type { AdminListeningGroup, AdminListeningSet } from "../../../types";
 import { ListeningAdminPanel } from "./ListeningAdminPanel";
 
@@ -49,8 +50,35 @@ describe("ListeningAdminPanel",()=>{
     render(<ListeningAdminPanel token="token" sets={[linked,pending]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
     expect(screen.getAllByTestId("listening-set-card")).toHaveLength(2);
     await userEvent.click(within(screen.getAllByTestId("listening-set-card")[0]!).getByRole("button",{name:"문항 보기"}));
-    await waitFor(()=>expect(adminApi.listeningItems).toHaveBeenCalledWith("token",{setId:linked.setId}));
+    await waitFor(()=>expect(adminApi.listeningItems).toHaveBeenCalledWith("token",{setId:linked.setId,setVersion:linked.setVersion}));
     expect(screen.getByRole("heading",{name:"듣기 1회 · 문항 관리"})).toBeInTheDocument();
+  });
+
+  it("pauses background polling while a question is being edited",async()=>{
+    const editableGroup:AdminListeningGroup={...readyGroup,targets:[{
+      itemId:"item-1",itemVersion:1,position:1,itemType:"listen_and_choose",
+      questionPrompt:"들은 내용과 같은 것을 고르십시오.",stem:"",choices:["하나","둘","셋","넷"],
+      correctAnswer:1,explanation:"해설",contentJson:{question_prompt:"들은 내용과 같은 것을 고르십시오.",dialogue_turns:readyGroup.dialogueTurns,repeat_count:1},
+      visualOptionCount:0,visualReadyCount:0,visualOptions:[],
+    }]};
+    vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[editableGroup]});
+    const setIntervalSpy=vi.spyOn(window,"setInterval");
+    const clearIntervalSpy=vi.spyOn(window,"clearInterval");
+    render(<I18nProvider><ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/></I18nProvider>);
+    await userEvent.click(screen.getByRole("button",{name:"문항 보기"}));
+    await screen.findByRole("heading",{name:"듣기 1회 · 문항 관리"});
+    expect(setIntervalSpy).toHaveBeenCalled();
+    const pollingCount=setIntervalSpy.mock.calls.filter((call)=>call[1]===4000).length;
+
+    await userEvent.click(screen.getByRole("button",{name:/1번 .*수정/}));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+    expect(setIntervalSpy.mock.calls.filter((call)=>call[1]===4000)).toHaveLength(pollingCount);
+    await userEvent.click(screen.getByRole("button",{name:"취소"}));
+    expect(setIntervalSpy.mock.calls.filter((call)=>call[1]===4000).length).toBeGreaterThan(pollingCount);
+    setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
   });
 
   it("registers a detected SQL set as a draft round",async()=>{

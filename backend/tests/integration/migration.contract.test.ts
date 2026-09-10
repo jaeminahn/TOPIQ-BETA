@@ -140,4 +140,14 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("revoked_at");
     expect(sql).toContain("status IN ('pending', 'accepted', 'failed')");
   });
+
+  it("repairs only unchanged listening narration groups on revised set versions", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/014_repair_listening_revision_audio_bindings.sql"), "utf8");
+    expect(sql).toContain("narration_signature");
+    expect(sql).toContain("previous.narration_signature=target.narration_signature");
+    expect(sql).toContain("previous.ready_asset_count=1");
+    expect(sql).toContain("target.current_binding_count=0");
+    expect(sql).toContain("asset.narration_version='exam_track_v4'");
+    expect(sql).toContain("ON CONFLICT DO NOTHING");
+  });
 });

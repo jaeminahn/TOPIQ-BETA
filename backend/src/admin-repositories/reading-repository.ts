@@ -184,10 +184,21 @@ export class AdminReadingRepository extends AdminListeningRepository {
     }
   }
 
-  async listReadingItems(setId?: string, search?: string) {
+  async listReadingItems(setId?: string, setVersion?: number, search?: string) {
     const values: unknown[] = [];
     const filters = ["iv.section = 'reading'"];
     if (setId) { values.push(setId); filters.push(`qsi.set_id = $${values.length}`); }
+    if (setVersion !== undefined) {
+      if (!setId) throw new AppError(400, "SET_ID_REQUIRED", "setId is required when setVersion is provided");
+      values.push(setVersion);
+      filters.push(`qsi.set_version = $${values.length}`);
+    } else {
+      filters.push(`qsi.set_version = (
+        SELECT MAX(latest_qsi.set_version)
+          FROM topik_bank.question_set_items latest_qsi
+         WHERE latest_qsi.set_id=qsi.set_id
+      )`);
+    }
     if (search) {
       values.push(`%${search}%`);
       filters.push(`(iv.stem ILIKE $${values.length} OR iv.item_type ILIKE $${values.length})`);

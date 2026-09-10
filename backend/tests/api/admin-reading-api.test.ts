@@ -15,6 +15,51 @@ afterEach(async () => {
 });
 
 describe("admin reading API", () => {
+  it("forwards the selected listening set version to the repository", async () => {
+    const listListeningItems = vi.fn().mockResolvedValue([]);
+    const app = await buildApp({} as TopikRepository, { listListeningItems } as unknown as AdminRepository);
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/listening/items?setId=10000000-0000-4000-8000-000000000001&setVersion=2&status=missing",
+      headers: { authorization: "Bearer admin-token" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(listListeningItems).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001", 2, "missing");
+  });
+
+  it("forwards the selected reading set version to the repository", async () => {
+    const listReadingItems = vi.fn().mockResolvedValue([]);
+    const app = await buildApp({} as TopikRepository, { listReadingItems } as unknown as AdminRepository);
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/reading/items?setId=10000000-0000-4000-8000-000000000001&setVersion=3&search=%EB%AC%B8%EB%B2%95",
+      headers: { authorization: "Bearer admin-token" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(listReadingItems).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001", 3, "문법");
+  });
+
+  it("rejects a set version without a set id", async () => {
+    const listListeningItems = vi.fn().mockResolvedValue([]);
+    const app = await buildApp({} as TopikRepository, { listListeningItems } as unknown as AdminRepository);
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/listening/items?setVersion=2",
+      headers: { authorization: "Bearer admin-token" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(listListeningItems).not.toHaveBeenCalled();
+  });
+
   it("returns reading set summaries", async () => {
     const listReadingSets = vi.fn().mockResolvedValue([{ setId: "10000000-0000-4000-8000-000000000001", round: 1 }]);
     const app = await buildApp({} as TopikRepository, { listReadingSets } as unknown as AdminRepository);

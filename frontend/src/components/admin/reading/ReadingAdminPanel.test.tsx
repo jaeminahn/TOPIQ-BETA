@@ -75,7 +75,7 @@ describe("ReadingAdminPanel", () => {
     const linkedCard = screen.getAllByTestId("reading-set-card")[0];
     await userEvent.click(within(linkedCard).getByRole("button", { name: "문항 보기" }));
 
-    await waitFor(() => expect(adminApi.readingItems).toHaveBeenCalledWith("admin-token", { setId: linkedSet.setId }));
+    await waitFor(() => expect(adminApi.readingItems).toHaveBeenCalledWith("admin-token", { setId: linkedSet.setId, setVersion: linkedSet.setVersion }));
     expect(await screen.findAllByText("첫 번째 읽기 문제")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "읽기 1회 · 문항 관리" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "회차 목록" }));
