@@ -15,6 +15,11 @@ describe("topik_app migration contract", () => {
       "f48dd01b46b3832f2521a7c5f2e8f90f02cb0462ce789f42ec7662e7f12a7098",
       "current-checksum",
     )).toBe(true);
+    expect(isAcceptedAppliedMigration(
+      "014_repair_listening_revision_audio_bindings.sql",
+      "c4e2098d21ac207243469dfc3875509bb387dce5246acb8ace4258c305fc5f45",
+      "d9fb906838dcfadbd222e97c4bb7006bac4cebeae94df459b6afaa676379fed2",
+    )).toBe(true);
     expect(isAcceptedAppliedMigration("005_admin_listening_visual_generation.sql", "old", "current"))
       .toBe(false);
   });
@@ -143,11 +148,35 @@ describe("topik_app migration contract", () => {
 
   it("repairs only unchanged listening narration groups on revised set versions", async () => {
     const sql = await readFile(resolve(process.cwd(), "migrations/014_repair_listening_revision_audio_bindings.sql"), "utf8");
+    expect(migrationChecksum(sql)).toBe("d9fb906838dcfadbd222e97c4bb7006bac4cebeae94df459b6afaa676379fed2");
     expect(sql).toContain("narration_signature");
     expect(sql).toContain("previous.narration_signature=target.narration_signature");
     expect(sql).toContain("previous.ready_asset_count=1");
     expect(sql).toContain("target.current_binding_count=0");
     expect(sql).toContain("asset.narration_version='exam_track_v4'");
     expect(sql).toContain("ON CONFLICT DO NOTHING");
+  });
+
+  it("retries listening binding repair with trimmed standalone prompts", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/015_repair_trimmed_listening_revision_audio_bindings.sql"), "utf8");
+    expect(sql).toContain("BTRIM(COALESCE(iv.content_json->>'question_prompt',''))");
+    expect(sql).toContain("previous.narration_signature=target.narration_signature");
+    expect(sql).toContain("target.current_binding_count=0");
+    expect(sql).toContain("ON CONFLICT DO NOTHING");
+  });
+
+  it("collapses set versions into current item pointers without deleting item history", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/016_item_only_question_versions.sql"), "utf8");
+    expect(sql).toContain("CREATE TEMP TABLE latest_question_set_versions");
+    expect(sql).toContain("DELETE FROM topik_bank.question_set_items");
+    expect(sql).toContain("DROP COLUMN set_version");
+    expect(sql).toContain("PRIMARY KEY (set_id,position)");
+    expect(sql).toContain("UNIQUE (set_id,item_id)");
+    expect(sql).toContain("DROP TABLE topik_bank.question_set_versions");
+    expect(sql).toContain("CREATE VIEW topik_bank.current_set_contents");
+    expect(sql).toContain("SET is_published=FALSE");
+    expect(sql).toContain("Cancelled during item-only question version migration");
+    expect(sql).toContain("ROW_NUMBER() OVER");
+    expect(sql).not.toMatch(/DELETE FROM topik_bank\.item_versions/);
   });
 });

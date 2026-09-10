@@ -16,10 +16,10 @@ const turns = (value: unknown): TranscriptTurn[] => Array.isArray(value) ? value
   return text(row.speaker) && text(row.text) ? [{ speaker: text(row.speaker), text: text(row.text) }] : [];
 }) : [];
 
-export function AdminQuestionEditorDialog({ token, section, setId, setVersion, question, groupQuestions = [question], onClose, onSaved }: {
-  token: string; section: "reading" | "listening"; setId: string; setVersion: number;
+export function AdminQuestionEditorDialog({ token, section, setId, question, groupQuestions = [question], onClose, onSaved }: {
+  token: string; section: "reading" | "listening"; setId: string;
   question: EditableAdminQuestion; groupQuestions?: EditableAdminQuestion[];
-  onClose: () => void; onSaved: (setVersion: number) => void;
+  onClose: () => void; onSaved: () => void;
 }) {
   const [stem, setStem] = useState(question.stem);
   const [prompt, setPrompt] = useState(text(question.contentJson.question_prompt));
@@ -98,8 +98,8 @@ export function AdminQuestionEditorDialog({ token, section, setId, setVersion, q
     setBusy(true); setError("");
     try {
       const targets = commonChanged ? groupQuestions : [question];
-      const result = await adminApi.reviseQuestionSet(token, setId, setVersion, targets.map((target) => makeRevision(target, target.itemId === question.itemId)));
-      onSaved(result.setVersion);
+      await adminApi.reviseQuestionSet(token, setId, targets.map((target) => makeRevision(target, target.itemId === question.itemId)));
+      onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "문항을 수정하지 못했습니다."); setBusy(false);
     }
@@ -107,7 +107,7 @@ export function AdminQuestionEditorDialog({ token, section, setId, setVersion, q
 
   return <div className="fixed inset-0 z-[80] overflow-y-auto bg-gray-950/55 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-labelledby="question-editor-title" className="mx-auto my-4 w-full max-w-5xl rounded-2xl bg-white p-5 shadow-2xl sm:p-7">
-      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-primary">QUESTION REVISION</p><h2 id="question-editor-title" className="mt-1 text-xl font-semibold">{question.position}번 문제 수정</h2><p className="mt-1 text-xs text-gray-500">저장하면 문항과 세트 버전이 증가하고 연결 회차가 자동 비공개됩니다.</p></div><button ref={closeRef} onClick={onClose} disabled={busy} className="focus-ring grid size-10 place-items-center rounded-xl border border-gray-200"><X className="size-4" /></button></div>
+      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-primary">QUESTION REVISION</p><h2 id="question-editor-title" className="mt-1 text-xl font-semibold">{question.position}번 문제 수정</h2><p className="mt-1 text-xs text-gray-500">저장하면 이 문항만 새 버전이 생기고 연결 회차가 자동 비공개됩니다.</p></div><button ref={closeRef} onClick={onClose} disabled={busy} className="focus-ring grid size-10 place-items-center rounded-xl border border-gray-200"><X className="size-4" /></button></div>
       <div className="mt-6 grid gap-6 lg:grid-cols-2"><div className="space-y-4">
         {section === "reading" && <><Field label="지문" value={passage} onChange={setPassage} rows={5} /><Field label="보조 문장" value={auxiliary} onChange={setAuxiliary} /><Field label="강조 문장" value={highlight} onChange={setHighlight} /></>}
         {section === "listening" && <><Field label="공통 대본 (화자|내용, 한 줄에 한 발화)" value={dialogue} onChange={setDialogue} rows={7} /><label className="block text-sm font-semibold">반복 횟수<input type="number" min={1} max={5} value={repeatCount} onChange={(event) => setRepeatCount(Number(event.target.value))} className="mt-2 min-h-11 w-full rounded-xl border border-gray-200 px-3" /></label></>}

@@ -68,6 +68,8 @@ yarn-error.log*
 # Hosting and deployment CLI state
 .vercel/
 .render/
+supabase/seed.sql
+supabase/migrations/*_remote_schema.sql
 
 # Temporary files
 .tmp/

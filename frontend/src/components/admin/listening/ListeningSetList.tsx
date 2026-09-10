@@ -22,7 +22,7 @@ export function ListeningSetList({ sets, busy, onOpen, onRegister }: {
     <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{sets.map((set) => {
       const linked = Boolean(set.mockTestId);
       const registerKey = `register-${set.setId}`;
-      return <AdminRoundCard key={`${set.setId}-${set.setVersion}`} testId="listening-set-card" roundLabel={set.round !== null ? `듣기 ${set.round}회` : "새 듣기 세트"} linked={linked} published={set.mockTestPublished} title={set.titleKo ?? `듣기 세트 · v${set.setVersion}`} setId={set.setId} createdAt={set.createdAt} metrics={[
+      return <AdminRoundCard key={set.setId} testId="listening-set-card" roundLabel={set.round !== null ? `듣기 ${set.round}회` : "새 듣기 세트"} linked={linked} published={set.mockTestPublished} title={set.titleKo ?? "새 듣기 세트"} setId={set.setId} createdAt={set.createdAt} metrics={[
         { label: "문항", value: `${set.itemCount}/50`, icon: Headphones },
         { label: "음원", value: `${set.audioReady}/50`, icon: AudioLines },
         { label: "그림", value: `${set.visualReady}/${set.visualRequired}`, icon: Image },

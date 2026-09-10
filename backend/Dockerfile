@@ -16,7 +16,7 @@ RUN apk add --no-cache ffmpeg
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
-COPY migrations ./migrations
+COPY migrations ./migrations  
 COPY seed-assets ./seed-assets
 EXPOSE 10000
 CMD ["node", "dist/server.js"]

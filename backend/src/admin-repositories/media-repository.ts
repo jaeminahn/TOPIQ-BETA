@@ -9,10 +9,25 @@ import { AdminResponseRepository } from "./response-repository.js";
 type VisualRole = "choice" | "material";
 
 export class AdminMediaRepository extends AdminResponseRepository {
+  async requireCurrentQuestionVersion(itemId: string, itemVersion: number) {
+    const current = await pool.query(
+      `SELECT 1 FROM topik_bank.question_set_items
+        WHERE item_id=$1 AND item_version=$2`,
+      [itemId,itemVersion],
+    );
+    if (!current.rowCount) throw notFound("Current question version not found");
+  }
+
   private async createVisualJob(client: PoolClient, input: {
     adminUserId: string; itemId: string; itemVersion: number; optionNumber: number;
     visualRole: VisualRole; forceRegenerate: boolean;
   }) {
+    const current = await client.query(
+      `SELECT 1 FROM topik_bank.question_set_items
+        WHERE item_id=$1 AND item_version=$2`,
+      [input.itemId,input.itemVersion],
+    );
+    if (!current.rowCount) throw notFound("Current question version not found");
     let promptSnapshot: Record<string, unknown> | null = null;
     let hasAsset = false;
     if (input.visualRole === "choice") {
@@ -89,7 +104,7 @@ export class AdminMediaRepository extends AdminResponseRepository {
     } finally { client.release(); }
   }
 
-  async enqueueVisualSet(adminUserId: string, setId: string, setVersion: number, forceRegenerate: boolean) {
+  async enqueueVisualSet(adminUserId: string, setId: string, forceRegenerate: boolean) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -99,8 +114,8 @@ export class AdminMediaRepository extends AdminResponseRepository {
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
            CROSS JOIN LATERAL jsonb_array_elements(COALESCE(iv.content_json->'visual_options','[]'::jsonb))
              WITH ORDINALITY AS visual(value,ordinality)
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND iv.section='listening'
-          ORDER BY qsi.position,visual.ordinality`, [setId,setVersion],
+          WHERE qsi.set_id=$1 AND iv.section='listening'
+          ORDER BY qsi.position,visual.ordinality`, [setId],
       );
       if (!options.rowCount) throw notFound("Listening set visual options not found");
       const jobIds: string[] = [];
@@ -131,7 +146,7 @@ export class AdminMediaRepository extends AdminResponseRepository {
     } finally { client.release(); }
   }
 
-  async enqueueReadingVisualSet(adminUserId: string, setId: string, setVersion: number, forceRegenerate: boolean) {
+  async enqueueReadingVisualSet(adminUserId: string, setId: string, forceRegenerate: boolean) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -139,8 +154,8 @@ export class AdminMediaRepository extends AdminResponseRepository {
         `SELECT iv.item_id,iv.item_version
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND qsi.position=10 AND iv.section='reading'`,
-        [setId,setVersion],
+          WHERE qsi.set_id=$1 AND qsi.position=10 AND iv.section='reading'`,
+        [setId],
       );
       if (!items.rowCount) throw notFound("Reading set question 10 graph not found");
       const jobIds: string[] = [];
@@ -169,6 +184,8 @@ export class AdminMediaRepository extends AdminResponseRepository {
         `SELECT storage_bucket,storage_path FROM topik_app.item_visual_assets
           WHERE visual_asset_id=$1 AND item_id=$2 AND item_version=$3 AND option_number=$4
             AND visual_role=$5 AND is_current
+            AND EXISTS (SELECT 1 FROM topik_bank.question_set_items qsi
+              WHERE qsi.item_id=$2 AND qsi.item_version=$3)
           FOR UPDATE`, [visualAssetId,itemId,itemVersion,optionNumber,visualRole],
       );
       const row = asset.rows[0];
@@ -199,6 +216,12 @@ export class AdminMediaRepository extends AdminResponseRepository {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      const current = await client.query(
+        `SELECT 1 FROM topik_bank.question_set_items
+          WHERE item_id=$1 AND item_version=$2`,
+        [input.itemId,input.itemVersion],
+      );
+      if (!current.rowCount) throw notFound("Current question version not found");
       if (input.visualRole === "material") {
         const allowed = await client.query(
           `SELECT 1 FROM topik_bank.item_versions iv

@@ -11,9 +11,8 @@ import { requireSessionToken } from "./route-auth.js";
 
 const listeningItemParams = z.object({ itemId: z.string().uuid(), itemVersion: z.coerce.number().int().positive() });
 const readingItemParams = z.object({ itemId: z.string().uuid(), itemVersion: z.coerce.number().int().positive() });
-const listeningSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
-const readingSetParams = z.object({ setId: z.string().uuid(), setVersion: z.coerce.number().int().positive() });
-const listeningGroupParams = listeningSetParams.extend({ leaderItemId: z.string().uuid() });
+const setParams = z.object({ setId: z.string().uuid() });
+const listeningGroupParams = setParams.extend({ leaderItemId: z.string().uuid() });
 const visualParams = listeningItemParams.extend({ optionNumber: z.coerce.number().int().min(1).max(4) });
 const visualAssetParams = visualParams.extend({ visualAssetId: z.string().uuid() });
 const readingVisualAssetParams = readingItemParams.extend({ visualAssetId: z.string().uuid() });
@@ -40,41 +39,56 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
     return { audioUrl: await new SupabaseStorage().signedAudioUrl(path, 600) };
   });
 
-  app.post("/v1/admin/listening/sets/:setId/versions/:setVersion/tts", async (request, reply) => {
-    const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { setId, setVersion } = listeningSetParams.parse(request.params);
-    const body = ttsGenerationBody.parse(request.body ?? {});
-    const result = await repository.enqueueSet(admin.adminUserId, setId, setVersion, body.forceRegenerate, body.ttsStyle);
-    ttsWorker.kick();
-    return reply.code(202).send(result);
-  });
+  for (const path of [
+    "/v1/admin/listening/sets/:setId/tts",
+    "/v1/admin/listening/sets/:setId/versions/:setVersion/tts",
+  ]) {
+    app.post(path, async (request, reply) => {
+      const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      const { setId } = setParams.parse(request.params);
+      const body = ttsGenerationBody.parse(request.body ?? {});
+      const result = await repository.enqueueSet(admin.adminUserId, setId, body.forceRegenerate, body.ttsStyle);
+      ttsWorker.kick();
+      return reply.code(202).send(result);
+    });
+  }
 
-  app.post("/v1/admin/listening/sets/:setId/versions/:setVersion/audio-groups/:leaderItemId/tts", async (request, reply) => {
-    const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { setId, setVersion, leaderItemId } = listeningGroupParams.parse(request.params);
-    const body = ttsGenerationBody.parse(request.body ?? {});
-    const result = await repository.enqueueGroup(admin.adminUserId, setId, setVersion, leaderItemId, body.forceRegenerate, body.ttsStyle);
-    ttsWorker.kick();
-    return reply.code(202).send(result);
-  });
+  for (const path of [
+    "/v1/admin/listening/sets/:setId/audio-groups/:leaderItemId/tts",
+    "/v1/admin/listening/sets/:setId/versions/:setVersion/audio-groups/:leaderItemId/tts",
+  ]) {
+    app.post(path, async (request, reply) => {
+      const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      const { setId, leaderItemId } = listeningGroupParams.parse(request.params);
+      const body = ttsGenerationBody.parse(request.body ?? {});
+      const result = await repository.enqueueGroup(admin.adminUserId, setId, leaderItemId, body.forceRegenerate, body.ttsStyle);
+      ttsWorker.kick();
+      return reply.code(202).send(result);
+    });
+  }
 
-  app.delete("/v1/admin/listening/sets/:setId/versions/:setVersion/audio-groups/:leaderItemId/audio/:audioAssetId", async (request) => {
-    await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { setId, setVersion, leaderItemId } = listeningGroupParams.parse(request.params);
-    const { audioAssetId } = adminAudioParams.parse(request.params);
-    const storage = new SupabaseStorage();
-    return repository.deleteAudioGroup(
-      setId,
-      setVersion,
-      leaderItemId,
-      audioAssetId,
-      (bucket, path) => storage.removeObject(bucket, path),
-    );
-  });
+  for (const path of [
+    "/v1/admin/listening/sets/:setId/audio-groups/:leaderItemId/audio/:audioAssetId",
+    "/v1/admin/listening/sets/:setId/versions/:setVersion/audio-groups/:leaderItemId/audio/:audioAssetId",
+  ]) {
+    app.delete(path, async (request) => {
+      await requireAdmin(requireSessionToken(request.headers.authorization));
+      const { setId, leaderItemId } = listeningGroupParams.parse(request.params);
+      const { audioAssetId } = adminAudioParams.parse(request.params);
+      const storage = new SupabaseStorage();
+      return repository.deleteAudioGroup(
+        setId,
+        leaderItemId,
+        audioAssetId,
+        (bucket, path) => storage.removeObject(bucket, path),
+      );
+    });
+  }
 
   app.post("/v1/admin/listening/items/:itemId/versions/:itemVersion/visual-options/:optionNumber", async (request, reply) => {
     const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
     const { itemId, itemVersion, optionNumber } = visualParams.parse(request.params);
+    await repository.requireCurrentQuestionVersion(itemId,itemVersion);
     const file = await request.file();
     if (!file || !imageMimeTypes.includes(file.mimetype)) {
       throw new AppError(400, "IMAGE_REQUIRED", "A PNG, JPEG or WebP image is required");
@@ -83,18 +97,24 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
     const path = `listening/${itemId}/v${itemVersion}/option-${optionNumber}-${randomUUID()}.${imageExtension(file.mimetype)}`;
     const storage = new SupabaseStorage();
     const uploaded = await storage.uploadMedia(path, data, file.mimetype);
-    const result = await repository.bindVisualAsset({
-      adminUserId: admin.adminUserId,
-      itemId,
-      itemVersion,
-      optionNumber,
-      visualRole: "choice",
-      bucket: uploaded.bucket,
-      path: uploaded.path,
-      url: uploaded.url,
-      mimeType: file.mimetype,
-      byteSize: data.length,
-    });
+    let result: Awaited<ReturnType<typeof repository.bindVisualAsset>>;
+    try {
+      result = await repository.bindVisualAsset({
+        adminUserId: admin.adminUserId,
+        itemId,
+        itemVersion,
+        optionNumber,
+        visualRole: "choice",
+        bucket: uploaded.bucket,
+        path: uploaded.path,
+        url: uploaded.url,
+        mimeType: file.mimetype,
+        byteSize: data.length,
+      });
+    } catch (error) {
+      await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
+      throw error;
+    }
     for (const replaced of result.replacedAssets) {
       await repository.removeSupersededVisualAsset(
         replaced.visual_asset_id,
@@ -113,14 +133,19 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
     return reply.code(202).send(result);
   });
 
-  app.post("/v1/admin/listening/sets/:setId/versions/:setVersion/visuals/generate", async (request, reply) => {
-    const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { setId, setVersion } = listeningSetParams.parse(request.params);
-    const body = generationBody.parse(request.body ?? {});
-    const result = await repository.enqueueVisualSet(admin.adminUserId, setId, setVersion, body.forceRegenerate);
-    visualWorker.kick();
-    return reply.code(202).send(result);
-  });
+  for (const path of [
+    "/v1/admin/listening/sets/:setId/visuals/generate",
+    "/v1/admin/listening/sets/:setId/versions/:setVersion/visuals/generate",
+  ]) {
+    app.post(path, async (request, reply) => {
+      const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      const { setId } = setParams.parse(request.params);
+      const body = generationBody.parse(request.body ?? {});
+      const result = await repository.enqueueVisualSet(admin.adminUserId, setId, body.forceRegenerate);
+      visualWorker.kick();
+      return reply.code(202).send(result);
+    });
+  }
 
   app.delete("/v1/admin/listening/items/:itemId/versions/:itemVersion/visual-options/:optionNumber/assets/:visualAssetId", async (request) => {
     await requireAdmin(requireSessionToken(request.headers.authorization));
@@ -139,6 +164,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
   app.post("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material", async (request, reply) => {
     const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
     const { itemId, itemVersion } = readingItemParams.parse(request.params);
+    await repository.requireCurrentQuestionVersion(itemId,itemVersion);
     const file = await request.file();
     if (!file || !imageMimeTypes.includes(file.mimetype)) {
       throw new AppError(400, "IMAGE_REQUIRED", "A PNG, JPEG or WebP image is required");
@@ -147,18 +173,24 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
     const path = `reading/${itemId}/v${itemVersion}/material-${randomUUID()}.${imageExtension(file.mimetype)}`;
     const storage = new SupabaseStorage();
     const uploaded = await storage.uploadMedia(path, data, file.mimetype);
-    const result = await repository.bindVisualAsset({
-      adminUserId: admin.adminUserId,
-      itemId,
-      itemVersion,
-      optionNumber: 1,
-      visualRole: "material",
-      bucket: uploaded.bucket,
-      path: uploaded.path,
-      url: uploaded.url,
-      mimeType: file.mimetype,
-      byteSize: data.length,
-    });
+    let result: Awaited<ReturnType<typeof repository.bindVisualAsset>>;
+    try {
+      result = await repository.bindVisualAsset({
+        adminUserId: admin.adminUserId,
+        itemId,
+        itemVersion,
+        optionNumber: 1,
+        visualRole: "material",
+        bucket: uploaded.bucket,
+        path: uploaded.path,
+        url: uploaded.url,
+        mimeType: file.mimetype,
+        byteSize: data.length,
+      });
+    } catch (error) {
+      await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
+      throw error;
+    }
     for (const replaced of result.replacedAssets) {
       await repository.removeSupersededVisualAsset(
         replaced.visual_asset_id,
@@ -177,14 +209,19 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
     return reply.code(202).send(result);
   });
 
-  app.post("/v1/admin/reading/sets/:setId/versions/:setVersion/visuals/generate", async (request, reply) => {
-    const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { setId, setVersion } = readingSetParams.parse(request.params);
-    const body = generationBody.parse(request.body ?? {});
-    const result = await repository.enqueueReadingVisualSet(admin.adminUserId, setId, setVersion, body.forceRegenerate);
-    visualWorker.kick();
-    return reply.code(202).send(result);
-  });
+  for (const path of [
+    "/v1/admin/reading/sets/:setId/visuals/generate",
+    "/v1/admin/reading/sets/:setId/versions/:setVersion/visuals/generate",
+  ]) {
+    app.post(path, async (request, reply) => {
+      const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      const { setId } = setParams.parse(request.params);
+      const body = generationBody.parse(request.body ?? {});
+      const result = await repository.enqueueReadingVisualSet(admin.adminUserId, setId, body.forceRegenerate);
+      visualWorker.kick();
+      return reply.code(202).send(result);
+    });
+  }
 
   app.delete("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material/assets/:visualAssetId", async (request) => {
     await requireAdmin(requireSessionToken(request.headers.authorization));

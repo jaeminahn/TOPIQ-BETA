@@ -1,6 +1,6 @@
 # TOPIK PostgreSQL 문항 은행 — 구조·운영·인수인계 문서
 
-> 최종 확인일: 2026-08-10 (미국 동부 시간) / 2026-08-11 (한국 시간)
+> 최종 확인일: 2026-09-10 (한국 시간)
 >
 > 이 문서는 다음 작업 세션에서 PostgreSQL 구조와 현재 이관 상태를 빠르게 복원하기 위한 기준 문서다. 실제 접속 주소와 비밀번호는 보안상 적지 않는다. 접속 정보는 프로젝트 루트의 `.env`에 있는 `DATABASE_URL`을 사용한다.
 
@@ -11,9 +11,9 @@
 - 로컬 SQLite는 문제 생성·수정·검수용 원본(authoring source)으로 계속 사용한다.
 - PostgreSQL은 검수가 끝난 문항과 발행 세트를 서비스에서 읽기 위한 문항 은행(production/read model)이다.
 - 현재 흐름은 **SQLite → PostgreSQL 단방향 수동 동기화**다. PostgreSQL에서 SQLite로 되돌리는 자동 역동기화는 없다.
-- 문항 자체와 문항 버전, 모델 정보, 원본 추적 정보, 세트 및 세트 버전이 모두 PostgreSQL에 보존된다.
+- 문항 자체와 문항 버전, 모델 정보, 원본 추적 정보 및 세트의 현재 구성이 PostgreSQL에 보존된다.
 - 동일 문항을 수정한 뒤 다시 동기화하면 기존 문항을 덮어쓰지 않고 `item_version`이 증가한다.
-- 세트는 포함된 정확한 `(item_id, item_version)` 조합을 저장하므로, 문항이 나중에 수정되어도 과거 세트 내용은 재현할 수 있다.
+- 세트는 현재 사용하는 정확한 `(item_id, item_version)` 조합만 저장한다. 과거 문항 내용은 `item_versions`와 `session_items`의 문항 버전 스냅샷으로 재현한다.
 - 프로덕션 조회의 기본 진입점은 다음 두 뷰다.
 
   - 최신 문항: `topik_bank.current_items`
@@ -25,13 +25,13 @@
 
 | 객체 | 현재 행 수 | 의미 |
 | --- | ---: | --- |
-| `topik_bank.items` | 286 | 논리 문항 ID 수 |
-| `topik_bank.item_versions` | 286 | 저장된 전체 문항 버전 수 |
-| `topik_bank.question_sets` | 4 | 모델·영역 조합으로 만든 논리 세트 수 |
-| `topik_bank.question_set_versions` | 4 | 저장된 전체 세트 버전 수 |
-| `topik_bank.question_set_items` | 200 | 세트에 고정된 문항 버전 연결 수(4세트 × 50문항) |
-| `topik_bank.current_items` | 286 | 논리 문항별 최신 버전 수 |
-| `topik_bank.current_set_contents` | 200 | 논리 세트별 최신 버전의 문항 수 |
+| `topik_bank.items` | 486 | 논리 문항 ID 수 |
+| `topik_bank.item_versions` | 490 | 저장된 전체 문항 버전 수 |
+| `topik_bank.question_sets` | 8 | 모델·영역 조합으로 만든 논리 세트 수 |
+| `topik_bank.question_set_items` | 400 | 현재 세트 문항 연결 수(8세트 × 50문항) |
+| `topik_bank.current_items` | 486 | 논리 문항별 최신 버전 수 |
+| `topik_bank.current_set_contents` | 400 | 세트별 현재 문항 수 |
+| `topik_app.session_items` | 4,650 | 응시 시점의 문항 버전 스냅샷 수 |
 
 적용된 마이그레이션:
 
@@ -39,6 +39,7 @@
 | --- | --- | --- |
 | `001_question_bank` | `2026-08-11 03:31:53.851261+09:00` | 문항·세트·버전 테이블과 기본 인덱스 생성 |
 | `002_complete_item_bank` | `2026-08-11 04:21:08.703536+09:00` | `type_slot`, 추가 인덱스, 최신 문항/세트 뷰 추가 |
+| `016_item_only_question_versions.sql` | `2026-09-10` | 세트 버전을 제거하고 문항 단위 버전 포인터로 전환 |
 
 현재 최신 문항의 모델·영역별 분포:
 
@@ -92,7 +93,7 @@ flowchart LR
 | 저장소 | 책임 | 프로덕션 서비스가 직접 읽는가? |
 | --- | --- | --- |
 | 로컬 SQLite (`data/.../*.db`) | 생성 실행, 원본/수정본, 검수 결과, 프롬프트, 유효성 검사 기록 | 아니요 |
-| PostgreSQL `topik_bank` | 승인 문항, 불변 문항 버전, 모델 메타데이터, 불변 세트 버전, 운영 조회 | 예 |
+| PostgreSQL `topik_bank` | 승인 문항, 불변 문항 버전, 모델 메타데이터, 세트의 현재 문항 포인터, 운영 조회 | 예 |
 | SQL 마이그레이션 파일 | PostgreSQL 구조를 재현·변경하는 스키마 정의 | 데이터 자체가 아님 |
 
 ### 핵심 관계
@@ -100,8 +101,7 @@ flowchart LR
 ```mermaid
 erDiagram
     ITEMS ||--o{ ITEM_VERSIONS : "has versions"
-    QUESTION_SETS ||--o{ QUESTION_SET_VERSIONS : "has versions"
-    QUESTION_SET_VERSIONS ||--o{ QUESTION_SET_ITEMS : "contains positions"
+    QUESTION_SETS ||--o{ QUESTION_SET_ITEMS : "contains current positions"
     ITEM_VERSIONS ||--o{ QUESTION_SET_ITEMS : "pinned by"
 
     ITEMS {
@@ -123,15 +123,10 @@ erDiagram
         text generator_provider
         text generator_model
         text generator_version
-    }
-    QUESTION_SET_VERSIONS {
-        uuid set_id PK_FK
-        int set_version PK
         char set_fingerprint UK
     }
     QUESTION_SET_ITEMS {
         uuid set_id PK_FK
-        int set_version PK_FK
         smallint position PK
         uuid item_id FK
         int item_version FK
@@ -148,8 +143,7 @@ erDiagram
 2. `topik_bank.items`
 3. `topik_bank.item_versions`
 4. `topik_bank.question_sets`
-5. `topik_bank.question_set_versions`
-6. `topik_bank.question_set_items`
+5. `topik_bank.question_set_items`
 
 뷰:
 
@@ -300,6 +294,11 @@ listening:dialogue_response:42
 | `generator_provider` | `TEXT` | 불가 |  | 실제 백엔드 |
 | `generator_model` | `TEXT` | 불가 |  | 앱 내부 모델 키 |
 | `generator_version` | `TEXT` | 불가 |  | 정확한 모델 버전 |
+| `review_status` | `TEXT` | 불가 | 기본 `reviewed`; 허용 상태 4종 | 세트 생명주기 상태 |
+| `default_target_level` | `SMALLINT` | 불가 | 1~6 | 기본 목표 급수 |
+| `default_predicted_difficulty` | `DOUBLE PRECISION` | 불가 | -3.0~3.0 | 기본 예상 난이도 |
+| `set_fingerprint` | `CHAR(64)` | 불가 |  | 현재 50개 `(position, item_id, item_version)`의 SHA-256 |
+| `published_at` | `TIMESTAMPTZ` | 불가 | `CURRENT_TIMESTAMP` | 세트 발행 시각 |
 | `created_at` | `TIMESTAMPTZ` | 불가 | `CURRENT_TIMESTAMP` | 논리 세트 최초 생성 시각 |
 
 유일 제약은 `(section, generator_provider, generator_model, generator_version)`이다.
@@ -310,44 +309,20 @@ listening:dialogue_response:42
 set:{section}:{backend}:{provider_key}:{model_id}
 ```
 
-같은 모델·영역 조합을 다시 발행하면 기존 `set_id` 아래에서 세트 버전을 관리한다.
+같은 모델·영역 조합은 동일한 `set_id`를 사용하며, 세트 버전은 만들지 않는다. 문항 수정 시 `set_fingerprint`만 현재 50개 포인터 기준으로 다시 계산한다.
 
-### 5.5 `question_set_versions`
+### 5.5 `question_set_items`
 
-세트의 발행 스냅샷을 버전별로 저장한다.
+각 세트의 1~50번 위치가 현재 사용하는 문항 버전을 저장한다.
 
 | 컬럼 | 형식 | NULL | 제약/기본값 | 설명 |
 | --- | --- | --- | --- | --- |
 | `set_id` | `UUID` | 불가 | `question_sets(set_id)` FK, 복합 PK | 논리 세트 ID |
-| `set_version` | `INTEGER` | 불가 | 1 이상, 복합 PK | 세트 버전 |
-| `review_status` | `TEXT` | 불가 | 기본 `reviewed`; 허용 상태 4종 | 세트 생명주기 상태 |
-| `default_target_level` | `SMALLINT` | 불가 | 1~6 | 세트 생성 시 사용한 기본 목표 급수 |
-| `default_predicted_difficulty` | `DOUBLE PRECISION` | 불가 | -3.0~3.0 | 세트 생성 시 사용한 기본 예상 난이도 |
-| `set_fingerprint` | `CHAR(64)` | 불가 | `(set_id, set_fingerprint)` 유일 | 정확한 세트 내용의 SHA-256 |
-| `published_at` | `TIMESTAMPTZ` | 불가 | `CURRENT_TIMESTAMP` | 세트 버전 발행 시각 |
-
-`set_fingerprint`에는 다음 값이 들어간다.
-
-- 1번부터 50번까지 순서가 보존된 `(item_id, item_version)` 목록
-- 세트 기본 목표 급수
-- 세트 기본 예상 난이도
-- 세트 검수 상태(`reviewed`)
-
-같은 구성을 다시 발행하면 기존 세트 버전을 재사용한다. 문항 버전, 순서, 기본 메타데이터 중 하나라도 바뀌면 다음 `set_version`이 생긴다.
-
-### 5.6 `question_set_items`
-
-특정 세트 버전의 1~50번 위치에 정확한 문항 버전을 고정한다.
-
-| 컬럼 | 형식 | NULL | 제약/기본값 | 설명 |
-| --- | --- | --- | --- | --- |
-| `set_id` | `UUID` | 불가 | 복합 FK/PK | 논리 세트 ID |
-| `set_version` | `INTEGER` | 불가 | 복합 FK/PK | 세트 버전 |
 | `position` | `SMALLINT` | 불가 | 1~50, 복합 PK | 시험지 내 위치 |
 | `item_id` | `UUID` | 불가 | `item_versions` 복합 FK | 문항 ID |
 | `item_version` | `INTEGER` | 불가 | `item_versions` 복합 FK | 세트가 사용하는 정확한 문항 버전 |
 
-기본 키는 `(set_id, set_version, position)`, 추가 유일 제약은 `(set_id, set_version, item_id)`이다. 한 위치에는 한 문항만 올 수 있고 동일 논리 문항이 같은 세트에 두 번 들어갈 수도 없다.
+기본 키는 `(set_id, position)`, 추가 유일 제약은 `(set_id, item_id)`이다. 한 위치에는 한 문항만 올 수 있고 동일 논리 문항이 같은 세트에 두 번 들어갈 수도 없다.
 
 DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하지 못한다. 정확히 1~50번이 하나씩 존재하는지는 앱의 `validate_complete_selection()`이 트랜잭션 전에 검사한다.
 
@@ -368,17 +343,17 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 
 ### 6.2 `current_set_contents`
 
-각 `set_id`에서 가장 큰 `set_version`을 고른 뒤 그 세트에 고정된 정확한 문항 버전을 위치 순서와 함께 반환한다.
+`question_sets → question_set_items → item_versions`를 직접 조인해 각 세트가 현재 사용하는 문항 버전을 위치 순서와 함께 반환한다.
 
 주요 컬럼:
 
-- 세트: `set_id`, `set_version`, `set_section`
+- 세트: `set_id`, `set_section`
 - 모델: `set_generator_provider`, `set_generator_model`, `set_generator_version`
 - 상태/기본값: `set_review_status`, `default_target_level`, `default_predicted_difficulty`, `published_at`
 - 연결: `position`, `source_key`, `item_id`, `item_version`
 - 문항: `type_slot`, `item_type`, skill, 난이도/IRT/상태, `stem`, `choices`, 정답, 해설, 전체 JSON, 원본 추적 정보
 
-중요: 이 뷰는 각 문항의 현재 최신 버전을 임의로 붙이지 않는다. 최신 세트 버전이 발행될 때 고정한 `item_version`을 정확히 반환한다. 문항 v2가 나중에 생겨도 v1을 포함한 과거 세트는 재현된다.
+중요: 이 뷰는 `current_items`의 최신 버전을 임의로 붙이지 않고 `question_set_items.item_version`이 가리키는 현재 문항 버전을 정확히 반환한다. 과거 응시 내용은 `session_items.item_id + item_version`으로 재현한다.
 
 ## 7. 문항 동기화와 버전 규칙
 
@@ -402,15 +377,15 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 1. 같은 `source_key`이므로 `item_id`는 유지된다.
 2. 문제/메타데이터가 달라 `content_hash`가 바뀐다.
 3. 해당 문항의 `MAX(item_version) + 1`로 새 버전을 추가한다.
-4. 과거 문항 버전과 과거 세트 연결은 삭제하거나 덮어쓰지 않는다.
+4. 과거 문항 버전은 삭제하거나 덮어쓰지 않고, 해당 위치의 현재 포인터만 새 버전으로 갱신한다.
 
-### 세트 재발행
+### 세트 구성 갱신
 
 1. 모델·영역 조합으로 같은 `set_id`를 얻는다.
 2. 50개 문항 각각을 위 규칙으로 생성 또는 재사용한다.
-3. 정확한 순서의 `(item_id, item_version)` 50개와 세트 기본값으로 `set_fingerprint`를 만든다.
-4. 같은 fingerprint가 있으면 기존 `set_version`을 반환한다.
-5. 다르면 `MAX(set_version) + 1`을 만들고 50개 연결 행을 삽입한다.
+3. 정확한 순서의 `(position, item_id, item_version)` 50개로 `set_fingerprint`를 만든다.
+4. 바뀐 문항 위치의 포인터만 갱신하고 나머지 49개 연결은 그대로 둔다.
+5. 연결된 공개 시험은 자동 비공개 처리한다.
 
 ## 8. 트랜잭션과 동시성
 
@@ -445,7 +420,7 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 - 동일 영역·동일 모델의 문항만 한 세트에 포함한다.
 - 슬롯 1~50이 각각 정확히 하나여야 발행할 수 있다.
 - 세트 발행 시 개별 문항도 함께 생성/재사용한다.
-- 성공 시 `set_id`, `set_version`, 생성/재사용 문항 버전 수를 반환한다.
+- 성공 시 `set_id`와 생성/재사용 문항 버전 수를 반환한다.
 
 ### 9.4 `이관 현황`
 
@@ -464,10 +439,10 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 
 주의: 대조에서 “최신”은 현재 로컬 문제 JSON과 PostgreSQL `content_json`을 비교한다. 메타데이터만 달라진 경우 정확한 버전 판단은 `content_hash` 및 동기화 결과도 함께 확인한다.
 
-### 9.5 `발행 이력`
+### 9.5 `문항 버전 이력`
 
-- 최근 세트 버전, 발행 시각, 상태, 문항 수를 보여 준다.
-- 과거 세트 버전도 테이블에 남아 있으므로 직접 SQL로 이력을 조회할 수 있다.
+- 관리자 화면은 세트의 현재 문항을 기본 표시한다.
+- 각 문항의 `버전 이력`에서 최신순으로 현재 배지, 버전 번호, 생성 시각과 과거 내용을 읽기 전용으로 확인한다.
 
 ## 10. 자주 사용하는 검증 SQL
 
@@ -477,7 +452,6 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 SELECT 'items' AS object_name, COUNT(*) AS row_count FROM topik_bank.items
 UNION ALL SELECT 'item_versions', COUNT(*) FROM topik_bank.item_versions
 UNION ALL SELECT 'question_sets', COUNT(*) FROM topik_bank.question_sets
-UNION ALL SELECT 'question_set_versions', COUNT(*) FROM topik_bank.question_set_versions
 UNION ALL SELECT 'question_set_items', COUNT(*) FROM topik_bank.question_set_items
 UNION ALL SELECT 'current_items', COUNT(*) FROM topik_bank.current_items
 UNION ALL SELECT 'current_set_contents', COUNT(*) FROM topik_bank.current_set_contents;
@@ -536,25 +510,17 @@ WHERE i.source_key = 'reading:content_match:1'
 ORDER BY v.item_version;
 ```
 
-### 10.6 최신 세트 목록과 문항 수
+### 10.6 현재 세트 목록과 문항 수
 
 ```sql
-WITH latest AS (
-    SELECT set_id, MAX(set_version) AS set_version
-    FROM topik_bank.question_set_versions
-    GROUP BY set_id
-)
 SELECT s.set_id, s.section, s.generator_provider, s.generator_model,
-       s.generator_version, l.set_version, v.review_status,
-       v.published_at, COUNT(si.position) AS item_count
+       s.generator_version, s.review_status,
+       s.published_at, COUNT(si.position) AS item_count
 FROM topik_bank.question_sets s
-JOIN latest l ON l.set_id = s.set_id
-JOIN topik_bank.question_set_versions v
-  ON v.set_id = l.set_id AND v.set_version = l.set_version
 LEFT JOIN topik_bank.question_set_items si
-  ON si.set_id = l.set_id AND si.set_version = l.set_version
+  ON si.set_id = s.set_id
 GROUP BY s.set_id, s.section, s.generator_provider, s.generator_model,
-         s.generator_version, l.set_version, v.review_status, v.published_at
+         s.generator_version, s.review_status, s.published_at
 ORDER BY s.section, s.generator_version;
 ```
 
@@ -569,28 +535,26 @@ WHERE set_section = 'reading'
 ORDER BY position;
 ```
 
-### 10.8 문항이 들어간 세트 버전 확인
+### 10.8 문항이 들어간 현재 세트 확인
 
 ```sql
-SELECT s.section, s.generator_version, si.set_id, si.set_version,
-       si.position, si.item_version, sv.published_at
+SELECT s.section, s.generator_version, si.set_id,
+       si.position, si.item_version, s.published_at
 FROM topik_bank.items i
 JOIN topik_bank.question_set_items si ON si.item_id = i.item_id
 JOIN topik_bank.question_sets s ON s.set_id = si.set_id
-JOIN topik_bank.question_set_versions sv
-  ON sv.set_id = si.set_id AND sv.set_version = si.set_version
 WHERE i.source_key = 'reading:content_match:1'
-ORDER BY sv.published_at, si.position;
+ORDER BY s.published_at, si.position;
 ```
 
 ### 10.9 세트가 정확히 50문항인지 검사
 
 ```sql
-SELECT set_id, set_version, COUNT(*) AS item_count,
+SELECT set_id, COUNT(*) AS item_count,
        MIN(position) AS first_position, MAX(position) AS last_position,
        COUNT(DISTINCT position) AS distinct_positions
 FROM topik_bank.question_set_items
-GROUP BY set_id, set_version
+GROUP BY set_id
 HAVING COUNT(*) <> 50
     OR MIN(position) <> 1
     OR MAX(position) <> 50
@@ -651,8 +615,8 @@ ORDER BY position;
 ### 최신 문항과 세트 문항을 혼동하지 말 것
 
 - 최신 개별 문항 풀: `current_items`
-- 재현 가능한 발행 세트: `current_set_contents`
-- 세트 조회 후 `item_id`만으로 `current_items`와 다시 조인하면 발행 당시 버전이 최신 버전으로 바뀔 수 있으므로 주의한다.
+- 현재 발행 세트: `current_set_contents`
+- 응시 당시 재현에는 현재 세트가 아니라 `session_items.item_id + item_version`을 사용해야 한다.
 
 ## 12. 검수 상태 정책
 
@@ -663,7 +627,7 @@ ORDER BY position;
 | `active` | 실제 서비스에 활성화 |
 | `retired` | 더 이상 신규 출제에 사용하지 않음 |
 
-현재 발행 코드는 새 문항/세트 버전을 `reviewed`로 만든다. `pilot → active → retired`를 관리하는 별도 UI/API는 아직 없다.
+현재 발행 코드는 새 문항 버전과 세트를 `reviewed`로 만든다. `pilot → active → retired`를 관리하는 별도 UI/API는 아직 없다.
 
 문항 내용/메타데이터 변경은 로컬 원본을 수정한 뒤 동기화하여 새 버전을 만드는 것이 기본 정책이다. 상태 전환과 IRT 값 갱신을 어떤 감사 이력으로 남길지는 다음 단계에서 설계해야 한다.
 
@@ -822,7 +786,7 @@ with connection.cursor() as cursor:
 
 - 음원은 S3/Cloudflare R2 같은 객체 스토리지에 저장
 - PostgreSQL에는 immutable asset ID, object key/URL, checksum, MIME type, duration 저장
-- 세트 버전이 정확한 asset version을 고정
+- 문항 버전이 정확한 asset version을 고정하고 세트 위치 음원은 현재 연결로 관리
 
 ### 20.2 IRT 응답 데이터
 
@@ -847,7 +811,7 @@ DB 제약은 `writing`을 허용하지만 후보 수집은 현재 읽기와 듣�
 
 ### 20.5 DB 수준 50문항 보장
 
-앱은 정확히 1~50번을 검사하지만 DB 자체는 한 세트 버전에 50행이 모두 들어왔는지 단독 보장하지 않는다. 외부 writer를 허용한다면 deferred constraint trigger 또는 저장 프로시저를 고려한다.
+앱은 정확히 1~50번을 검사하지만 DB 자체는 한 세트에 50행이 모두 들어왔는지 단독 보장하지 않는다. 외부 writer를 허용한다면 deferred constraint trigger 또는 저장 프로시저를 고려한다.
 
 ### 20.6 마이그레이션 checksum
 
@@ -898,9 +862,9 @@ DB 제약은 `writing`을 허용하지만 후보 수집은 현재 읽기와 듣�
 4. `question_set_items`와 `current_set_contents` 조회
 5. 완전한 50문항 선택 후 세트 발행
 
-### 재발행인데 세트 버전이 증가하지 않음
+### 문항을 수정했는데 세트 전체가 바뀜
 
-50개의 `(item_id, item_version)`, 순서, 세트 기본 급수/난이도, 상태가 모두 같으면 의도된 멱등 동작이다. `created_set_version = false`와 기존 버전 반환이 정상이다.
+관리자 저장은 `POST /v1/admin/question-sets/:setId/revisions`를 사용해야 한다. 이 경로는 변경된 `item_versions`만 추가하고 해당 `question_set_items` 포인터만 갱신한다. 구 세트 버전 발행 로직을 호출하는 외부 writer는 새 구조에 맞게 갱신해야 한다.
 
 ### 문항 수정인데 새 버전이 생기지 않음
 
@@ -915,11 +879,10 @@ DB 제약은 `writing`을 허용하지만 후보 수집은 현재 읽기와 듣�
 - **논리 ID와 내용 버전을 분리한다.**
 - **내용을 덮어쓰지 않고 새 버전을 추가한다.**
 - **동일 내용 재동기화는 기존 버전을 재사용한다.**
-- **세트는 정확한 문항 버전을 고정한다.**
+- **세트는 현재 문항 버전을 가리키고 응시 세션은 당시 문항 버전을 고정한다.**
 - **모델은 backend/key/exact version을 모두 기록한다.**
 - **원본 SQLite 위치와 생성 실행을 추적한다.**
 - **로컬 삭제/승인 취소가 과거 PostgreSQL 이력을 자동 파괴하지 않게 한다.**
 - **프로덕션은 SQLite가 아니라 PostgreSQL 뷰를 읽는다.**
 - **스키마 변경은 순차 마이그레이션으로만 진행한다.**
 - **비밀번호와 실제 접속 문자열은 문서·로그·커밋에 남기지 않는다.**
-

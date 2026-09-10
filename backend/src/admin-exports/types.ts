@@ -21,7 +21,7 @@ export type CsvColumn = { key: string; header: string };
 export const columns: Record<AdminExportDataset, CsvColumn[]> = {
   questions: [
     "mock_test_id", "mock_test_slug", "mock_test_title_ko", "mock_test_title_en",
-    "section", "set_id", "set_version", "test_position", "item_id", "item_version",
+    "section", "set_id", "test_position", "item_id", "item_version",
     "item_type", "primary_skill", "target_level", "predicted_difficulty", "irt_difficulty",
     "irt_discrimination", "question_prompt", "stem", "passage", "auxiliary_text",
     "highlight_text", "choice_1", "choice_2", "choice_3", "choice_4", "correct_answer",
@@ -36,7 +36,7 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "session_id", "user_id", "mock_test_id", "mock_test_slug", "mock_test_title_ko",
     "mock_test_title_en", "mode", "status", "started_at", "completed_at",
     "timed_out_submission", "session_score", "max_score", "score_pct", "rating",
-    "feedback_locale", "section", "set_id", "set_version", "item_order", "test_position",
+    "feedback_locale", "section", "set_id", "item_order", "test_position",
     "item_id", "item_version", "item_type", "selected_option", "correct_answer",
     "response_outcome", "is_correct", "response_time_ms", "skipped", "timed_out",
     "answer_changed", "selection_count", "first_selected_at", "final_selected_at", "policy_version",

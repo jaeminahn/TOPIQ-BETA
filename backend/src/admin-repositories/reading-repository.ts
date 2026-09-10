@@ -7,14 +7,13 @@ import { AdminListeningRepository } from "./listening-repository.js";
 export class AdminReadingRepository extends AdminListeningRepository {
   async listReadingSets() {
     const result = await pool.query<{
-      setId: string; setVersion: number; setSequence: number; createdAt: Date;
+      setId: string; setSequence: number; createdAt: Date;
       reviewStatus: string; publishedAt: Date | null; itemCount: number; validItemCount: number;
       visualRequired: number; visualReady: number;
       mockTestId: string | null; slug: string | null; titleKo: string | null; mockTestPublished: boolean | null;
     }>(
-      `SELECT qs.set_id AS "setId", qsv.set_version AS "setVersion",
-              qs.set_sequence AS "setSequence", qs.created_at AS "createdAt",
-              qsv.review_status AS "reviewStatus", qsv.published_at AS "publishedAt",
+      `SELECT qs.set_id AS "setId",qs.set_sequence AS "setSequence", qs.created_at AS "createdAt",
+              qs.review_status AS "reviewStatus", qs.published_at AS "publishedAt",
               COUNT(qsi.item_id)::int AS "itemCount",
               COUNT(qsi.item_id) FILTER (WHERE
                 iv.section='reading'
@@ -26,9 +25,8 @@ export class AdminReadingRepository extends AdminListeningRepository {
               linked.mock_test_id AS "mockTestId", linked.slug,
               linked.title_ko AS "titleKo", linked.is_published AS "mockTestPublished"
          FROM topik_bank.question_sets qs
-         JOIN topik_bank.question_set_versions qsv ON qsv.set_id=qs.set_id
          LEFT JOIN topik_bank.question_set_items qsi
-           ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
+           ON qsi.set_id=qs.set_id
          LEFT JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
          LEFT JOIN topik_app.item_visual_assets material_asset
@@ -39,18 +37,16 @@ export class AdminReadingRepository extends AdminListeningRepository {
            SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.is_published
              FROM topik_app.mock_test_sections mts
              JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
-            WHERE mts.set_id=qsv.set_id AND mts.set_version=qsv.set_version AND mts.section='reading'
+            WHERE mts.set_id=qs.set_id AND mts.section='reading'
             ORDER BY mt.is_published DESC,mt.display_order
             LIMIT 1
          ) linked ON TRUE
         WHERE qs.section='reading'
-        GROUP BY qs.set_id,qsv.set_version,qs.set_sequence,qs.created_at,
-                 qsv.review_status,qsv.published_at,linked.mock_test_id,linked.slug,
+        GROUP BY qs.set_id,qs.set_sequence,qs.created_at,
+                 qs.review_status,qs.published_at,linked.mock_test_id,linked.slug,
                  linked.title_ko,linked.is_published`,
     );
-    const latestBySet = new Map<string, number>();
-    for (const row of result.rows) latestBySet.set(row.setId, Math.max(latestBySet.get(row.setId) ?? 0, row.setVersion));
-    return result.rows.filter((row) => Boolean(row.mockTestId) || row.setVersion === latestBySet.get(row.setId)).map((row) => {
+    return result.rows.map((row) => {
       const roundMatch = row.slug?.match(/^topik-ii-reading-(\d+)$/);
       const blockingReasons: string[] = [];
       if (row.reviewStatus !== "reviewed") blockingReasons.push("SET_NOT_REVIEWED");
@@ -72,7 +68,7 @@ export class AdminReadingRepository extends AdminListeningRepository {
     });
   }
 
-  async publishReadingSet(setId: string, setVersion: number) {
+  async publishReadingSet(setId: string) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -84,10 +80,10 @@ export class AdminReadingRepository extends AdminListeningRepository {
         `SELECT mt.mock_test_id,mt.slug,mt.is_published
            FROM topik_app.mock_test_sections mts
            JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
-          WHERE mts.set_id=$1 AND mts.set_version=$2 AND mts.section='reading'
+          WHERE mts.set_id=$1 AND mts.section='reading'
           ORDER BY mt.is_published DESC,mt.display_order
           LIMIT 1`,
-        [setId, setVersion],
+        [setId],
       );
       if (existing.rows[0]?.is_published) {
         const linked = existing.rows[0];
@@ -105,8 +101,8 @@ export class AdminReadingRepository extends AdminListeningRepository {
            LEFT JOIN topik_app.item_visual_assets material
              ON material.item_id=iv.item_id AND material.item_version=iv.item_version
             AND material.visual_role='material' AND material.option_number=1 AND material.is_current
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2`,
-        [setId, setVersion],
+          WHERE qsi.set_id=$1`,
+        [setId],
       );
       if ((visuals.rows[0]?.required ?? 0) === 0 || visuals.rows[0]!.ready < visuals.rows[0]!.required) {
         throw new AppError(409, "READING_VISUALS_INCOMPLETE", "The reading question 10 graph must be ready before publishing");
@@ -127,7 +123,7 @@ export class AdminReadingRepository extends AdminListeningRepository {
         section: string; review_status: string; published_at: Date | null;
         item_count: number; valid_item_count: number;
       }>(
-        `SELECT qs.section,qsv.review_status,qsv.published_at,
+        `SELECT qs.section,qs.review_status,qs.published_at,
                 COUNT(qsi.item_id)::int AS item_count,
                 COUNT(qsi.item_id) FILTER (WHERE
                   iv.section='reading'
@@ -135,14 +131,13 @@ export class AdminReadingRepository extends AdminListeningRepository {
                   AND CASE WHEN jsonb_typeof(iv.choices)='array' THEN jsonb_array_length(iv.choices) ELSE 0 END=4
                 )::int AS valid_item_count
            FROM topik_bank.question_sets qs
-           JOIN topik_bank.question_set_versions qsv ON qsv.set_id=qs.set_id
            LEFT JOIN topik_bank.question_set_items qsi
-             ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
+             ON qsi.set_id=qs.set_id
            LEFT JOIN topik_bank.item_versions iv
              ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qs.set_id=$1 AND qsv.set_version=$2
-          GROUP BY qs.section,qsv.review_status,qsv.published_at`,
-        [setId, setVersion],
+          WHERE qs.set_id=$1
+          GROUP BY qs.section,qs.review_status,qs.published_at`,
+        [setId],
       );
       const ready = readiness.rows[0];
       if (!ready) throw notFound("Reading set not found");
@@ -170,9 +165,9 @@ export class AdminReadingRepository extends AdminListeningRepository {
       );
       await client.query(
         `INSERT INTO topik_app.mock_test_sections(
-           mock_test_id,section_order,section,set_id,set_version
-         ) VALUES ($1,1,'reading',$2,$3)`,
-        [mockTestId, setId, setVersion],
+           mock_test_id,section_order,section,set_id
+         ) VALUES ($1,1,'reading',$2)`,
+        [mockTestId, setId],
       );
       await client.query("COMMIT");
       return { mockTestId, slug, round, published: true, created: true };
@@ -184,27 +179,16 @@ export class AdminReadingRepository extends AdminListeningRepository {
     }
   }
 
-  async listReadingItems(setId?: string, setVersion?: number, search?: string) {
+  async listReadingItems(setId?: string, search?: string) {
     const values: unknown[] = [];
     const filters = ["iv.section = 'reading'"];
     if (setId) { values.push(setId); filters.push(`qsi.set_id = $${values.length}`); }
-    if (setVersion !== undefined) {
-      if (!setId) throw new AppError(400, "SET_ID_REQUIRED", "setId is required when setVersion is provided");
-      values.push(setVersion);
-      filters.push(`qsi.set_version = $${values.length}`);
-    } else {
-      filters.push(`qsi.set_version = (
-        SELECT MAX(latest_qsi.set_version)
-          FROM topik_bank.question_set_items latest_qsi
-         WHERE latest_qsi.set_id=qsi.set_id
-      )`);
-    }
     if (search) {
       values.push(`%${search}%`);
       filters.push(`(iv.stem ILIKE $${values.length} OR iv.item_type ILIKE $${values.length})`);
     }
     const result = await pool.query(
-      `SELECT qsi.set_id AS "setId", qsi.set_version AS "setVersion", qsi.position,
+      `SELECT qsi.set_id AS "setId",qsi.position,
               mt.title_ko AS "mockTestTitle", iv.item_id AS "itemId",
               iv.item_version AS "itemVersion", iv.item_type AS "itemType",
               iv.target_level AS "targetLevel", iv.predicted_difficulty AS "predictedDifficulty",
@@ -231,7 +215,7 @@ export class AdminReadingRepository extends AdminListeningRepository {
          JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
          LEFT JOIN topik_app.mock_test_sections mts
-           ON mts.set_id=qsi.set_id AND mts.set_version=qsi.set_version AND mts.section='reading'
+           ON mts.set_id=qsi.set_id AND mts.section='reading'
          LEFT JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
          LEFT JOIN LATERAL (
            SELECT iva.visual_asset_id,iva.storage_url

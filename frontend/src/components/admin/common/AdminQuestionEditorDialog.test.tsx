@@ -17,32 +17,32 @@ const second: EditableAdminQuestion = {
 };
 
 describe("AdminQuestionEditorDialog", () => {
-  beforeEach(() => vi.mocked(adminApi.reviseQuestionSet).mockResolvedValue({ setId: "set-1", setVersion: 2, mockTestIds: [], published: false, revisions: [] }));
+  beforeEach(() => vi.mocked(adminApi.reviseQuestionSet).mockResolvedValue({ setId: "set-1", mockTestIds: [], published: false, revisions: [] }));
 
   it("versions every target when a shared listening transcript changes", async () => {
     const saved = vi.fn();
-    render(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" setVersion={1} question={first} groupQuestions={[first, second]} onClose={vi.fn()} onSaved={saved} /></I18nProvider>);
+    render(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" question={first} groupQuestions={[first, second]} onClose={vi.fn()} onSaved={saved} /></I18nProvider>);
     const transcript = screen.getByLabelText(/공통 대본/);
     await userEvent.clear(transcript);
     await userEvent.type(transcript, "여자|수정한 대본");
     await userEvent.click(screen.getByRole("button", { name: /새 버전 저장/ }));
 
     await waitFor(() => expect(adminApi.reviseQuestionSet).toHaveBeenCalled());
-    const revisions = vi.mocked(adminApi.reviseQuestionSet).mock.calls[0]?.[3];
+    const revisions = vi.mocked(adminApi.reviseQuestionSet).mock.calls[0]?.[2];
     expect(revisions).toHaveLength(2);
     expect(revisions?.every((revision) => revision.contentJson.dialogue_turns)).toBe(true);
-    expect(saved).toHaveBeenCalledWith(2);
+    expect(saved).toHaveBeenCalledWith();
   });
 
   it("keeps the active field focused when its parent rerenders", async () => {
     const firstClose = vi.fn();
-    const view = render(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" setVersion={1} question={first} onClose={firstClose} onSaved={vi.fn()} /></I18nProvider>);
+    const view = render(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" question={first} onClose={firstClose} onSaved={vi.fn()} /></I18nProvider>);
     const transcript = screen.getByLabelText(/공통 대본/);
     await userEvent.click(transcript);
     expect(transcript).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");
 
-    view.rerender(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" setVersion={1} question={first} onClose={vi.fn()} onSaved={vi.fn()} /></I18nProvider>);
+    view.rerender(<I18nProvider><AdminQuestionEditorDialog token="admin-token" section="listening" setId="set-1" question={first} onClose={vi.fn()} onSaved={vi.fn()} /></I18nProvider>);
 
     expect(transcript).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");

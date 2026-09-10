@@ -51,6 +51,7 @@ describe("admin CSV exports", () => {
     expect(query.text).toContain("COALESCE(st.assigned_count,0) >=");
     expect(query.text).not.toContain("email_normalized");
     expect(query.text).not.toContain("access_token_hash");
+    expect(query.text).not.toContain("set_version");
     expect(query.values).toEqual(expect.arrayContaining(["submitted", "reading", "grammar_blank", 10]));
   });
 
@@ -67,6 +68,7 @@ describe("admin CSV exports", () => {
     expect(query.text).toContain("THEN NULL");
     expect(query.text).toContain("response_rows.response_outcome=");
     expect(query.text).toContain("AT TIME ZONE 'Asia/Seoul'");
+    expect(query.text).not.toContain("set_version");
     expect(query.values).toContain("unanswered");
   });
 

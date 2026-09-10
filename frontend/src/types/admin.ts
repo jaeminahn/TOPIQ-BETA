@@ -26,7 +26,7 @@ export interface AdminVisualOption extends AdminVisualPromptOption {
 }
 
 export interface AdminListeningGroup {
-  setId: string; setVersion: number; positions: number[]; leaderItemId: string; leaderItemVersion: number;
+  setId: string; positions: number[]; leaderItemId: string; leaderItemVersion: number;
   itemType: string; dialogueTurns: TranscriptTurn[]; questionPrompts: string[]; repeatCount: number;
   audioAssetId: string | null; audioStorageUrl: string | null;
   audioStatus: "ready" | "legacy" | "missing" | "partial"; targets: AdminListeningTarget[];
@@ -57,7 +57,7 @@ export interface TtsJob {
 export type AdminListeningSetBlockReason = "SET_NOT_REVIEWED" | "SET_NOT_PUBLISHED" | "ITEM_COUNT_INVALID" | "ITEMS_INVALID";
 
 export interface AdminListeningSet {
-  setId: string; setVersion: number; setSequence: number; createdAt: string;
+  setId: string; setSequence: number; createdAt: string;
   reviewStatus: string; publishedAt: string | null; itemCount: number; validItemCount: number;
   audioReady: number; visualRequired: number; visualReady: number;
   mockTestId: string | null; slug: string | null; titleKo: string | null;
@@ -68,7 +68,7 @@ export interface AdminListeningSet {
 export interface TtsStyle { speakingRate: number; stylePrompt: string }
 
 export interface AdminReadingItem {
-  setId: string; setVersion: number; position: number; mockTestTitle: string | null;
+  setId: string; position: number; mockTestTitle: string | null;
   itemId: string; itemVersion: number; itemType: string; targetLevel: number;
   predictedDifficulty: number; reviewStatus: string; stem: string; choices: string[];
   correctAnswer: number | null; explanation: string; contentJson: Record<string, unknown>;
@@ -89,7 +89,7 @@ export interface AdminReadingMaterialVisual {
 export type AdminReadingSetBlockReason = "SET_NOT_REVIEWED" | "SET_NOT_PUBLISHED" | "ITEM_COUNT_INVALID" | "ITEMS_INVALID" | "VISUALS_INCOMPLETE";
 
 export interface AdminReadingSet {
-  setId: string; setVersion: number; setSequence: number; createdAt: string;
+  setId: string; setSequence: number; createdAt: string;
   reviewStatus: string; publishedAt: string | null; itemCount: number; validItemCount: number;
   visualRequired: number; visualReady: number;
   mockTestId: string | null; slug: string | null; titleKo: string | null;
@@ -108,6 +108,13 @@ export interface AdminResponseSession {
 export interface AdminQuestionRevision {
   position: number; itemId: string; itemVersion: number; stem: string; choices: string[];
   correctAnswer: number; explanation: string; contentJson: Record<string, unknown>;
+}
+
+export interface AdminQuestionVersion {
+  itemId: string; itemVersion: number; itemType: string; targetLevel: number;
+  predictedDifficulty: number; reviewStatus: string; stem: string; choices: string[];
+  correctAnswer: number | null; explanation: string; contentJson: Record<string, unknown>;
+  createdAt: string; isCurrent: boolean;
 }
 
 export interface AdminResponseObservation {

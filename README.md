@@ -127,6 +127,36 @@ corepack pnpm --filter @unigate/topik-api admin:bootstrap
 
 명령은 `ADMIN_EMAIL` 기준으로 멱등 실행됩니다. Supabase Auth 사용자를 만들고 `topik_app.admin_users` 허용 목록에 등록합니다. 생성 후 `ADMIN_PASSWORD`는 `.env`나 배포 비밀값에서 제거해도 됩니다.
 
+### 로컬 PostgreSQL을 Supabase로 복제
+
+`topik_bank`, `topik_app`의 스키마와 데이터를 Supabase PostgreSQL로 그대로 복제할 수 있습니다.
+Supabase가 관리하는 `auth`, `storage`, `realtime` 등의 스키마와 Storage 파일 자체는 변경하지 않습니다.
+
+먼저 로컬 백엔드와 DB 쓰기 작업을 중지합니다. Supabase Dashboard의 **Connect**에서
+Session pooler(포트 5432) 연결 문자열을 복사하고, 비밀번호를 URL 인코딩한 뒤 현재
+PowerShell 세션의 환경변수로만 설정합니다.
+
+```powershell
+$env:SUPABASE_DB_URL = 'postgresql://postgres.PROJECT_REF:ENCODED_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require'
+
+# 연결, PostgreSQL 버전, 스키마와 행 수만 점검
+corepack pnpm db:copy-to-supabase -- --dry-run
+
+# 대상 project ref를 다시 확인한 뒤 실제 백업·복제·검증 수행
+corepack pnpm db:copy-to-supabase -- --confirm-target-ref PROJECT_REF
+
+Remove-Item Env:SUPABASE_DB_URL
+```
+
+원본 연결은 `LOCAL_DATABASE_URL`이 있으면 이를 사용하고, 없으면
+`backend/.env.development`의 `DATABASE_URL`을 사용합니다. 대상의 기존 두 스키마는
+복원 전에 `.tmp/postgres-to-supabase/<timestamp>/target-before.dump`로 백업됩니다.
+실제 교체는 단일 트랜잭션으로 실행되며, 완료 후 모든 테이블의 행 수를 원본과 비교합니다.
+
+이 방식은 Supabase가 권장하는 Session pooler와 `pg_dump`/`pg_restore` 흐름을 따릅니다.
+자세한 연결 방식과 마이그레이션 주의사항은 [Supabase 연결 문서](https://supabase.com/docs/guides/database/connecting-to-postgres)와
+[Postgres 마이그레이션 문서](https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres)를 참고하세요.
+
 ### 4. 초기 듣기 이미지 업로드
 
 ```powershell

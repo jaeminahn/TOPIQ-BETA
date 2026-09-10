@@ -36,8 +36,7 @@ databaseTests("published reading question bank", () => {
         FROM topik_bank.question_set_items qsi
         JOIN topik_bank.item_versions iv
           ON iv.item_id = qsi.item_id AND iv.item_version = qsi.item_version
-       WHERE qsi.set_version = 1
-         AND qsi.set_id IN (
+       WHERE qsi.set_id IN (
            '64c027ea-fa18-5cd3-8039-79ecde41916a',
            'fc0a5fa7-391e-586f-ab7c-1b7b8193358a'
          )

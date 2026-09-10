@@ -8,7 +8,7 @@ import { ReadingAdminPanel } from "./ReadingAdminPanel";
 vi.mock("../../../api", () => ({
   adminApi: {
     readingItems: vi.fn(), generateReadingMaterial: vi.fn(), generateReadingSetVisuals: vi.fn(),
-    uploadReadingMaterial: vi.fn(), deleteReadingMaterial: vi.fn(),
+    uploadReadingMaterial: vi.fn(), deleteReadingMaterial: vi.fn(), questionVersions: vi.fn(),
   },
 }));
 vi.mock("../common/AdminImageCropDialog", () => ({
@@ -16,7 +16,7 @@ vi.mock("../common/AdminImageCropDialog", () => ({
 }));
 
 const linkedSet: AdminReadingSet = {
-  setId: "10000000-0000-4000-8000-000000000001", setVersion: 1, setSequence: 1,
+  setId: "10000000-0000-4000-8000-000000000001", setSequence: 1,
   createdAt: "2026-08-10T12:00:00.000Z", reviewStatus: "reviewed", publishedAt: "2026-08-10T12:00:00.000Z",
   itemCount: 50, validItemCount: 50, visualRequired: 1, visualReady: 1, mockTestId: "20000000-0000-4000-8000-000000000001",
   slug: "topik-ii-reading-1", titleKo: "TOPIK II 읽기 모의고사 1회", mockTestPublished: true,
@@ -30,7 +30,7 @@ const pendingSet: AdminReadingSet = {
 };
 
 const item: AdminReadingItem = {
-  setId: linkedSet.setId, setVersion: 1, position: 1, mockTestTitle: linkedSet.titleKo,
+  setId: linkedSet.setId, position: 1, mockTestTitle: linkedSet.titleKo,
   itemId: "30000000-0000-4000-8000-000000000001", itemVersion: 1, itemType: "grammar_blank",
   targetLevel: 3, predictedDifficulty: 0.5, reviewStatus: "reviewed", stem: "첫 번째 읽기 문제",
   choices: ["하나", "둘", "셋", "넷"], correctAnswer: 1, explanation: "해설", contentJson: {}, visualOptions: [],
@@ -49,6 +49,8 @@ describe("ReadingAdminPanel", () => {
     vi.mocked(adminApi.uploadReadingMaterial).mockResolvedValue({ visualAssetId: "asset-2", url: "https://example.com/new.png" });
     vi.mocked(adminApi.deleteReadingMaterial).mockReset();
     vi.mocked(adminApi.deleteReadingMaterial).mockResolvedValue({ deleted: true, storageDeleted: true });
+    vi.mocked(adminApi.questionVersions).mockReset();
+    vi.mocked(adminApi.questionVersions).mockResolvedValue({ setId: item.setId, itemId: item.itemId, position: item.position, currentVersion: 1, versions: [] });
   });
 
   it("copies a normalized reading visual generation prompt", async () => {
@@ -75,11 +77,20 @@ describe("ReadingAdminPanel", () => {
     const linkedCard = screen.getAllByTestId("reading-set-card")[0];
     await userEvent.click(within(linkedCard).getByRole("button", { name: "문항 보기" }));
 
-    await waitFor(() => expect(adminApi.readingItems).toHaveBeenCalledWith("admin-token", { setId: linkedSet.setId, setVersion: linkedSet.setVersion }));
+    await waitFor(() => expect(adminApi.readingItems).toHaveBeenCalledWith("admin-token", { setId: linkedSet.setId }));
     expect(await screen.findAllByText("첫 번째 읽기 문제")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "읽기 1회 · 문항 관리" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "회차 목록" }));
     expect(screen.getAllByTestId("reading-set-card")).toHaveLength(2);
+  });
+
+  it("opens read-only version history from the selected question", async () => {
+    render(<ReadingAdminPanel token="admin-token" sets={[linkedSet]} busy="" onPublish={vi.fn()} onError={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
+    await userEvent.click(await screen.findByRole("button", { name: "1번 버전 이력" }));
+
+    expect(await screen.findByRole("heading", { name: "1번 문항 버전 이력" })).toBeInTheDocument();
+    expect(adminApi.questionVersions).toHaveBeenCalledWith("admin-token", linkedSet.setId, item.itemId);
   });
 
   it("renders highlight_text as an actual underline in the admin question detail", async () => {
@@ -179,6 +190,6 @@ describe("ReadingAdminPanel", () => {
     render(<ReadingAdminPanel token="admin-token" sets={[missingSet]} busy="" onPublish={vi.fn()} onError={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
     await userEvent.click(await screen.findByRole("button", { name: /누락 그래프 생성/ }));
-    await waitFor(() => expect(adminApi.generateReadingSetVisuals).toHaveBeenCalledWith("admin-token", missingSet.setId, 1));
+    await waitFor(() => expect(adminApi.generateReadingSetVisuals).toHaveBeenCalledWith("admin-token", missingSet.setId));
   });
 });

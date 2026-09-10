@@ -60,6 +60,22 @@ class VisualWorker {
 
   private async process(job: VisualJob) {
     try {
+      const current = await pool.query(
+        `SELECT 1 FROM topik_bank.question_set_items
+          WHERE item_id=$1 AND item_version=$2`,
+        [job.item_id,job.item_version],
+      );
+      if (!current.rowCount) {
+        await pool.query(
+          `UPDATE topik_app.visual_generation_jobs
+              SET status='failed',error_message='Question version is no longer current',
+                  completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL
+            WHERE job_id=$1`,
+          [job.job_id],
+        );
+        return;
+      }
+
       const snapshot = job.prompt_snapshot ?? {};
       const visualRole = job.visual_role ?? "choice";
       let generated: { data: Buffer; mimeType: string; extension: string };
@@ -78,11 +94,20 @@ class VisualWorker {
         : `listening/${job.item_id}/v${job.item_version}/option-${job.option_number}-${randomUUID()}.${generated.extension}`;
       const storage = this.storageFactory();
       const uploaded = await storage.uploadMedia(path,generated.data,generated.mimeType);
-      const bound = await this.repository.bindVisualAsset({
-        adminUserId:job.requested_by,itemId:job.item_id,itemVersion:job.item_version,
-        optionNumber:job.option_number,visualRole,bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,
-        mimeType:generated.mimeType,byteSize:generated.data.length,
-      });
+      const bound = await (async () => {
+        try {
+          return await this.repository.bindVisualAsset({
+            adminUserId:job.requested_by,itemId:job.item_id,itemVersion:job.item_version,
+            optionNumber:job.option_number,visualRole,bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,
+            mimeType:generated.mimeType,byteSize:generated.data.length,
+          });
+        } catch (error) {
+          await storage.removeObject(uploaded.bucket,uploaded.path).catch((cleanupError) => {
+            console.error("Failed to remove unbound visual object", cleanupError);
+          });
+          throw error;
+        }
+      })();
       for (const replaced of bound.replacedAssets) {
         await this.repository.removeSupersededVisualAsset(
           replaced.visual_asset_id,

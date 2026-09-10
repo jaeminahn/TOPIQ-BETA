@@ -98,8 +98,8 @@ export class AdminResponseRepository extends AdminReadingRepository {
          JOIN topik_app.mock_tests mt ON mt.mock_test_id=s.mock_test_id
          LEFT JOIN topik_app.attempt_feedback af ON af.session_id=s.session_id
          LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-           ON set_binding.set_id=si.set_id AND set_binding.set_version=si.set_version
-          AND set_binding.position=si.test_position AND set_binding.is_current
+           ON set_binding.set_id=si.set_id AND set_binding.position=si.test_position
+          AND set_binding.is_current
          LEFT JOIN topik_app.tts_audio_assets set_asset
            ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
          LEFT JOIN topik_app.item_audio_bindings legacy_binding

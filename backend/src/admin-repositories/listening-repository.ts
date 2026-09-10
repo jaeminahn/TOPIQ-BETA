@@ -7,24 +7,13 @@ import { buildNarrationScript, EXAM_TRACK_VERSION } from "../listening-narration
 import { AdminOverviewRepository } from "./overview-repository.js";
 
 export class AdminListeningRepository extends AdminOverviewRepository {
-  async listListeningItems(setId?: string, setVersion?: number, status?: "ready" | "missing" | "failed") {
+  async listListeningItems(setId?: string, status?: "ready" | "missing" | "failed") {
     const values: unknown[] = [];
     const filters = ["iv.section = 'listening'"];
     if (setId) { values.push(setId); filters.push(`qsi.set_id = $${values.length}`); }
-    if (setVersion !== undefined) {
-      if (!setId) throw new AppError(400, "SET_ID_REQUIRED", "setId is required when setVersion is provided");
-      values.push(setVersion);
-      filters.push(`qsi.set_version = $${values.length}`);
-    } else {
-      filters.push(`qsi.set_version = (
-        SELECT MAX(latest_qsi.set_version)
-          FROM topik_bank.question_set_items latest_qsi
-         WHERE latest_qsi.set_id=qsi.set_id
-      )`);
-    }
     const result = await pool.query(
       `WITH item_rows AS (
-         SELECT qsi.set_id, qsi.set_version, qsi.position,
+         SELECT qsi.set_id, qsi.position,
                 iv.item_id, iv.item_version, iv.item_type,
                 CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
                      ELSE 'position:' || qsi.position::text END AS audio_group_key,
@@ -76,8 +65,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
            LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-             ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
-            AND set_binding.position=qsi.position AND set_binding.is_current
+             ON set_binding.set_id=qsi.set_id AND set_binding.position=qsi.position AND set_binding.is_current
            LEFT JOIN topik_app.tts_audio_assets set_asset
              ON set_asset.audio_asset_id=set_binding.audio_asset_id AND set_asset.deleted_at IS NULL
            LEFT JOIN topik_app.item_audio_bindings legacy_binding
@@ -87,7 +75,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
              ON legacy_asset.audio_asset_id=legacy_binding.audio_asset_id AND legacy_asset.deleted_at IS NULL
           WHERE ${filters.join(" AND ")}
        ), grouped AS (
-         SELECT set_id, set_version, audio_group_key,
+         SELECT set_id, audio_group_key,
                 jsonb_agg(dialogue_turns ORDER BY position)->0 AS dialogue_turns,
                 array_agg(position ORDER BY position) AS positions,
                 array_agg(item_id ORDER BY position) AS item_ids,
@@ -113,9 +101,9 @@ export class AdminListeningRepository extends AdminOverviewRepository {
                 (array_agg(narration_version ORDER BY position) FILTER (WHERE audio_asset_id IS NOT NULL))[1] AS narration_version,
                 (array_agg(script_snapshot ORDER BY position) FILTER (WHERE script_snapshot IS NOT NULL))[1] AS script_snapshot
            FROM item_rows
-          GROUP BY set_id,set_version,audio_group_key
+          GROUP BY set_id,audio_group_key
        )
-       SELECT g.set_id AS "setId", g.set_version AS "setVersion", g.positions,
+       SELECT g.set_id AS "setId", g.positions,
               g.item_ids[1] AS "leaderItemId", g.item_versions[1] AS "leaderItemVersion",
               g.item_types[1] AS "itemType", g.dialogue_turns AS "dialogueTurns",
               g.question_prompts AS "questionPrompts", g.repeat_count AS "repeatCount",
@@ -137,7 +125,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
           LEFT JOIN LATERAL (
             SELECT j.job_id,j.status,j.error_message,j.tts_style,j.script_snapshot
               FROM topik_app.tts_generation_jobs j
-            WHERE (j.set_id=g.set_id AND j.set_version=g.set_version AND j.group_start_position=g.positions[1])
+            WHERE (j.set_id=g.set_id AND j.group_start_position=g.positions[1])
                OR (j.set_id IS NULL AND EXISTS (
                  SELECT 1 FROM topik_app.tts_generation_job_targets tgt
                   WHERE tgt.job_id=j.job_id AND tgt.item_id=ANY(g.item_ids)
@@ -156,14 +144,13 @@ export class AdminListeningRepository extends AdminOverviewRepository {
 
   async listListeningSets() {
     const result = await pool.query<{
-      setId: string; setVersion: number; setSequence: number; createdAt: Date;
+      setId: string; setSequence: number; createdAt: Date;
       reviewStatus: string; publishedAt: Date | null; itemCount: number; validItemCount: number;
       audioReady: number; visualRequired: number; visualReady: number;
       mockTestId: string | null; slug: string | null; titleKo: string | null; mockTestPublished: boolean | null;
     }>(
-      `SELECT qs.set_id AS "setId",qsv.set_version AS "setVersion",
-              qs.set_sequence AS "setSequence",qs.created_at AS "createdAt",
-              qsv.review_status AS "reviewStatus",qsv.published_at AS "publishedAt",
+      `SELECT qs.set_id AS "setId",qs.set_sequence AS "setSequence",qs.created_at AS "createdAt",
+              qs.review_status AS "reviewStatus",qs.published_at AS "publishedAt",
               COUNT(qsi.item_id)::int AS "itemCount",
               COUNT(qsi.item_id) FILTER (WHERE
                 iv.section='listening' AND iv.correct_answer BETWEEN 1 AND 4
@@ -184,31 +171,27 @@ export class AdminListeningRepository extends AdminOverviewRepository {
               linked.mock_test_id AS "mockTestId",linked.slug,linked.title_ko AS "titleKo",
               linked.is_published AS "mockTestPublished"
          FROM topik_bank.question_sets qs
-         JOIN topik_bank.question_set_versions qsv ON qsv.set_id=qs.set_id
          LEFT JOIN topik_bank.question_set_items qsi
-           ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
+           ON qsi.set_id=qs.set_id
          LEFT JOIN topik_bank.item_versions iv
            ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
          LEFT JOIN topik_app.question_set_item_audio_bindings set_binding
-           ON set_binding.set_id=qsi.set_id AND set_binding.set_version=qsi.set_version
-          AND set_binding.position=qsi.position AND set_binding.is_current
+           ON set_binding.set_id=qsi.set_id AND set_binding.position=qsi.position AND set_binding.is_current
          LEFT JOIN topik_app.tts_audio_assets audio
            ON audio.audio_asset_id=set_binding.audio_asset_id AND audio.deleted_at IS NULL
          LEFT JOIN LATERAL (
            SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.is_published
              FROM topik_app.mock_test_sections mts
              JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
-            WHERE mts.set_id=qsv.set_id AND mts.set_version=qsv.set_version AND mts.section='listening'
+            WHERE mts.set_id=qs.set_id AND mts.section='listening'
             ORDER BY mt.is_published DESC,mt.display_order LIMIT 1
          ) linked ON TRUE
         WHERE qs.section='listening'
-        GROUP BY qs.set_id,qsv.set_version,qs.set_sequence,qs.created_at,
-                 qsv.review_status,qsv.published_at,linked.mock_test_id,linked.slug,
+        GROUP BY qs.set_id,qs.set_sequence,qs.created_at,
+                 qs.review_status,qs.published_at,linked.mock_test_id,linked.slug,
                  linked.title_ko,linked.is_published`,
     );
-    const latestBySet = new Map<string, number>();
-    for (const row of result.rows) latestBySet.set(row.setId, Math.max(latestBySet.get(row.setId) ?? 0, row.setVersion));
-    return result.rows.filter((row) => Boolean(row.mockTestId) || row.setVersion === latestBySet.get(row.setId)).map((row) => {
+    return result.rows.map((row) => {
       const roundMatch = row.slug?.match(/^topik-ii-listening-(\d+)$/);
       const blockingReasons: string[] = [];
       if (row.reviewStatus !== "reviewed") blockingReasons.push("SET_NOT_REVIEWED");
@@ -230,7 +213,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     });
   }
 
-  async registerListeningSet(setId: string, setVersion: number) {
+  async registerListeningSet(setId: string) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -239,9 +222,9 @@ export class AdminListeningRepository extends AdminOverviewRepository {
         `SELECT mt.mock_test_id,mt.slug,mt.is_published
            FROM topik_app.mock_test_sections mts
            JOIN topik_app.mock_tests mt ON mt.mock_test_id=mts.mock_test_id
-          WHERE mts.set_id=$1 AND mts.set_version=$2 AND mts.section='listening'
+          WHERE mts.set_id=$1 AND mts.section='listening'
           ORDER BY mt.display_order LIMIT 1`,
-        [setId, setVersion],
+        [setId],
       );
       if (existing.rows[0]) {
         const linked = existing.rows[0];
@@ -251,7 +234,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
       const readiness = await client.query<{
         section: string; review_status: string; published_at: Date | null; item_count: number; valid_item_count: number;
       }>(
-        `SELECT qs.section,qsv.review_status,qsv.published_at,COUNT(qsi.item_id)::int item_count,
+        `SELECT qs.section,qs.review_status,qs.published_at,COUNT(qsi.item_id)::int item_count,
                 COUNT(qsi.item_id) FILTER (WHERE
                   iv.section='listening' AND iv.correct_answer BETWEEN 1 AND 4
                   AND CASE
@@ -263,12 +246,11 @@ export class AdminListeningRepository extends AdminOverviewRepository {
                   AND jsonb_array_length(iv.content_json->'dialogue_turns')>0
                 )::int valid_item_count
            FROM topik_bank.question_sets qs
-           JOIN topik_bank.question_set_versions qsv ON qsv.set_id=qs.set_id
-           LEFT JOIN topik_bank.question_set_items qsi ON qsi.set_id=qsv.set_id AND qsi.set_version=qsv.set_version
+           LEFT JOIN topik_bank.question_set_items qsi ON qsi.set_id=qs.set_id
            LEFT JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qs.set_id=$1 AND qsv.set_version=$2
-          GROUP BY qs.section,qsv.review_status,qsv.published_at`,
-        [setId, setVersion],
+          WHERE qs.set_id=$1
+          GROUP BY qs.section,qs.review_status,qs.published_at`,
+        [setId],
       );
       const ready = readiness.rows[0];
       if (!ready || ready.section !== "listening" || ready.review_status !== "reviewed" || !ready.published_at
@@ -289,8 +271,8 @@ export class AdminListeningRepository extends AdminOverviewRepository {
           "50 TOPIK II-style listening questions.","TOPIK II 형식의 듣기 50문항입니다.",displayOrder],
       );
       await client.query(
-        `INSERT INTO topik_app.mock_test_sections(mock_test_id,section_order,section,set_id,set_version)
-         VALUES ($1,1,'listening',$2,$3)`, [mockTestId,setId,setVersion],
+        `INSERT INTO topik_app.mock_test_sections(mock_test_id,section_order,section,set_id)
+         VALUES ($1,1,'listening',$2)`, [mockTestId,setId],
       );
       await client.query("COMMIT");
       return { mockTestId,slug,round,published:false,created:true };
@@ -308,7 +290,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     return result.rows[0].storage_path;
   }
 
-  private async resolveAudioGroup(client: PoolClient, setId: string, setVersion: number, leaderItemId: string) {
+  private async resolveAudioGroup(client: PoolClient, setId: string, leaderItemId: string) {
     const result = await client.query<{
       item_id: string; item_version: number; position: number;
       question_prompt: string; dialogue_turns: unknown;
@@ -317,7 +299,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
          SELECT qsi.position,iv.item_type
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND qsi.item_id=$3 AND iv.section='listening'
+          WHERE qsi.set_id=$1 AND qsi.item_id=$2 AND iv.section='listening'
        )
        SELECT qsi.item_id,qsi.item_version,qsi.position,
               COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
@@ -328,19 +310,19 @@ export class AdminListeningRepository extends AdminOverviewRepository {
            (LEFT(l.item_type,7)='paired_' AND iv.item_type=l.item_type)
            OR (LEFT(l.item_type,7)<>'paired_' AND qsi.position=l.position)
          )
-        WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND iv.section='listening'
+        WHERE qsi.set_id=$1 AND iv.section='listening'
         ORDER BY qsi.position`,
-      [setId, setVersion, leaderItemId],
+      [setId, leaderItemId],
     );
     if (!result.rowCount) throw notFound("Listening audio group not found");
     return result.rows;
   }
 
   private async createGroupJob(client: PoolClient, input: {
-    adminUserId: string; setId: string; setVersion: number; leaderItemId: string;
+    adminUserId: string; setId: string; leaderItemId: string;
     forceRegenerate: boolean; ttsStyle: TtsStyle;
   }) {
-    const targets = await this.resolveAudioGroup(client, input.setId, input.setVersion, input.leaderItemId);
+    const targets = await this.resolveAudioGroup(client, input.setId, input.leaderItemId);
     const itemIds = targets.map((target) => target.item_id);
     const itemVersions = targets.map((target) => target.item_version);
     const positions = targets.map((target) => target.position);
@@ -352,9 +334,9 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     const leader = targets[0]!;
     const active = await client.query<{ job_id: string }>(
       `SELECT job_id FROM topik_app.tts_generation_jobs
-        WHERE set_id=$1 AND set_version=$2 AND group_start_position=$3
+        WHERE set_id=$1 AND group_start_position=$2
           AND status IN ('queued','processing') LIMIT 1`,
-      [input.setId, input.setVersion, leader.position],
+      [input.setId, leader.position],
     );
     if (active.rows[0]) return { jobId: active.rows[0].job_id, queued: false, targetCount: targets.length };
     if (!input.forceRegenerate) {
@@ -362,9 +344,9 @@ export class AdminListeningRepository extends AdminOverviewRepository {
         `SELECT COUNT(*)::int count
            FROM topik_app.question_set_item_audio_bindings binding
            JOIN topik_app.tts_audio_assets asset ON asset.audio_asset_id=binding.audio_asset_id
-          WHERE binding.set_id=$1 AND binding.set_version=$2 AND binding.position=ANY($3::smallint[])
-            AND binding.is_current AND asset.narration_version=$4 AND asset.deleted_at IS NULL`,
-        [input.setId, input.setVersion, positions, EXAM_TRACK_VERSION],
+          WHERE binding.set_id=$1 AND binding.position=ANY($2::smallint[])
+            AND binding.is_current AND asset.narration_version=$3 AND asset.deleted_at IS NULL`,
+        [input.setId, positions, EXAM_TRACK_VERSION],
       );
       if (ready.rows[0]?.count === targets.length) return { jobId: null, queued: false, targetCount: targets.length };
     }
@@ -372,26 +354,26 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     await client.query(
       `INSERT INTO topik_app.tts_generation_jobs(
          job_id,item_id,item_version,requested_by,force_regenerate,tts_style,
-         set_id,set_version,group_start_position,script_snapshot
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+         set_id,group_start_position,script_snapshot
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [jobId, leader.item_id, leader.item_version, input.adminUserId, input.forceRegenerate, input.ttsStyle,
-        input.setId, input.setVersion, leader.position, script],
+        input.setId, leader.position, script],
     );
     await client.query(
       `INSERT INTO topik_app.tts_generation_job_targets(
-         job_id,item_id,item_version,set_id,set_version,position
-       ) SELECT $1,target.item_id,target.item_version,$4,$5,target.position
-         FROM unnest($2::uuid[],$3::integer[],$6::smallint[]) AS target(item_id,item_version,position)`,
-      [jobId, itemIds, itemVersions, input.setId, input.setVersion, positions],
+         job_id,item_id,item_version,set_id,position
+       ) SELECT $1,target.item_id,target.item_version,$4,target.position
+         FROM unnest($2::uuid[],$3::integer[],$5::smallint[]) AS target(item_id,item_version,position)`,
+      [jobId, itemIds, itemVersions, input.setId, positions],
     );
     return { jobId, queued: true, targetCount: targets.length };
   }
 
-  async enqueueGroup(adminUserId: string, setId: string, setVersion: number, leaderItemId: string, forceRegenerate: boolean, ttsStyle: TtsStyle) {
+  async enqueueGroup(adminUserId: string, setId: string, leaderItemId: string, forceRegenerate: boolean, ttsStyle: TtsStyle) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await this.createGroupJob(client, { adminUserId, setId, setVersion, leaderItemId, forceRegenerate, ttsStyle });
+      const result = await this.createGroupJob(client, { adminUserId, setId, leaderItemId, forceRegenerate, ttsStyle });
       await client.query("COMMIT");
       return result;
     } catch (error) {
@@ -399,7 +381,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     } finally { client.release(); }
   }
 
-  async enqueueSet(adminUserId: string, setId: string, setVersion: number, forceRegenerate: boolean, ttsStyle: TtsStyle) {
+  async enqueueSet(adminUserId: string, setId: string, forceRegenerate: boolean, ttsStyle: TtsStyle) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -410,17 +392,17 @@ export class AdminListeningRepository extends AdminOverviewRepository {
            ) qsi.item_id
            FROM topik_bank.question_set_items qsi
            JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qsi.set_id=$1 AND qsi.set_version=$2 AND iv.section='listening'
+          WHERE qsi.set_id=$1 AND iv.section='listening'
           ORDER BY CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
                         ELSE 'position:' || qsi.position::text END,
                    qsi.position`,
-        [setId, setVersion],
+        [setId],
       );
       if (!leaders.rowCount) throw notFound("Listening set not found");
       const jobIds: string[] = [];
       for (const leader of leaders.rows) {
         const result = await this.createGroupJob(client, {
-          adminUserId, setId, setVersion, leaderItemId: leader.item_id, forceRegenerate, ttsStyle,
+          adminUserId, setId, leaderItemId: leader.item_id, forceRegenerate, ttsStyle,
         });
         if (result.queued && result.jobId) jobIds.push(result.jobId);
       }
@@ -433,7 +415,6 @@ export class AdminListeningRepository extends AdminOverviewRepository {
 
   async deleteAudioGroup(
     setId: string,
-    setVersion: number,
     leaderItemId: string,
     audioAssetId: string,
     removeObject: (bucket: string, path: string) => Promise<void>,
@@ -441,7 +422,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      const targets = await this.resolveAudioGroup(client, setId, setVersion, leaderItemId);
+      const targets = await this.resolveAudioGroup(client, setId, leaderItemId);
       const itemIds = targets.map((target) => target.item_id);
       const itemVersions = targets.map((target) => target.item_version);
       const positions = targets.map((target) => target.position);
@@ -454,13 +435,13 @@ export class AdminListeningRepository extends AdminOverviewRepository {
       const bound = await client.query<{ set_count: number; legacy_count: number }>(
         `SELECT
            (SELECT COUNT(*)::int FROM topik_app.question_set_item_audio_bindings
-             WHERE audio_asset_id=$1 AND set_id=$2 AND set_version=$3
-               AND position=ANY($4::smallint[]) AND is_current) AS set_count,
+             WHERE audio_asset_id=$1 AND set_id=$2
+               AND position=ANY($3::smallint[]) AND is_current) AS set_count,
            (SELECT COUNT(*)::int FROM topik_app.item_audio_bindings
              WHERE audio_asset_id=$1 AND is_current AND (item_id,item_version) IN (
-               SELECT * FROM unnest($5::uuid[],$6::integer[])
+               SELECT * FROM unnest($4::uuid[],$5::integer[])
              )) AS legacy_count`,
-        [audioAssetId, setId, setVersion, positions, itemIds, itemVersions],
+        [audioAssetId, setId, positions, itemIds, itemVersions],
       );
       const bindingKind = bound.rows[0]?.set_count === targets.length
         ? "set"
@@ -469,9 +450,9 @@ export class AdminListeningRepository extends AdminOverviewRepository {
       if (bindingKind === "set") {
         await client.query(
           `DELETE FROM topik_app.question_set_item_audio_bindings
-            WHERE audio_asset_id=$1 AND set_id=$2 AND set_version=$3
-              AND position=ANY($4::smallint[]) AND is_current`,
-          [audioAssetId, setId, setVersion, positions],
+            WHERE audio_asset_id=$1 AND set_id=$2
+              AND position=ANY($3::smallint[]) AND is_current`,
+          [audioAssetId, setId, positions],
         );
       } else {
         await client.query(
