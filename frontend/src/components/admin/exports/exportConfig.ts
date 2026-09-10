@@ -46,7 +46,7 @@ export const exportDatasets: Array<{
 export const exportFieldGuides: Record<AdminExportDataset, Array<{ title: string; fields: string }>> = {
   questions: [
     { title: "문항 식별", fields: "시험·세트 ID, 문항 ID와 문항 버전, 영역, 문항 위치와 유형" },
-    { title: "문항 내용", fields: "질문, 지문, 선택지 1~4, 정답, 해설, 듣기 대본과 시각 자료 JSON" },
+    { title: "문항 내용", fields: "질문, 지문, 선택지 1~4(그림 선택지는 이미지 URL), 정답, 해설, 듣기 대본과 시각 자료 JSON" },
     { title: "성과 지표", fields: "출제·응답·미응답·정답·오답 수, 두 정답률, 선택지 분포, 응답 시간" },
   ],
   responses: [

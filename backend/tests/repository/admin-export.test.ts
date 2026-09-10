@@ -49,6 +49,9 @@ describe("admin CSV exports", () => {
     expect(query.text).toContain("option_1_count");
     expect(query.text).toContain("PERCENTILE_CONT(0.5)");
     expect(query.text).toContain("COALESCE(st.assigned_count,0) >=");
+    expect(query.text).toContain("topik_app.item_visual_assets");
+    expect(query.text).toContain("COALESCE(choice_visuals.choice_1_url,qi.export_choices->>0) AS choice_1");
+    expect(query.text).toContain("iva.visual_role='choice' AND iva.is_current");
     expect(query.text).not.toContain("email_normalized");
     expect(query.text).not.toContain("access_token_hash");
     expect(query.text).not.toContain("set_version");

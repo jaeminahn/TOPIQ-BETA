@@ -72,7 +72,7 @@ export function buildNarrationScript(targets: NarrationTarget[]): AdminNarration
       kind: "speech",
       role: "instruction",
       speaker: "여자",
-      text: "다음을 듣고 물음에 답하십시오. 두 번 읽겠습니다.",
+      text: "다음을 듣고 물음에 답하십시오.",
     },
     { kind: "dialogue", repeatIndex: 1, turns },
     { kind: "speech", role: "reread", speaker: "여자", text: "다시 읽겠습니다." },

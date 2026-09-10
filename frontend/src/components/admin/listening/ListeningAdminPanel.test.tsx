@@ -202,7 +202,8 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.click(await screen.findByRole("button",{name:"음원 생성"}));
 
     expect(screen.getByText("띵동 벨")).toBeInTheDocument();
-    expect(screen.getByText("다음을 듣고 물음에 답하십시오. 두 번 읽겠습니다.")).toBeInTheDocument();
+    expect(screen.getByText("다음을 듣고 물음에 답하십시오.")).toBeInTheDocument();
+    expect(screen.queryByText(/두 번 읽겠습니다/)).not.toBeInTheDocument();
     expect(screen.queryByText(/13번에서 14번/)).not.toBeInTheDocument();
     expect(screen.getAllByText("다시 읽겠습니다.")).toHaveLength(1);
     expect(screen.getByText("지문 2회")).toBeInTheDocument();

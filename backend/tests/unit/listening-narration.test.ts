@@ -29,7 +29,7 @@ describe("buildNarrationScript", () => {
     expect(script.segments).toEqual([
       { kind: "bell" },
       { kind: "silence", durationMs: NARRATION_GAP_MS },
-      { kind: "speech", role: "instruction", speaker: "여자", text: "다음을 듣고 물음에 답하십시오. 두 번 읽겠습니다." },
+      { kind: "speech", role: "instruction", speaker: "여자", text: "다음을 듣고 물음에 답하십시오." },
       { kind: "silence", durationMs: NARRATION_GAP_MS },
       { kind: "dialogue", repeatIndex: 1, turns },
       { kind: "silence", durationMs: NARRATION_GAP_MS },
@@ -45,6 +45,7 @@ describe("buildNarrationScript", () => {
     expect(script.segments.filter((segment) => segment.kind === "speech" && segment.role === "question_number")).toHaveLength(2);
     expect(script.segments.find((segment) => segment.kind === "speech" && segment.role === "instruction"))
       .not.toMatchObject({ text: expect.stringContaining("13번") });
+    expect(JSON.stringify(script)).not.toContain("두 번 읽겠습니다");
   });
 
   it("adds one-second gaps between all common segments but never after the last", () => {

@@ -116,8 +116,11 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
            qi.section,qi.set_id,qi.test_position,qi.item_id,qi.item_version,
            qi.item_type,qi.primary_skill,qi.target_level,qi.predicted_difficulty,qi.irt_difficulty,
            qi.irt_discrimination,qi.question_prompt,qi.stem,qi.passage,qi.auxiliary_text,
-           qi.highlight_text,qi.export_choices->>0 AS choice_1,qi.export_choices->>1 AS choice_2,
-           qi.export_choices->>2 AS choice_3,qi.export_choices->>3 AS choice_4,qi.correct_answer,
+           qi.highlight_text,
+           COALESCE(choice_visuals.choice_1_url,qi.export_choices->>0) AS choice_1,
+           COALESCE(choice_visuals.choice_2_url,qi.export_choices->>1) AS choice_2,
+           COALESCE(choice_visuals.choice_3_url,qi.export_choices->>2) AS choice_3,
+           COALESCE(choice_visuals.choice_4_url,qi.export_choices->>3) AS choice_4,qi.correct_answer,
            qi.explanation,qi.transcript_json::text AS transcript_json,
            qi.visual_options_json::text AS visual_options_json,qi.content_json::text AS content_json,
            COALESCE(st.assigned_count,0) AS assigned_count,COALESCE(st.answered_count,0) AS answered_count,
@@ -135,10 +138,19 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
            COALESCE(st.answer_changed_count,0) AS answer_changed_count,
            CASE WHEN st.answered_count>0 THEN ROUND(st.answer_changed_count*100.0/st.answered_count,2) END AS answer_changed_rate_pct
       FROM question_inventory qi
-      LEFT JOIN stats st ON st.mock_test_id=qi.mock_test_id AND st.section=qi.section
-       AND st.set_id=qi.set_id AND st.test_position=qi.test_position
-       AND st.item_id=qi.item_id AND st.item_version=qi.item_version
-     WHERE COALESCE(st.assigned_count,0) >= ${minimum}
+       LEFT JOIN stats st ON st.mock_test_id=qi.mock_test_id AND st.section=qi.section
+        AND st.set_id=qi.set_id AND st.test_position=qi.test_position
+        AND st.item_id=qi.item_id AND st.item_version=qi.item_version
+      LEFT JOIN LATERAL (
+        SELECT MAX(iva.storage_url) FILTER (WHERE iva.option_number=1) AS choice_1_url,
+               MAX(iva.storage_url) FILTER (WHERE iva.option_number=2) AS choice_2_url,
+               MAX(iva.storage_url) FILTER (WHERE iva.option_number=3) AS choice_3_url,
+               MAX(iva.storage_url) FILTER (WHERE iva.option_number=4) AS choice_4_url
+          FROM topik_app.item_visual_assets iva
+         WHERE iva.item_id=qi.item_id AND iva.item_version=qi.item_version
+           AND iva.visual_role='choice' AND iva.is_current
+      ) choice_visuals ON TRUE
+      WHERE COALESCE(st.assigned_count,0) >= ${minimum}
      ${ordered ? "ORDER BY qi.mock_test_slug,qi.section,qi.test_position,qi.item_version" : ""}`;
   return { text, values };
 }
