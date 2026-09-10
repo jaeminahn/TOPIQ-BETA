@@ -40,7 +40,7 @@ function timeline(group: AdminListeningGroup) {
     "띵동 벨", "1초", `${first}번. ${group.questionPrompts[0] ?? ""}`.trim(), "1초", "지문 1회",
   ];
   return [
-    "띵동 벨", "1초", "다음을 듣고 물음에 답하십시오. 두 번 읽겠습니다.", "1초",
+    "띵동 벨", "1초", "다음을 듣고 물음에 답하십시오.", "1초",
     "지문 1회", "1초", "다시 읽겠습니다.", "1초", "지문 2회", "1초",
     ...group.positions.flatMap((position, index) => index < group.positions.length - 1 ? [`${position}번.`, "1초"] : [`${position}번.`]),
   ];
