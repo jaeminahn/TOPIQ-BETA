@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/admin-auth.js", () => ({
+vi.mock("../../src/admin/auth.js", () => ({
   adminLogin: vi.fn(),
   requireAdmin: vi.fn(async (token: string) => {
     if (token !== "admin-token") throw new Error("unauthorized");
@@ -9,10 +9,10 @@ vi.mock("../../src/admin-auth.js", () => ({
   }),
 }));
 
-import type { AdminExportSource } from "../../src/admin-export.js";
-import type { AdminRepository } from "../../src/admin-repository.js";
+import type { AdminExportSource } from "../../src/admin/export.js";
+import type { AdminRepository } from "../../src/admin/repository.js";
 import { buildApp } from "../../src/app.js";
-import type { TopikRepository } from "../../src/repository.js";
+import type { TopikRepository } from "../../src/exam/repository.js";
 
 const apps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
 

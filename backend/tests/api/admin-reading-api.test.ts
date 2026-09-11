@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/admin-auth.js", () => ({
+vi.mock("../../src/admin/auth.js", () => ({
   adminLogin: vi.fn(),
   requireAdmin: vi.fn().mockResolvedValue({ adminUserId: "admin-id", authUserId: "auth-id", email: "admin@example.com" }),
 }));
 
-import type { AdminRepository } from "../../src/admin-repository.js";
+import type { AdminRepository } from "../../src/admin/repository.js";
 import { buildApp } from "../../src/app.js";
-import type { TopikRepository } from "../../src/repository.js";
+import type { TopikRepository } from "../../src/exam/repository.js";
 
 const apps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
 afterEach(async () => {

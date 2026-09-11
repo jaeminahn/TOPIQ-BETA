@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BrevoResultEmailSender, buildResultEmail, type ResultEmailInput } from "../../src/brevo-result-email.js";
+import { BrevoResultEmailSender, buildResultEmail, type ResultEmailInput } from "../../src/email/brevo-result-email.js";
 
 const input: ResultEmailInput = {
   recipient: "user@example.com",

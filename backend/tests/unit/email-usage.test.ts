@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { config } from "../../src/config.js";
-import { EmailUsageRepository } from "../../src/email-usage.js";
-import { AppError } from "../../src/errors.js";
+import { config } from "../../src/core/config.js";
+import { AppError } from "../../src/core/errors.js";
+import { EmailUsageRepository } from "../../src/email/usage-repository.js";
 
 function clientWith(options: { enabled?: boolean; sessionCount?: number; cycleCount?: number; warningExists?: boolean }) {
   const query = vi.fn()

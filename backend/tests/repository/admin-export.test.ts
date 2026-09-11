@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/db.js", () => ({
+vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn(), connect: vi.fn() },
 }));
 
@@ -10,8 +10,8 @@ import {
   encodeCsvRow,
   exportFilename,
   parseAdminExportFilters,
-} from "../../src/admin-export.js";
-import { pool } from "../../src/db.js";
+} from "../../src/admin/export.js";
+import { pool } from "../../src/core/db.js";
 
 const poolMock = pool as unknown as {
   query: ReturnType<typeof vi.fn>;

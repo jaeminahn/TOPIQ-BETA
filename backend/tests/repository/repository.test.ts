@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
+vi.mock("../../src/core/db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 
-import { pool } from "../../src/db.js";
-import { TopikRepository } from "../../src/repository.js";
+import { pool } from "../../src/core/db.js";
+import { TopikRepository } from "../../src/exam/repository.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
 

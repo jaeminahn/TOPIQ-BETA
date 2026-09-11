@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { ResultEmailSender } from "../brevo-result-email.js";
-import { brevoQuotaWarningWorker } from "../brevo-quota-warning-worker.js";
-import { AppError } from "../errors.js";
-import type { TopikRepository } from "../repository.js";
+import { AppError } from "../core/errors.js";
+import type { ResultEmailSender } from "../email/brevo-result-email.js";
+import { brevoQuotaWarningWorker } from "../email/quota-warning-worker.js";
+import type { TopikRepository } from "../exam/repository.js";
 import { requireResultToken, requireSessionToken } from "./route-auth.js";
 
 const sessionParams = z.object({ sessionId: z.string().uuid() });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bearerToken, clampActiveDuration, normalizeEmail, sanitizeQuestion } from "../../src/domain.js";
+import { bearerToken, clampActiveDuration, normalizeEmail, sanitizeQuestion } from "../../src/exam/domain.js";
 
 describe("response analytics helpers", () => {
   it("caps active time deltas to one minute", () => {

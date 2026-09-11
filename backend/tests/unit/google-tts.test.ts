@@ -4,8 +4,8 @@ import {
   buildLiteralGoogleTtsRequest,
   literalDeliveryStyle,
   synthesizeLiteralOnce,
-} from "../../src/google-tts.js";
-import { createSilenceWave } from "../../src/audio-composer.js";
+} from "../../src/listening/google-tts.js";
+import { createSilenceWave } from "../../src/listening/audio-composer.js";
 
 const pcmFormat = {
   audioFormat: 1,

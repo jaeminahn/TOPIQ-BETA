@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/db.js", () => ({
+vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn(), connect: vi.fn() },
 }));
 
-import { buildNarrationScript } from "../../src/listening-narration.js";
+import { buildNarrationScript } from "../../src/listening/narration.js";
 import {
   EXAM_TRACK_COMPOSER_VERSION,
   EXAM_TRACK_SYNTHESIS_VERSION,
@@ -12,8 +12,8 @@ import {
   examTrackSourceHash,
   splitLiteralUtterances,
   synthesizeExamTrackParts,
-} from "../../src/tts-worker.js";
-import { pool } from "../../src/db.js";
+} from "../../src/listening/tts-worker.js";
+import { pool } from "../../src/core/db.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn> };
 

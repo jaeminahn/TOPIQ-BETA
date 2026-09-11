@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pool } from "./db.js";
+import { pool } from "./core/db.js";
 
 // These checksums were recorded by existing databases before the corresponding
 // migrations were checked into this repository in their current form. Keep this

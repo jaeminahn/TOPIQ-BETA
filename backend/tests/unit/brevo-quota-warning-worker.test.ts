@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/db.js", () => ({
+vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn() },
 }));
 
-import { BrevoQuotaWarningWorker } from "../../src/brevo-quota-warning-worker.js";
-import { config } from "../../src/config.js";
-import { pool } from "../../src/db.js";
+import { config } from "../../src/core/config.js";
+import { pool } from "../../src/core/db.js";
+import { BrevoQuotaWarningWorker } from "../../src/email/quota-warning-worker.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn> };
 

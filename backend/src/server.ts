@@ -1,11 +1,11 @@
 import { buildApp } from "./app.js";
-import { config } from "./config.js";
-import { pool } from "./db.js";
+import { visualWorker } from "./admin/workers/visual-worker.js";
+import { config } from "./core/config.js";
+import { pool } from "./core/db.js";
+import { brevoQuotaWarningWorker } from "./email/quota-warning-worker.js";
+import { ttsWorker } from "./listening/tts-worker.js";
+import { mediaCleanupWorker } from "./media/cleanup-worker.js";
 import { runMigrations } from "./migrate.js";
-import { ttsWorker } from "./tts-worker.js";
-import { visualWorker } from "./visual-worker.js";
-import { brevoQuotaWarningWorker } from "./brevo-quota-warning-worker.js";
-import { mediaCleanupWorker } from "./media-cleanup-worker.js";
 
 await runMigrations();
 const app = await buildApp();

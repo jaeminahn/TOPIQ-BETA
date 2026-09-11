@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNarrationScript, isAdminNarrationScript, NARRATION_GAP_MS } from "../../src/listening-narration.js";
+import { buildNarrationScript, isAdminNarrationScript, NARRATION_GAP_MS } from "../../src/listening/narration.js";
 
 const turns = [{ speaker: "남자" as const, text: "회의는 세 시에 시작합니다." }];
 

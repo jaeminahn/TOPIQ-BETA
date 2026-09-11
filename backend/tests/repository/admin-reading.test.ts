@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../src/db.js", () => ({
+vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn(), connect: vi.fn() },
 }));
 
-import { AdminRepository } from "../../src/admin-repository.js";
-import { pool } from "../../src/db.js";
+import { AdminRepository } from "../../src/admin/repository.js";
+import { pool } from "../../src/core/db.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
 

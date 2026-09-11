@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brevoBillingCycle } from "../../src/email-policy.js";
+import { brevoBillingCycle } from "../../src/email/policy.js";
 
 describe("Brevo billing cycle", () => {
   it("rolls over at midnight on the 11th in Asia/Seoul", () => {
