@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ResultEmailSender } from "../brevo-result-email.js";
+import { brevoQuotaWarningWorker } from "../brevo-quota-warning-worker.js";
 import { AppError } from "../errors.js";
 import type { TopikRepository } from "../repository.js";
 import { requireResultToken, requireSessionToken } from "./route-auth.js";
@@ -89,9 +90,7 @@ export function registerPublicRoutes(
     return repository.abandonSession(sessionId, requireSessionToken(request.headers.authorization));
   });
 
-  app.post("/v1/sessions/:sessionId/result-email", {
-    config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
-  }, async (request, reply) => {
+  app.post("/v1/sessions/:sessionId/result-email", async (request, reply) => {
     const { sessionId } = sessionParams.parse(request.params);
     const body = z
       .object({
@@ -125,7 +124,8 @@ export function registerPublicRoutes(
       throw new AppError(502, "RESULT_EMAIL_SEND_FAILED", "Unable to send the result email");
     }
     try {
-      await repository.markResultEmailAccepted(prepared.deliveryId, messageId);
+      const marked = await repository.markResultEmailAccepted(prepared.deliveryId, messageId);
+      if (marked?.warningQueued) brevoQuotaWarningWorker.kick();
     } catch (error) {
       app.log.error(error, "Brevo accepted the result email but its status could not be persisted");
     }

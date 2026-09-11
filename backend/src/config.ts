@@ -36,6 +36,12 @@ const envSchema = z.object({
   BREVO_API_KEY: z.string().min(1).optional(),
   BREVO_SENDER_EMAIL: z.string().email().optional(),
   BREVO_SENDER_NAME: z.string().trim().min(1).max(100).default("UNIGATE"),
+  BREVO_ALERT_EMAIL_1: z.string().email().optional(),
+  BREVO_ALERT_EMAIL_2: z.string().email().optional(),
+  BREVO_BILLING_START_DATE: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-09-11"),
+  BREVO_MONTHLY_LIMIT: z.coerce.number().int().positive().default(5000),
+  BREVO_WARNING_THRESHOLD: z.coerce.number().int().positive().default(4990),
+  RESULT_EMAIL_SESSION_HOURLY_LIMIT: z.coerce.number().int().positive().default(5),
   PUBLIC_APP_URL: z.string().url().default(
     environmentName === "production" ? "https://topiq.unigate.kr" : "http://localhost:5173",
   ),
@@ -49,6 +55,19 @@ const parsed = envSchema.parse({
     process.env.DATABASE_URL ??
     (process.env.NODE_ENV === "test" ? "postgresql://localhost:5432/topik_test" : undefined),
 });
+
+const alertEmails = [parsed.BREVO_ALERT_EMAIL_1, parsed.BREVO_ALERT_EMAIL_2].filter(
+  (email): email is string => Boolean(email),
+);
+if (new Set(alertEmails.map((email) => email.toLowerCase())).size !== alertEmails.length) {
+  throw new Error("BREVO alert email addresses must be distinct");
+}
+if (parsed.BREVO_WARNING_THRESHOLD + 2 > parsed.BREVO_MONTHLY_LIMIT) {
+  throw new Error("BREVO_WARNING_THRESHOLD must leave room for both alert emails");
+}
+if (parsed.NODE_ENV === "production" && alertEmails.length !== 2) {
+  throw new Error("BREVO_ALERT_EMAIL_1 and BREVO_ALERT_EMAIL_2 are required in production");
+}
 
 export const config = {
   nodeEnv: parsed.NODE_ENV,
@@ -84,6 +103,11 @@ export const config = {
     senderEmail: parsed.BREVO_SENDER_EMAIL,
     senderName: parsed.BREVO_SENDER_NAME,
     publicAppUrl: parsed.PUBLIC_APP_URL.replace(/\/$/, ""),
+    alertEmails,
+    billingStartDate: parsed.BREVO_BILLING_START_DATE,
+    monthlyLimit: parsed.BREVO_MONTHLY_LIMIT,
+    warningThreshold: parsed.BREVO_WARNING_THRESHOLD,
+    sessionHourlyLimit: parsed.RESULT_EMAIL_SESSION_HOURLY_LIMIT,
   },
   adminBootstrap: { email: parsed.ADMIN_EMAIL, password: parsed.ADMIN_PASSWORD },
 } as const;

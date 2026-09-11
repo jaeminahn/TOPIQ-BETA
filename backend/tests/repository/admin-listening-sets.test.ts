@@ -69,6 +69,30 @@ describe("listening set administration",()=>{
     expect(query).toHaveBeenCalledWith("ROLLBACK");
   });
 
+  it("queues replaced visual storage for durable cleanup in the binding transaction",async()=>{
+    const query=vi.fn(async(sql:string,_params?:unknown[])=>{
+      if(sql.includes("FROM topik_bank.question_set_items"))return {rows:[{}],rowCount:1};
+      if(sql.includes("UPDATE topik_app.item_visual_assets SET is_current=FALSE"))return {rows:[{
+        visual_asset_id:"20000000-0000-4000-8000-000000000099",
+        storage_bucket:"media",storage_path:"listening/old.png",
+      }],rowCount:1};
+      return {rows:[],rowCount:1};
+    });
+    poolMock.connect.mockResolvedValue({query,release:vi.fn()});
+
+    await new AdminRepository().bindVisualAsset({
+      adminUserId:"admin-1",itemId:"10000000-0000-4000-8000-000000000011",itemVersion:1,
+      optionNumber:2,visualRole:"choice",bucket:"media",path:"listening/new.png",
+      url:"https://example.com/new.png",mimeType:"image/png",byteSize:100,
+    });
+
+    const cleanupInsert=query.mock.calls.find(([sql])=>String(sql).includes("INSERT INTO topik_app.media_cleanup_jobs"));
+    expect(cleanupInsert?.[1]).toEqual([
+      expect.any(String),"visual","20000000-0000-4000-8000-000000000099","media","listening/old.png",
+    ]);
+    expect(query).toHaveBeenCalledWith("COMMIT");
+  });
+
   it("rejects image writes and deletes for a historical item version",async()=>{
     const query=vi.fn(async(sql:string)=>{
       if(sql.includes("FROM topik_bank.question_set_items"))return {rows:[],rowCount:0};

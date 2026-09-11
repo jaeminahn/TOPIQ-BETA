@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import { notFound } from "../errors.js";
+import { queueMediaCleanup } from "../media-cleanup.js";
 import { materialPromptSnapshot, normalizeReadingMaterial } from "../reading-visual.js";
 import { AdminResponseRepository } from "./response-repository.js";
 
@@ -247,37 +248,13 @@ export class AdminMediaRepository extends AdminResponseRepository {
         [assetId,input.itemId,input.itemVersion,input.optionNumber,input.visualRole,input.bucket,input.path,
           input.url,input.mimeType,input.byteSize,input.adminUserId],
       );
+      await queueMediaCleanup(client, "visual", replaced.rows.map((asset) => ({
+        assetId: asset.visual_asset_id,
+        bucket: asset.storage_bucket,
+        path: asset.storage_path,
+      })));
       await client.query("COMMIT");
-      return { visualAssetId: assetId, url: input.url, replacedAssets: replaced.rows };
-    } catch (error) {
-      await client.query("ROLLBACK"); throw error;
-    } finally { client.release(); }
-  }
-
-  async removeSupersededVisualAsset(
-    visualAssetId: string,
-    removeObject: (bucket: string, path: string) => Promise<void>,
-  ) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const asset = await client.query<{ storage_bucket: string; storage_path: string }>(
-        `SELECT storage_bucket,storage_path FROM topik_app.item_visual_assets
-          WHERE visual_asset_id=$1 AND NOT is_current FOR UPDATE`,
-        [visualAssetId],
-      );
-      const row = asset.rows[0];
-      if (!row) { await client.query("COMMIT"); return { deleted: false, storageDeleted: false }; }
-      const shared = await client.query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count FROM topik_app.item_visual_assets
-          WHERE storage_bucket=$1 AND storage_path=$2 AND visual_asset_id<>$3`,
-        [row.storage_bucket,row.storage_path,visualAssetId],
-      );
-      const storageDeleted = Number(shared.rows[0]?.count ?? 0) === 0;
-      if (storageDeleted) await removeObject(row.storage_bucket,row.storage_path);
-      await client.query("DELETE FROM topik_app.item_visual_assets WHERE visual_asset_id=$1", [visualAssetId]);
-      await client.query("COMMIT");
-      return { deleted: true, storageDeleted };
+      return { visualAssetId: assetId, url: input.url };
     } catch (error) {
       await client.query("ROLLBACK"); throw error;
     } finally { client.release(); }

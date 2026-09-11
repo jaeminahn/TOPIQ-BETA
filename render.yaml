@@ -52,5 +52,17 @@ services:
         value: no-reply@unigate.kr
       - key: BREVO_SENDER_NAME
         value: UNIGATE
+      - key: BREVO_ALERT_EMAIL_1
+        sync: false
+      - key: BREVO_ALERT_EMAIL_2
+        sync: false
+      - key: BREVO_BILLING_START_DATE
+        value: "2026-09-11"
+      - key: BREVO_MONTHLY_LIMIT
+        value: "5000"
+      - key: BREVO_WARNING_THRESHOLD
+        value: "4990"
+      - key: RESULT_EMAIL_SESSION_HOURLY_LIMIT
+        value: "5"
       - key: PUBLIC_APP_URL
         value: https://topiq.unigate.kr

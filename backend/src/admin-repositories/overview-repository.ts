@@ -1,8 +1,9 @@
 import { pool } from "../db.js";
+import { emailUsageRepository } from "../email-usage.js";
 
 export class AdminOverviewRepository {
   async dashboard() {
-    const result = await pool.query(
+    const [result, emailUsage] = await Promise.all([pool.query(
       `SELECT
         (SELECT COUNT(DISTINCT item_id) FROM topik_bank.item_versions)::int AS "totalItems",
         (SELECT COUNT(*) FROM topik_bank.item_versions)::int AS "totalVersions",
@@ -37,8 +38,12 @@ export class AdminOverviewRepository {
         (SELECT COUNT(*) FROM topik_app.response_observations)::int AS "responseCount",
         (SELECT COUNT(*) FROM topik_app.response_observations WHERE selected_option IS NOT NULL)::int AS "answeredResponseCount",
         (SELECT COUNT(*) FROM topik_app.response_observations WHERE selected_option IS NULL)::int AS "unansweredResponseCount"`,
-    );
-    return result.rows[0];
+    ), emailUsageRepository.getSummary()]);
+    return { ...result.rows[0], emailUsage };
+  }
+
+  async setResultEmailEnabled(adminUserId: string, enabled: boolean) {
+    return emailUsageRepository.setEnabled(adminUserId, enabled);
   }
 
   async listJobs(limit = 100) {

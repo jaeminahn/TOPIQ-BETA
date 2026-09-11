@@ -47,4 +47,35 @@ describe("Brevo result email", () => {
     expect(body.sender).toEqual({ email: "no-reply@unigate.kr", name: "UNIGATE" });
     expect(body.to).toEqual([{ email: "user@example.com", contactPixelTrackingConsent: false }]);
   });
+
+  it("sends the quota warning privately to both configured recipients", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: vi.fn().mockResolvedValue({ messageIds: ["warning-1", "warning-2"] }),
+    } as unknown as Response);
+    const sender = new BrevoResultEmailSender({
+      apiKey: "brevo-key",
+      senderEmail: "no-reply@unigate.kr",
+      senderName: "UNIGATE",
+      publicAppUrl: "https://topiq.unigate.kr",
+      alertEmails: ["first@example.com", "second@example.com"],
+    });
+
+    await expect(sender.sendQuotaWarning({
+      sendId: "warning-send-id",
+      cycleStart: "2026-09-11",
+      cycleEnd: "2026-10-11",
+      threshold: 4990,
+      limit: 5000,
+    })).resolves.toEqual({ messageIds: ["warning-1", "warning-2"] });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(body.to).toBeUndefined();
+    expect(body.messageVersions).toEqual([
+      { to: [{ email: "first@example.com", contactPixelTrackingConsent: false }] },
+      { to: [{ email: "second@example.com", contactPixelTrackingConsent: false }] },
+    ]);
+    expect(body.headers).toEqual({ idempotencyKey: "warning-send-id" });
+  });
 });

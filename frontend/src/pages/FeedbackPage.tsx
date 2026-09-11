@@ -46,7 +46,13 @@ export function FeedbackPage() {
       setDelivery({ maskedEmail: result.maskedEmail, expiresAt: result.expiresAt });
       setEditing(false);
     } catch (cause) {
-      if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_RATE_LIMITED") {
+      if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_HOURLY_LIMIT_REACHED") {
+        setFormError(t("emailHourlyLimit"));
+      } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_DISABLED") {
+        setFormError(t("emailDisabled"));
+      } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_MONTHLY_LIMIT_REACHED") {
+        setFormError(t("emailMonthlyLimit"));
+      } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_RATE_LIMITED") {
         setFormError(t("emailRateLimited"));
       } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_SEND_FAILED") {
         setFormError(t("emailSendFailed"));

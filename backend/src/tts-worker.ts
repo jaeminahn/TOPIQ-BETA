@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { composeExamTrack, type AudioCompositionPart } from "./audio-composer.js";
 import { pool } from "./db.js";
 import { config } from "./config.js";
 import { GoogleTtsClient, type DialogueTurn, type TtsStyle } from "./google-tts.js";
 import { EXAM_TRACK_VERSION, isAdminNarrationScript, type AdminNarrationScript } from "./listening-narration.js";
+import { mediaCleanupWorker } from "./media-cleanup-worker.js";
+import { queueMediaCleanup } from "./media-cleanup.js";
 import { SupabaseStorage } from "./storage.js";
 
 type Job = {
@@ -12,6 +15,28 @@ type Job = {
   set_id: string | null; group_start_position: number | null;
   script_snapshot: unknown;
 };
+
+async function queueSupersededAudio(
+  client: Pick<PoolClient, "query">,
+  assetIds: string[],
+  currentAssetId: string,
+) {
+  const supersededIds = [...new Set(assetIds)].filter((assetId) => assetId !== currentAssetId);
+  if (!supersededIds.length) return false;
+  const assets = await client.query<{
+    audio_asset_id: string; storage_bucket: string; storage_path: string;
+  }>(
+    `SELECT audio_asset_id,storage_bucket,storage_path
+       FROM topik_app.tts_audio_assets WHERE audio_asset_id=ANY($1::uuid[])`,
+    [supersededIds],
+  );
+  await queueMediaCleanup(client, "audio", assets.rows.map((asset) => ({
+    assetId: asset.audio_asset_id,
+    bucket: asset.storage_bucket,
+    path: asset.storage_path,
+  })));
+  return Boolean(assets.rowCount);
+}
 
 const validTurns = (turns: DialogueTurn[]) => turns.length > 0
   && turns.every((turn) => ["남자", "여자"].includes(turn.speaker) && Boolean(turn.text));
@@ -220,12 +245,16 @@ export class TtsWorker {
       throw new Error("Listening exam-track targets do not match the script snapshot");
     }
     const positions = targets.rows.map((target) => target.position);
+    const selectedAudioAssetId = audioAssetId;
+    if (!selectedAudioAssetId) throw new Error("Generated exam-track audio asset is missing");
     const client = await pool.connect();
+    let cleanupQueued = false;
     try {
       await client.query("BEGIN");
-      await client.query(
+      const replaced = await client.query<{ audio_asset_id: string }>(
         `UPDATE topik_app.question_set_item_audio_bindings SET is_current=FALSE
-          WHERE set_id=$1 AND is_current AND position=ANY($2::smallint[])`,
+          WHERE set_id=$1 AND is_current AND position=ANY($2::smallint[])
+          RETURNING audio_asset_id`,
         [job.set_id, positions],
       );
       await client.query(
@@ -234,15 +263,19 @@ export class TtsWorker {
          ) SELECT $1,position,$3,$4 FROM unnest($2::smallint[]) AS position
          ON CONFLICT (set_id,position,audio_asset_id)
          DO UPDATE SET source_hash=EXCLUDED.source_hash,is_current=TRUE`,
-        [job.set_id, positions, audioAssetId, sourceHash],
+        [job.set_id, positions, selectedAudioAssetId, sourceHash],
+      );
+      cleanupQueued = await queueSupersededAudio(
+        client, replaced.rows.map((row) => row.audio_asset_id), selectedAudioAssetId,
       );
       await client.query(
         `UPDATE topik_app.tts_generation_jobs SET status='succeeded',audio_asset_id=$2,
            completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL WHERE job_id=$1`,
-        [job.job_id, audioAssetId],
+        [job.job_id, selectedAudioAssetId],
       );
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    if (cleanupQueued) mediaCleanupWorker.kick();
   }
 
   private async processLegacyDialogue(job: Job) {
@@ -287,12 +320,16 @@ export class TtsWorker {
     );
     const targetIds = targetResult.rows.map((target) => target.item_id);
     const targetVersions = targetResult.rows.map((target) => target.item_version);
+    const selectedAudioAssetId = audioAssetId;
+    if (!selectedAudioAssetId) throw new Error("Generated dialogue audio asset is missing");
     const client = await pool.connect();
+    let cleanupQueued = false;
     try {
       await client.query("BEGIN");
-      await client.query(
+      const replaced = await client.query<{ audio_asset_id: string }>(
         `UPDATE topik_app.item_audio_bindings SET is_current=FALSE WHERE is_current
-          AND (item_id,item_version) IN (SELECT * FROM unnest($1::uuid[],$2::integer[]))`,
+          AND (item_id,item_version) IN (SELECT * FROM unnest($1::uuid[],$2::integer[]))
+          RETURNING audio_asset_id`,
         [targetIds, targetVersions],
       );
       await client.query(
@@ -301,15 +338,19 @@ export class TtsWorker {
            FROM unnest($1::uuid[],$2::integer[]) AS target(item_id,item_version)
          ON CONFLICT (item_id,item_version,audio_asset_id)
          DO UPDATE SET source_hash=EXCLUDED.source_hash,is_current=TRUE`,
-        [targetIds, targetVersions, audioAssetId, sourceHash],
+        [targetIds, targetVersions, selectedAudioAssetId, sourceHash],
+      );
+      cleanupQueued = await queueSupersededAudio(
+        client, replaced.rows.map((row) => row.audio_asset_id), selectedAudioAssetId,
       );
       await client.query(
         `UPDATE topik_app.tts_generation_jobs SET status='succeeded',audio_asset_id=$2,
            completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL WHERE job_id=$1`,
-        [job.job_id, audioAssetId],
+        [job.job_id, selectedAudioAssetId],
       );
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+    if (cleanupQueued) mediaCleanupWorker.kick();
   }
 }
 

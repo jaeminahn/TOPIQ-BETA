@@ -87,7 +87,10 @@ describe("ReadingAdminPanel", () => {
   it("opens read-only version history from the selected question", async () => {
     render(<ReadingAdminPanel token="admin-token" sets={[linkedSet]} busy="" onPublish={vi.fn()} onError={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
-    await userEvent.click(await screen.findByRole("button", { name: "1번 버전 이력" }));
+    await userEvent.click((await screen.findAllByText("첫 번째 읽기 문제"))[0]!);
+    const historyButton = await screen.findByRole("button", { name: "1번 버전 이력" });
+    expect(historyButton.closest("details")).toBeInTheDocument();
+    await userEvent.click(historyButton);
 
     expect(await screen.findByRole("heading", { name: "1번 문항 버전 이력" })).toBeInTheDocument();
     expect(adminApi.questionVersions).toHaveBeenCalledWith("admin-token", linkedSet.setId, item.itemId);

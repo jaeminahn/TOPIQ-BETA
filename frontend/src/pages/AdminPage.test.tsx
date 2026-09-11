@@ -8,7 +8,7 @@ import { AdminPage } from "./AdminPage";
 
 vi.mock("../api", () => ({
   adminApi: {
-    me: vi.fn(), dashboard: vi.fn(), jobs: vi.fn(), listeningSets: vi.fn(),
+    me: vi.fn(), dashboard: vi.fn(), jobs: vi.fn(), listeningSets: vi.fn(), setEmailEnabled: vi.fn(),
     readingSets: vi.fn(), responseSessions: vi.fn(), responseSession: vi.fn(),
     exportOptions: vi.fn(), exportPreview: vi.fn(), downloadExport: vi.fn(),
   },
@@ -21,6 +21,11 @@ const summary: AdminSummary = {
   audioMissing: 0, visualReady: 4, jobsQueued: 0, jobsProcessing: 0,
   jobsFailed: 0, sessionsToday: 3, responseCount: 80,
   answeredResponseCount: 75, unansweredResponseCount: 5,
+  emailUsage: {
+    enabled: true, configured: true, cycleStart: "2026-09-11", cycleEnd: "2026-10-11",
+    acceptedCount: 120, pendingCount: 0, limit: 5000, remaining: 4880,
+    warningThreshold: 4990, warningStatus: "not_sent",
+  },
 };
 
 describe("AdminPage", () => {
@@ -33,6 +38,7 @@ describe("AdminPage", () => {
     vi.mocked(adminApi.listeningSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.readingSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.responseSessions).mockResolvedValue({ sessions: [], total: 0 });
+    vi.mocked(adminApi.setEmailEnabled).mockResolvedValue({ enabled: true, updatedAt: "2026-09-11T00:00:00Z" });
     vi.mocked(adminApi.exportOptions).mockResolvedValue({ mockTests: [], itemTypes: [] });
   });
 
@@ -44,6 +50,35 @@ describe("AdminPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "사용자 응답" }));
     expect(screen.getByRole("heading", { name: "응시 세션별 사용자 응답" })).toBeInTheDocument();
     expect(adminApi.dashboard).toHaveBeenCalledWith("admin-token");
+  });
+
+  it("shows the Brevo cycle and turns new result mail off from the dashboard", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.mocked(adminApi.dashboard)
+      .mockResolvedValueOnce({ summary })
+      .mockResolvedValue({ summary: { ...summary, emailUsage: { ...summary.emailUsage, enabled: false } } });
+    vi.mocked(adminApi.setEmailEnabled).mockResolvedValue({ enabled: false, updatedAt: "2026-09-11T00:00:00Z" });
+    render(<MemoryRouter><AdminPage /></MemoryRouter>);
+
+    expect(await screen.findByText("2026.09.11 ~ 2026.10.10 · 수신자 기준")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "결과 이메일 발송" }));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(adminApi.setEmailEnabled).toHaveBeenCalledWith("admin-token", false);
+    expect(await screen.findByText("메일 OFF")).toBeInTheDocument();
+  });
+
+  it("shows the current Brevo cycle and can turn new result mail off", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<MemoryRouter><AdminPage /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "결과 이메일" })).toBeInTheDocument();
+    expect(screen.getByText("2026.09.11 ~ 2026.10.10 · 수신자 기준")).toBeInTheDocument();
+    expect(screen.getByText("120")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "결과 이메일 발송" }));
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(adminApi.setEmailEnabled).toHaveBeenCalledWith("admin-token", false);
   });
 
   it("shows the export guide and privacy details from the admin navigation", async () => {

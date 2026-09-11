@@ -85,6 +85,12 @@ SUPABASE_MEDIA_BUCKET=topik-question-media
 BREVO_API_KEY=your-brevo-api-key
 BREVO_SENDER_EMAIL=no-reply@unigate.kr
 BREVO_SENDER_NAME=UNIGATE
+BREVO_ALERT_EMAIL_1=first-admin@unigate.kr
+BREVO_ALERT_EMAIL_2=second-admin@unigate.kr
+BREVO_BILLING_START_DATE=2026-09-11
+BREVO_MONTHLY_LIMIT=5000
+BREVO_WARNING_THRESHOLD=4990
+RESULT_EMAIL_SESSION_HOURLY_LIMIT=5
 PUBLIC_APP_URL=http://localhost:5173
 
 GOOGLE_CLOUD_PROJECT_ID=your-project-id
@@ -211,6 +217,9 @@ corepack pnpm --filter @unigate/topik-web dev
 - 음원 삭제: 공통 대본 그룹의 모든 문항 연결을 함께 해제하며, 다른 문항이 공유하지 않는 파일은 Supabase Storage에서도 삭제합니다. 재생 이력이 있는 SQL 행은 분석 참조를 위해 삭제 표시만 남깁니다.
 - TTS 오류: 실패 작업이 있을 때만 요약 화면과 해당 문항의 접힌 상세 영역에 표시됩니다. 이후 생성이 성공하면 문항에서는 이전 오류를 표시하지 않습니다.
 - 읽기: 세트·검색 필터로 본문, 보기, 정답, 해설, 목표 급수와 난이도를 검수할 수 있습니다.
+- 문항 이력: 듣기와 읽기 모두 각 문항을 펼친 뒤 우측 상단의 `이력` 버튼에서 해당 문항의 버전을 확인합니다.
+- 미디어 교체: 새 그림·그래프·음원이 현재 문항에 연결되면 이전 자산은 정리 큐로 넘어가며, 더 이상 공유되지 않는 Supabase Storage 객체와 DB 자산 행을 안전하게 삭제합니다.
+- 결과 이메일: 요약 화면에서 매월 11일 00:00(Asia/Seoul)에 갱신되는 Brevo 사용량과 ON/OFF 상태를 확인합니다. 한 시험 세션은 최근 60분 동안 최대 5회 발송할 수 있고, 4,990건째 결과 메일이 접수되면 환경변수의 두 관리자 주소로 경고 메일을 각각 보냅니다. 전체 5,000건 예약 시 신규 결과 메일은 차단합니다.
 - 사용자 응답: 세션 목록에서 최신 Brevo 접수 완료 이메일 원문을 확인하고, 제출 세션을 펼쳐 문항별 선택 답안, 정답 여부, 활성 응답 시간과 답 변경 여부를 확인합니다. 체크한 세션만 삭제하거나 `전체 응답 삭제` 문구를 입력해 제출 완료 세션을 모두 삭제할 수 있습니다. 진행 중 시험과 기존 마케팅 수신 동의는 보존되고, 결과 이메일 이력은 세션과 함께 삭제되며 삭제 수량과 관리자는 감사 로그에 기록됩니다.
 - 데이터 추출: 시험·영역·기간·응시 상태 등의 조건을 적용하고 예상 행 수를 확인한 뒤 문항 분석, 사용자 문항별 응답, 응시 세션 요약 CSV를 내려받습니다. 문항·응답 CSV에는 이메일을 넣지 않으며, 세션 요약 CSV의 `result_email` 열에는 최신 Brevo 접수 완료 이메일 원문이 포함됩니다. IP·접근 토큰·결과 토큰은 모든 CSV에서 제외됩니다.
 

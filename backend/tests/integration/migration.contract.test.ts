@@ -179,4 +179,15 @@ describe("topik_app migration contract", () => {
     expect(sql).toContain("ROW_NUMBER() OVER");
     expect(sql).not.toMatch(/DELETE FROM topik_bank\.item_versions/);
   });
+
+  it("adds durable email controls, quota accounting, and media cleanup jobs", async () => {
+    const sql = await readFile(resolve(process.cwd(), "migrations/017_email_controls_and_media_cleanup.sql"), "utf8");
+    expect(sql).toContain("topik_app.email_settings");
+    expect(sql).toContain("topik_app.email_send_ledger");
+    expect(sql).toContain("billing_cycle_start");
+    expect(sql).toContain("recipient_count = 2");
+    expect(sql).toContain("topik_app.media_cleanup_jobs");
+    expect(sql).toContain("WHERE NOT is_current");
+    expect(sql).toContain("2026-09-11 00:00:00+09");
+  });
 });

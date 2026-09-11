@@ -41,6 +41,14 @@ export const adminApi = {
     return request<{ summary: AdminSummary }>("/v1/admin/dashboard", { headers: auth(token) });
   },
 
+  setEmailEnabled(token: string, enabled: boolean) {
+    return request<{ enabled: boolean; updatedAt: string }>("/v1/admin/email/settings", {
+      method: "PUT",
+      headers: auth(token),
+      body: JSON.stringify({ enabled }),
+    });
+  },
+
   exportOptions(token: string) {
     return request<AdminExportOptions>("/v1/admin/exports/options", { headers: auth(token) });
   },

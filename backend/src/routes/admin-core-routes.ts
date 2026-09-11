@@ -25,6 +25,12 @@ export function registerAdminCoreRoutes(app: FastifyInstance, repository: AdminR
     return { summary: await repository.dashboard() };
   });
 
+  app.put("/v1/admin/email/settings", async (request) => {
+    const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+    const body = z.object({ enabled: z.boolean() }).parse(request.body);
+    return repository.setResultEmailEnabled(admin.adminUserId, body.enabled);
+  });
+
   app.get("/v1/admin/listening/items", async (request) => {
     await requireAdmin(requireSessionToken(request.headers.authorization));
     const query = z.object({

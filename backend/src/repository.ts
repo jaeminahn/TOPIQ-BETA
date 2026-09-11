@@ -11,6 +11,7 @@ import {
   type ResponseEventType,
 } from "./domain.js";
 import { AppError, invalidResultToken, notFound, resultLinkExpired, sessionClosed, unauthorized } from "./errors.js";
+import { emailUsageRepository } from "./email-usage.js";
 import { SupabaseStorage } from "./storage.js";
 
 type SessionRow = {
@@ -654,16 +655,7 @@ export class TopikRepository {
       if (session.status !== "submitted") {
         throw new AppError(409, "SESSION_NOT_SUBMITTED", "Submit the session first");
       }
-      const attempts = await client.query<{ count: number }>(
-        `SELECT COUNT(*)::int count
-           FROM topik_app.result_email_deliveries
-          WHERE session_id = $1
-            AND requested_at > CURRENT_TIMESTAMP - INTERVAL '1 hour'`,
-        [input.sessionId],
-      );
-      if ((attempts.rows[0]?.count ?? 0) >= 5) {
-        throw new AppError(429, "RESULT_EMAIL_RATE_LIMITED", "Too many result email requests");
-      }
+      const emailReservation = await emailUsageRepository.authorizeResultReservation(client, input.sessionId);
       await client.query(
         `INSERT INTO topik_app.attempt_feedback(session_id, rating, locale)
          VALUES ($1,$2,$3)
@@ -691,6 +683,12 @@ export class TopikRepository {
       );
       const selectedExam = exam.rows[0];
       if (!selectedExam) throw notFound("Mock test not found");
+      await emailUsageRepository.recordResultReservation(client, {
+        deliveryId,
+        sessionId: input.sessionId,
+        cycle: emailReservation.cycle,
+        reserveWarning: emailReservation.reserveWarning,
+      });
       await client.query(
         "UPDATE topik_app.sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE session_id = $1",
         [input.sessionId],
@@ -727,6 +725,7 @@ export class TopikRepository {
       );
       const acceptedDelivery = accepted.rows[0];
       if (!acceptedDelivery) throw notFound("Result email delivery not found");
+      const warningQueued = await emailUsageRepository.markResultAccepted(client, deliveryId, providerMessageId);
       await client.query(
         `UPDATE topik_app.result_email_deliveries
             SET revoked_at=CURRENT_TIMESTAMP
@@ -747,6 +746,7 @@ export class TopikRepository {
         [deliveryId, acceptedDelivery.session_id, acceptedDelivery.requested_at],
       );
       await client.query("COMMIT");
+      return { warningQueued };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -756,12 +756,22 @@ export class TopikRepository {
   }
 
   async markResultEmailFailed(deliveryId: string, failureCode: string) {
-    await pool.query(
-      `UPDATE topik_app.result_email_deliveries
-          SET status='failed', failure_code=$2, failed_at=CURRENT_TIMESTAMP
-        WHERE delivery_id=$1 AND status='pending'`,
-      [deliveryId, failureCode],
-    );
+    const client = await begin();
+    try {
+      await client.query(
+        `UPDATE topik_app.result_email_deliveries
+            SET status='failed', failure_code=$2, failed_at=CURRENT_TIMESTAMP
+          WHERE delivery_id=$1 AND status='pending'`,
+        [deliveryId, failureCode],
+      );
+      await emailUsageRepository.markResultFailed(deliveryId, failureCode, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getResultsByToken(token: string) {

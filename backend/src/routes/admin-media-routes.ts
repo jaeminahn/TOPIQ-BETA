@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "../admin-auth.js";
 import type { AdminRepository } from "../admin-repository.js";
 import { AppError } from "../errors.js";
+import { mediaCleanupWorker } from "../media-cleanup-worker.js";
 import { SupabaseStorage } from "../storage.js";
 import { ttsWorker } from "../tts-worker.js";
 import { visualWorker } from "../visual-worker.js";
@@ -115,12 +116,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
       await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
       throw error;
     }
-    for (const replaced of result.replacedAssets) {
-      await repository.removeSupersededVisualAsset(
-        replaced.visual_asset_id,
-        (bucket, objectPath) => storage.removeObject(bucket, objectPath),
-      );
-    }
+    mediaCleanupWorker.kick();
     return reply.code(201).send(result);
   });
 
@@ -191,12 +187,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
       await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
       throw error;
     }
-    for (const replaced of result.replacedAssets) {
-      await repository.removeSupersededVisualAsset(
-        replaced.visual_asset_id,
-        (bucket, objectPath) => storage.removeObject(bucket, objectPath),
-      );
-    }
+    mediaCleanupWorker.kick();
     return reply.code(201).send(result);
   });
 

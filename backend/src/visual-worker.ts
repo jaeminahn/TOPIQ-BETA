@@ -3,6 +3,7 @@ import { AdminRepository } from "./admin-repository.js";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { GoogleImageClient, renderChartSvg, type ChartSpec } from "./google-image.js";
+import { mediaCleanupWorker } from "./media-cleanup-worker.js";
 import { SupabaseStorage } from "./storage.js";
 
 type VisualJob = {
@@ -108,12 +109,7 @@ class VisualWorker {
           throw error;
         }
       })();
-      for (const replaced of bound.replacedAssets) {
-        await this.repository.removeSupersededVisualAsset(
-          replaced.visual_asset_id,
-          (bucket, path) => storage.removeObject(bucket, path),
-        );
-      }
+      mediaCleanupWorker.kick();
       await pool.query(
         `UPDATE topik_app.visual_generation_jobs SET status='succeeded',visual_asset_id=$2,
           completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL WHERE job_id=$1`,

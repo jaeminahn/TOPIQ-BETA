@@ -14,6 +14,26 @@ export interface ResultEmailSender {
   send(input: ResultEmailInput): Promise<{ messageId: string }>;
 }
 
+export interface QuotaWarningInput {
+  sendId: string;
+  cycleStart: string;
+  cycleEnd: string;
+  threshold: number;
+  limit: number;
+}
+
+export interface QuotaWarningSender {
+  sendQuotaWarning(input: QuotaWarningInput): Promise<{ messageIds: string[] }>;
+}
+
+interface BrevoEmailSettings {
+  apiKey?: string;
+  senderEmail?: string;
+  senderName: string;
+  publicAppUrl: string;
+  alertEmails?: readonly string[];
+}
+
 const emailColors = {
   primary: "#2D5EC5",
   primaryDark: "#162F7F",
@@ -57,8 +77,8 @@ export function buildResultEmail(input: ResultEmailInput, publicAppUrl: string) 
   };
 }
 
-export class BrevoResultEmailSender implements ResultEmailSender {
-  constructor(private readonly settings = config.brevo) {}
+export class BrevoResultEmailSender implements ResultEmailSender, QuotaWarningSender {
+  constructor(private readonly settings: BrevoEmailSettings = config.brevo) {}
 
   async send(input: ResultEmailInput) {
     if (!this.settings.apiKey || !this.settings.senderEmail) {
@@ -88,5 +108,42 @@ export class BrevoResultEmailSender implements ResultEmailSender {
       throw new Error("Brevo did not return a message id");
     }
     return { messageId: body.messageId };
+  }
+
+  async sendQuotaWarning(input: QuotaWarningInput) {
+    if (!this.settings.apiKey || !this.settings.senderEmail || this.settings.alertEmails?.length !== 2) {
+      throw new Error("Brevo quota warning email is not configured");
+    }
+    const cycleEnd = new Date(new Date(`${input.cycleEnd}T00:00:00+09:00`).getTime() - 24 * 60 * 60 * 1000);
+    const endLabel = new Intl.DateTimeFormat("ko-KR", { dateStyle: "long", timeZone: "Asia/Seoul" }).format(cycleEnd);
+    const subject = `[UNIGATE] Brevo 월간 발송량 ${input.threshold.toLocaleString()}/${input.limit.toLocaleString()}건 도달`;
+    const message = `Brevo 월간 발송량이 경고 기준에 도달했습니다.\n\n결제 주기: ${input.cycleStart} ~ ${endLabel}\n경고 기준: ${input.threshold.toLocaleString()}건\n월간 한도: ${input.limit.toLocaleString()}건\n경고 메일 2건 발송 후 남은 용량: ${(input.limit - input.threshold - 2).toLocaleString()}건`;
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": this.settings.apiKey,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        sender: { email: this.settings.senderEmail, name: this.settings.senderName },
+        subject,
+        textContent: message,
+        htmlContent: `<!doctype html><html><body style="font-family:Arial,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;color:#111827"><div style="max-width:560px;margin:24px auto;padding:24px;border:1px solid ${emailColors.primaryBorder};border-radius:16px"><h1 style="font-size:22px;color:${emailColors.primaryDark}">${escapeHtml(subject)}</h1><p style="white-space:pre-line;line-height:1.7">${escapeHtml(message)}</p></div></body></html>`,
+        messageVersions: this.settings.alertEmails.map((email) => ({
+          to: [{ email, contactPixelTrackingConsent: false }],
+        })),
+        headers: { idempotencyKey: input.sendId },
+        tags: ["topik-quota-warning"],
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error(`Brevo rejected the quota warning request (${response.status})`);
+    const body = await response.json() as { messageIds?: unknown };
+    if (!Array.isArray(body.messageIds) || body.messageIds.length !== 2
+      || !body.messageIds.every((messageId) => typeof messageId === "string" && messageId)) {
+      throw new Error("Brevo did not return both quota warning message ids");
+    }
+    return { messageIds: body.messageIds as string[] };
   }
 }
