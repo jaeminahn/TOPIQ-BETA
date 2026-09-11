@@ -1,0 +1,117 @@
+import { config as loadEnv } from "dotenv";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { z } from "zod";
+
+export function resolveBackendRoot(moduleUrl = import.meta.url) {
+  return resolve(dirname(fileURLToPath(moduleUrl)), "../..");
+}
+
+const backendRoot = resolveBackendRoot();
+const environmentName = process.env.NODE_ENV ?? "development";
+
+// Load the environment-specific file regardless of whether the process was
+// started from the workspace root or from backend/. Existing process variables
+// always win, which keeps Render/Vercel secrets authoritative in production.
+loadEnv({ path: resolve(backendRoot, `.env.${environmentName}`), quiet: true });
+loadEnv({ path: resolve(backendRoot, ".env"), quiet: true });
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().positive().default(4000),
+  DATABASE_URL: z.string().min(1),
+  DATABASE_SSL: z.enum(["disable", "require"]).default("disable"),
+  APP_ORIGINS: z.string().default("http://localhost:5173"),
+  TRUST_PROXY: z.enum(["true", "false"]).default("false"),
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_AUDIO_BUCKET: z.string().default("topik-listening-audio"),
+  SUPABASE_MEDIA_BUCKET: z.string().default("topik-question-media"),
+  GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
+  GOOGLE_CLOUD_CREDENTIALS_JSON: z.string().optional(),
+  GOOGLE_TTS_MODEL: z.string().default("gemini-2.5-flash-tts"),
+  GOOGLE_TTS_FEMALE_VOICE: z.string().default("Aoede"),
+  GOOGLE_TTS_MALE_VOICE: z.string().default("Charon"),
+  FFMPEG_PATH: z.string().default("ffmpeg"),
+  TTS_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
+  GOOGLE_IMAGE_LOCATION: z.string().default("global"),
+  GOOGLE_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
+  VISUAL_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
+  BREVO_API_KEY: z.string().min(1).optional(),
+  BREVO_SENDER_EMAIL: z.string().email().optional(),
+  BREVO_SENDER_NAME: z.string().trim().min(1).max(100).default("UNIGATE"),
+  BREVO_ALERT_EMAIL_1: z.string().email().optional(),
+  BREVO_ALERT_EMAIL_2: z.string().email().optional(),
+  BREVO_BILLING_START_DATE: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default("2026-09-11"),
+  BREVO_MONTHLY_LIMIT: z.coerce.number().int().positive().default(5000),
+  BREVO_WARNING_THRESHOLD: z.coerce.number().int().positive().default(4900),
+  RESULT_EMAIL_SESSION_HOURLY_LIMIT: z.coerce.number().int().positive().default(5),
+  PUBLIC_APP_URL: z.string().url().default(
+    environmentName === "production" ? "https://topiq.unigate.kr" : "http://localhost:5173",
+  ),
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().min(12).optional(),
+});
+
+const parsed = envSchema.parse({
+  ...process.env,
+  DATABASE_URL:
+    process.env.DATABASE_URL ??
+    (process.env.NODE_ENV === "test" ? "postgresql://localhost:5432/topik_test" : undefined),
+});
+
+const alertEmails = [parsed.BREVO_ALERT_EMAIL_1, parsed.BREVO_ALERT_EMAIL_2].filter(
+  (email): email is string => Boolean(email),
+);
+if (new Set(alertEmails.map((email) => email.toLowerCase())).size !== alertEmails.length) {
+  throw new Error("BREVO alert email addresses must be distinct");
+}
+if (parsed.BREVO_WARNING_THRESHOLD + 2 > parsed.BREVO_MONTHLY_LIMIT) {
+  throw new Error("BREVO_WARNING_THRESHOLD must leave room for both alert emails");
+}
+if (parsed.NODE_ENV === "production" && alertEmails.length !== 2) {
+  throw new Error("BREVO_ALERT_EMAIL_1 and BREVO_ALERT_EMAIL_2 are required in production");
+}
+
+export const config = {
+  nodeEnv: parsed.NODE_ENV,
+  port: parsed.PORT,
+  databaseUrl: parsed.DATABASE_URL,
+  databaseSsl: parsed.DATABASE_SSL === "require",
+  appOrigins: parsed.APP_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean),
+  trustProxy: parsed.TRUST_PROXY === "true",
+  supabase: {
+    url: parsed.SUPABASE_URL,
+    serviceRoleKey: parsed.SUPABASE_SERVICE_ROLE_KEY,
+    audioBucket: parsed.SUPABASE_AUDIO_BUCKET,
+    mediaBucket: parsed.SUPABASE_MEDIA_BUCKET,
+  },
+  googleTts: {
+    projectId: parsed.GOOGLE_CLOUD_PROJECT_ID,
+    credentialsJson: parsed.GOOGLE_CLOUD_CREDENTIALS_JSON,
+    model: parsed.GOOGLE_TTS_MODEL,
+    femaleVoice: parsed.GOOGLE_TTS_FEMALE_VOICE,
+    maleVoice: parsed.GOOGLE_TTS_MALE_VOICE,
+    ffmpegPath: parsed.FFMPEG_PATH,
+    workerEnabled: parsed.TTS_WORKER_ENABLED === "true",
+  },
+  googleImage: {
+    projectId: parsed.GOOGLE_CLOUD_PROJECT_ID,
+    credentialsJson: parsed.GOOGLE_CLOUD_CREDENTIALS_JSON,
+    location: parsed.GOOGLE_IMAGE_LOCATION,
+    model: parsed.GOOGLE_IMAGE_MODEL,
+    workerEnabled: parsed.VISUAL_WORKER_ENABLED === "true",
+  },
+  brevo: {
+    apiKey: parsed.BREVO_API_KEY,
+    senderEmail: parsed.BREVO_SENDER_EMAIL,
+    senderName: parsed.BREVO_SENDER_NAME,
+    publicAppUrl: parsed.PUBLIC_APP_URL.replace(/\/$/, ""),
+    alertEmails,
+    billingStartDate: parsed.BREVO_BILLING_START_DATE,
+    monthlyLimit: parsed.BREVO_MONTHLY_LIMIT,
+    warningThreshold: parsed.BREVO_WARNING_THRESHOLD,
+    sessionHourlyLimit: parsed.RESULT_EMAIL_SESSION_HOURLY_LIMIT,
+  },
+  adminBootstrap: { email: parsed.ADMIN_EMAIL, password: parsed.ADMIN_PASSWORD },
+} as const;

@@ -6,6 +6,11 @@ export interface AdminSummary {
   audioMissing: number; visualReady: number; jobsQueued: number; jobsProcessing: number;
   jobsFailed: number; sessionsToday: number;
   responseCount: number; answeredResponseCount: number; unansweredResponseCount: number;
+  emailUsage: {
+    enabled: boolean; configured: boolean; cycleStart: string; cycleEnd: string;
+    acceptedCount: number; pendingCount: number; limit: number; remaining: number;
+    warningThreshold: number; warningStatus: "not_sent" | "pending" | "accepted" | "failed";
+  };
 }
 
 export interface AdminListeningTarget {

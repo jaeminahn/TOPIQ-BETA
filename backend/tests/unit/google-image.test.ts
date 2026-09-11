@@ -1,6 +1,6 @@
 import { describe,expect,it } from "vitest";
-import { AppError } from "../../src/errors.js";
-import { buildGeminiImageRequest,buildGoogleImageEndpoint,buildTopikImagePrompt,extractGeminiImage,renderChartSvg } from "../../src/google-image.js";
+import { AppError } from "../../src/core/errors.js";
+import { buildGeminiImageRequest,buildGoogleImageEndpoint,buildTopikImagePrompt,extractGeminiImage,renderChartSvg } from "../../src/media/google-image.js";
 
 describe("listening visual generation",()=>{
   it("wraps scene prompts in a consistent TOPIK illustration style",()=>{

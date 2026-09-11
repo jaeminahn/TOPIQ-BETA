@@ -5,7 +5,7 @@ import {
   createBellWave,
   createSilenceWave,
   readLinear16WaveFormat,
-} from "../../src/audio-composer.js";
+} from "../../src/listening/audio-composer.js";
 
 const pcmFormat = {
   audioFormat: 1,

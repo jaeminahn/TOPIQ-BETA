@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeQuestion } from "../../src/domain.js";
-import { buildGoogleTtsRequest } from "../../src/google-tts.js";
+import { sanitizeQuestion } from "../../src/exam/domain.js";
+import { buildGoogleTtsRequest } from "../../src/listening/google-tts.js";
 
 const row = {
   item_order: 1, section: "listening", test_position: 1,

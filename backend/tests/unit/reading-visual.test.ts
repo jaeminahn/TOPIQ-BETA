@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReadingGraphPrompt, materialPromptSnapshot, normalizeReadingMaterial } from "../../src/reading-visual.js";
+import { buildReadingGraphPrompt, materialPromptSnapshot, normalizeReadingMaterial } from "../../src/media/reading-visual.js";
 
 describe("reading graph material", () => {
   it("recognizes position 10 and derives a complete Gemini prompt from the passage", () => {

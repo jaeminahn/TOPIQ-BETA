@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { config } from "./config.js";
-import { pool } from "./db.js";
+import { config } from "./core/config.js";
+import { pool } from "./core/db.js";
 
 async function bootstrap() {
   const { url, serviceRoleKey } = config.supabase;

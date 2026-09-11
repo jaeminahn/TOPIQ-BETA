@@ -1,5 +1,5 @@
-import { bearerToken } from "../domain.js";
-import { AppError } from "../errors.js";
+import { AppError } from "../core/errors.js";
+import { bearerToken } from "../exam/domain.js";
 
 export function requireSessionToken(authorization: string | undefined) {
   const token = bearerToken(authorization);

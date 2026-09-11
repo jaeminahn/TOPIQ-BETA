@@ -1,9 +1,9 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { config } from "./config.js";
-import { pool } from "./db.js";
-import { AdminRepository } from "./admin-repository.js";
-import { SupabaseStorage } from "./storage.js";
+import { AdminRepository } from "./admin/repository.js";
+import { config } from "./core/config.js";
+import { pool } from "./core/db.js";
+import { SupabaseStorage } from "./media/storage.js";
 
 const pattern = /^([0-9a-f-]{36})-v(\d+)-option-([1-4])\.png$/i;
 

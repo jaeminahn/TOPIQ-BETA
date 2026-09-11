@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildApp, ttsStyleSchema } from "../../src/app.js";
-import type { ResultEmailSender } from "../../src/brevo-result-email.js";
-import type { TopikRepository } from "../../src/repository.js";
+import type { ResultEmailSender } from "../../src/email/brevo-result-email.js";
+import type { TopikRepository } from "../../src/exam/repository.js";
 
 const repositories: Array<Awaited<ReturnType<typeof buildApp>>> = [];
 afterEach(async () => {
