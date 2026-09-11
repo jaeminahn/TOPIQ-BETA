@@ -15,7 +15,6 @@ Unigate-Web/
 ├─ frontend/                    # 사용자·관리자 React SPA
 ├─ backend/
 │  ├─ migrations/              # topik_app 마이그레이션
-│  ├─ seed-assets/listening/   # 초기 그림·그래프 선택지 24개
 │  └─ src/                     # API, TTS worker, Supabase 연결
 ├─ POSTGRESQL_QUESTION_BANK.md
 └─ render.yaml
@@ -163,22 +162,7 @@ Remove-Item Env:SUPABASE_DB_URL
 자세한 연결 방식과 마이그레이션 주의사항은 [Supabase 연결 문서](https://supabase.com/docs/guides/database/connecting-to-postgres)와
 [Postgres 마이그레이션 문서](https://supabase.com/docs/guides/platform/migrating-to-supabase/postgres)를 참고하세요.
 
-### 4. 초기 듣기 이미지 업로드
-
-```powershell
-corepack pnpm --filter @unigate/topik-api assets:seed
-```
-
-이 명령은 다음 작업을 수행합니다.
-
-- 비공개 `topik-listening-audio` 버킷 생성
-- 공개 `topik-question-media` 버킷 생성
-- 기존 그래프 8개와 생성된 그림 선택지 16개 업로드
-- 각 `(item_id, item_version, option_number)`의 URL을 PostgreSQL에 저장
-
-재실행해도 이미 연결된 자산은 중복 생성하지 않습니다.
-
-### 5. 실행
+### 4. 실행
 
 프론트엔드와 백엔드 동시 실행:
 
@@ -277,10 +261,9 @@ BREVO_API_KEY=xkeysib-...
 
 ```bash
 ADMIN_EMAIL=admin@unigate.kr ADMIN_PASSWORD='strong-temporary-password' node dist/bootstrap-admin.js
-ADMIN_EMAIL=admin@unigate.kr node dist/seed-listening-assets.js
 ```
 
-Docker 빌드에는 `seed-assets`와 위 스크립트가 포함됩니다. 초기화 후 `ADMIN_PASSWORD` 비밀값을 제거합니다.
+관리자 초기화 후 `ADMIN_PASSWORD` 비밀값을 제거합니다.
 
 ### Vercel 프론트엔드
 

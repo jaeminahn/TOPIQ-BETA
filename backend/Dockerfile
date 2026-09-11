@@ -5,7 +5,6 @@ RUN npm install
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
 COPY migrations ./migrations
-COPY seed-assets ./seed-assets
 COPY scripts ./scripts
 RUN npm run build
 
@@ -17,6 +16,5 @@ COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 COPY migrations ./migrations  
-COPY seed-assets ./seed-assets
 EXPOSE 10000
 CMD ["node", "dist/server.js"]
