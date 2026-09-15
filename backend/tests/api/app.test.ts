@@ -153,7 +153,7 @@ describe("public API", () => {
   });
 
   it("returns emailed results with no-store caching and a dedicated token", async () => {
-    const getResultsByToken = vi.fn().mockResolvedValue({ score: 84, maxScore: 100, incorrect: [] });
+    const getResultsByToken = vi.fn().mockResolvedValue({ section: "reading", score: 84, maxScore: 100, incorrect: [] });
     const app = await buildApp({ getResultsByToken } as unknown as TopikRepository);
     repositories.push(app);
     const response = await app.inject({
@@ -163,6 +163,7 @@ describe("public API", () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.json()).toMatchObject({ section: "reading", score: 84 });
     expect(getResultsByToken).toHaveBeenCalledWith("emailed-result-token");
   });
 

@@ -1,6 +1,28 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css");
-@import url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0/batang.min.css");
 @import "tailwindcss";
+
+@font-face {
+  font-family: "KoPubWorld Batang";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0.3/fonts/KoPubWorld-Batang-Light.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "KoPubWorld Batang";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0.3/fonts/KoPubWorld-Batang-Medium.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "KoPubWorld Batang";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/npm/font-kopubworld@1.0.3/fonts/KoPubWorld-Batang-Bold.woff2") format("woff2");
+}
 
 @theme {
   --color-primary: #2D5EC5;
@@ -13,7 +35,7 @@
   --color-primary-700: #162F7F;
 
   --font-pretendard: "Pretendard Variable", "Pretendard", ui-sans-serif, system-ui, sans-serif;
-  --font-kopub: "KoPubWorld Batang", "Batang", "Noto Serif KR", serif;
+  --font-kopub: "KoPubWorld Batang", "Pretendard Variable", "Pretendard", ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -36,7 +58,7 @@ button { cursor: pointer; }
 .exam-angular .rounded-xl,
 .exam-angular .rounded-2xl,
 .exam-angular .rounded-3xl { border-radius: 4px !important; }
-.question-copy { white-space: pre-wrap; line-height: 1.75; word-break: keep-all; font-family: "KoPubWorld Batang", "Batang", "Noto Serif KR", serif; }
+.question-copy { white-space: pre-wrap; line-height: 1.75; word-break: keep-all; font-family: "KoPubWorld Batang", "Pretendard Variable", "Pretendard", ui-sans-serif, system-ui, sans-serif; }
 .choice-button { transition: border-color .16s ease, background-color .16s ease; }
 .focus-ring:focus-visible { outline: 2px solid rgba(45, 94, 197, .25); outline-offset: 2px; }
 

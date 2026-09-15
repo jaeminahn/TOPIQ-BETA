@@ -221,6 +221,77 @@ corepack pnpm test
 corepack pnpm build
 ```
 
+### DB 연동 테스트: 두 가지 방법
+
+실제 PostgreSQL을 확인하는 테스트는 `DATABASE_URL`이 설정된 경우에만 실행됩니다.
+현재 DB 통합 테스트는 `topik_bank`의 읽기 모의고사 두 세트가 각각 50문항으로
+정상 구성되어 있는지 읽기 전용 쿼리로 확인합니다.
+
+#### 방법 1. Supabase 운영 DB 데이터로 테스트
+
+Supabase Dashboard의 **Connect**에서 Session pooler(포트 5432) 연결 문자열을 복사합니다.
+비밀번호에 특수문자가 있으면 URL 인코딩하고, 연결 정보는 파일에 저장하지 말고 현재
+PowerShell 세션에서만 설정합니다.
+
+```powershell
+$env:DATABASE_URL = 'postgresql://postgres.PROJECT_REF:ENCODED_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require'
+$env:DATABASE_SSL = 'require'
+
+corepack pnpm --filter @unigate/topik-api test tests/integration/question-bank.integration.test.ts
+
+Remove-Item Env:DATABASE_URL
+Remove-Item Env:DATABASE_SSL
+```
+
+이 명령은 현재의 읽기 전용 DB 통합 테스트만 실행합니다. 운영 DB 연결값을 설정한
+상태에서는 `db:migrate`, 개발 서버, 관리자 기능처럼 데이터를 변경할 수 있는 명령을
+실행하지 않습니다. 테스트가 추가되면 운영 DB에서 실행하기 전에 쿼리가 읽기 전용인지
+다시 확인합니다. 이 테스트에는 Supabase Auth·Storage 키가 필요하지 않습니다.
+
+#### 방법 2. 로컬 PostgreSQL의 `topik_bank`로 테스트·개발
+
+`topik_bank`는 별도 서버 주소로 연결하는 DB가 아니라 `DATABASE_URL`이 가리키는
+PostgreSQL 데이터베이스 안의 스키마입니다. 백엔드는 `topik_app`과 `topik_bank`를
+스키마 간 조인하므로 두 스키마가 같은 데이터베이스에 있어야 합니다.
+
+이미 `topik_bank`가 들어 있는 로컬 DB를 사용하는 경우 다음과 같이 연결과 스키마를
+확인하고 테스트합니다.
+
+```powershell
+$env:DATABASE_URL = 'postgresql://USER:PASSWORD@localhost:5432/topik'
+$env:DATABASE_SSL = 'disable'
+
+psql --dbname $env:DATABASE_URL --command "SELECT to_regclass('topik_bank.item_versions');"
+corepack pnpm db:migrate
+corepack pnpm --filter @unigate/topik-api test tests/integration/question-bank.integration.test.ts
+
+Remove-Item Env:DATABASE_URL
+Remove-Item Env:DATABASE_SSL
+```
+
+`to_regclass` 결과가 `topik_bank.item_versions`가 아니라 빈 값이면 해당 로컬 DB에
+문제은행이 없는 것입니다. 문제은행이 다른 로컬 DB에 있다면 그 DB의 `topik_bank`
+스키마를 백업한 뒤, 앱이 사용할 DB에 복원합니다. 아래 복원 예시는 대상 DB가 비어
+있거나 기존 `topik_bank` 객체와의 충돌을 미리 정리한 경우에만 사용합니다.
+
+```powershell
+New-Item -ItemType Directory -Force .tmp | Out-Null
+$env:QUESTION_BANK_DATABASE_URL = 'postgresql://USER:PASSWORD@localhost:5432/question_bank_source'
+$env:DATABASE_URL = 'postgresql://USER:PASSWORD@localhost:5432/topik'
+
+pg_dump --dbname $env:QUESTION_BANK_DATABASE_URL --schema topik_bank --format custom --no-owner --no-privileges --file .tmp/topik_bank.dump
+pg_restore --dbname $env:DATABASE_URL --no-owner --no-privileges .tmp/topik_bank.dump
+corepack pnpm db:migrate
+
+Remove-Item Env:QUESTION_BANK_DATABASE_URL
+Remove-Item Env:DATABASE_URL
+```
+
+로컬 앱을 계속 실행할 때는 같은 값을 `backend/.env.development`의 `DATABASE_URL`과
+`DATABASE_SSL=disable`에 설정한 뒤 `corepack pnpm dev`를 실행합니다. 관리자 로그인과
+미디어 기능도 확인하려면 기존 안내대로 Supabase Auth·Storage 환경변수는 별도로
+설정해야 합니다. DB 비밀번호와 덤프 파일은 커밋하지 않습니다.
+
 백엔드 프로덕션 방식:
 
 ```powershell
