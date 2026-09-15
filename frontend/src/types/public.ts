@@ -65,6 +65,7 @@ export interface Results {
   sessionId: string;
   titleKo: string;
   titleEn?: string;
+  section: "reading" | "listening" | "writing";
   score: number;
   maxScore: number;
   submittedAt: string | null;

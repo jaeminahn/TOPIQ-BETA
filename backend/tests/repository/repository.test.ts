@@ -152,4 +152,22 @@ describe("TopikRepository result email delivery", () => {
     await expect(new TopikRepository().getResultsByToken("revoked-token"))
       .rejects.toMatchObject({ statusCode: 401, code: "INVALID_RESULT_TOKEN" });
   });
+
+  it("returns the exam section with emailed results", async () => {
+    poolMock.query
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{
+        ...submittedSession,
+        title_en: "Reading 1", title_ko: "읽기 1회", section: "reading",
+        delivery_status: "accepted", delivery_expires_at: new Date(Date.now() + 60_000),
+        delivery_revoked_at: null,
+      }] })
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] });
+
+    const result = await new TopikRepository().getResultsByToken("valid-token");
+    const resultQuery = String(poolMock.query.mock.calls[0]?.[0]);
+
+    expect(resultQuery).toContain("mts.section");
+    expect(resultQuery).toContain("FROM topik_app.mock_test_sections");
+    expect(result).toMatchObject({ section: "reading", score: 82, maxScore: 100 });
+  });
 });

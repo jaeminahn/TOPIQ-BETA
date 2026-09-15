@@ -17,6 +17,7 @@ const unlockedResult: Results = {
   examId: "reading-1",
   sessionId: "completed-session",
   titleKo: "읽기 1회",
+  section: "reading",
   score: 86,
   maxScore: 100,
   submittedAt: "2026-08-11T18:00:00.000Z",

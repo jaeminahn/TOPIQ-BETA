@@ -16,7 +16,6 @@ describe("backend source layout", () => {
       "app.ts",
       "bootstrap-admin.ts",
       "migrate.ts",
-      "seed-listening-assets.ts",
       "server.ts",
     ]);
   });

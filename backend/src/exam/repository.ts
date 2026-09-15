@@ -778,15 +778,18 @@ export class TopikRepository {
     const sessionResult = await pool.query<SessionRow & {
       title_en: string;
       title_ko: string;
+      section: "reading" | "listening" | "writing";
       delivery_status: "pending" | "accepted" | "failed";
       delivery_expires_at: Date;
       delivery_revoked_at: Date | null;
     }>(
-      `SELECT s.*, m.title_en, m.title_ko, red.status AS delivery_status,
+      `SELECT s.*, m.title_en, m.title_ko, mts.section, red.status AS delivery_status,
               red.expires_at AS delivery_expires_at, red.revoked_at AS delivery_revoked_at
          FROM topik_app.result_email_deliveries red
          JOIN topik_app.sessions s ON s.session_id = red.session_id
          JOIN topik_app.mock_tests m ON m.mock_test_id = s.mock_test_id
+         JOIN LATERAL (SELECT section FROM topik_app.mock_test_sections
+                        WHERE mock_test_id=m.mock_test_id ORDER BY section_order LIMIT 1) mts ON TRUE
         WHERE red.result_token_hash = $1`,
       [tokenHash(token)],
     );
@@ -844,6 +847,7 @@ export class TopikRepository {
       sessionId,
       titleEn: session.title_en,
       titleKo: session.title_ko,
+      section: session.section,
       score: session.score ?? 0,
       maxScore: session.max_score,
       submittedAt: session.submitted_at?.toISOString() ?? null,
