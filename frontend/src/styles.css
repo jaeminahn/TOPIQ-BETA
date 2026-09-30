@@ -52,6 +52,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; font-family: "Pretendard Variable", "Pretendard", sans-serif; }
+html[lang="ko"] body { word-break: keep-all; overflow-wrap: break-word; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
 
@@ -70,16 +71,11 @@ button { cursor: pointer; }
   overflow: hidden;
   background: radial-gradient(circle at 82% 20%, rgba(45, 94, 197, .10), transparent 30rem), linear-gradient(145deg, #fff 0%, #edf2fc 100%);
 }
-.topiq-stage::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  width: 22rem;
-  height: 22rem;
-  right: -9rem;
-  bottom: -12rem;
-  border: 1px solid rgba(45, 94, 197, .14);
-  border-radius: 50%;
+.topiq-content-flow {
+  background:
+    radial-gradient(circle at 12% 20%, rgba(45, 94, 197, .055), transparent 34rem),
+    radial-gradient(circle at 88% 68%, rgba(45, 94, 197, .06), transparent 38rem),
+    linear-gradient(180deg, #f3f4f6 0%, #f7f8fb 28%, #fff 55%, #f5f7fb 78%, #fff 100%);
 }
 .topiq-eyebrow { letter-spacing: .12em; }
 .topiq-demo-card {
@@ -95,6 +91,20 @@ button { cursor: pointer; }
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
+.topiq-hover-lift,
+.topiq-content-flow .topiq-surface {
+  transition: transform .28s var(--topiq-ease), box-shadow .28s ease, border-color .2s ease;
+}
+.topiq-hover-lift:hover,
+.topiq-content-flow .topiq-surface:hover {
+  transform: translateY(-6px);
+  border-color: rgba(45, 94, 197, .24);
+  box-shadow: 0 24px 58px rgba(22, 47, 127, .12);
+}
+.topiq-list-item { transition: color .18s ease, transform .22s var(--topiq-ease); }
+.topiq-list-item:hover { color: var(--color-primary); transform: translateX(5px); }
+.topiq-faq-trigger { transition: color .18s ease, padding-left .22s var(--topiq-ease); }
+.topiq-faq-trigger:hover { color: var(--color-primary); padding-left: .5rem; }
 .topiq-control { transition: border-color .18s ease, box-shadow .18s ease, transform .18s var(--topiq-ease); }
 .topiq-control:hover:not(:disabled) { border-color: rgba(45, 94, 197, .42); }
 .topiq-action { transition: transform .18s var(--topiq-ease), box-shadow .18s ease, background-color .18s ease; }
@@ -133,6 +143,13 @@ button { cursor: pointer; }
 }
 .topiq-dialog-backdrop.is-closing { animation: topiq-backdrop-out .18s ease-in both; }
 .topiq-dialog-backdrop.is-closing .topiq-dialog-panel { animation: topiq-dialog-out .18s ease-in both; }
+.topiq-faq-answer {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows .24s var(--topiq-ease);
+}
+.topiq-faq-answer.is-open { grid-template-rows: 1fr; }
+.topiq-faq-answer > div { overflow: hidden; min-height: 0; }
 .topiq-star-button {
   transform-origin: 50% 70%;
   transition: transform .24s var(--topiq-ease);

@@ -70,7 +70,7 @@ describe("ResultsSummary", () => {
     expect(screen.getByText("Predicted TOPIK II level")).toBeInTheDocument();
     expect(screen.getByText("Level 6")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View predicted level criteria" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("85–100 points · Level 6");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("85 to 100 points · Level 6");
     expect(screen.getByRole("tooltip")).toHaveTextContent("combined Listening, Reading, and Writing score");
   });
 });
