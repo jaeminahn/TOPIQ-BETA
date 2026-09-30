@@ -91,12 +91,10 @@ button { cursor: pointer; }
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 }
-.topiq-hover-lift,
-.topiq-content-flow .topiq-surface {
+.topiq-hover-lift {
   transition: transform .28s var(--topiq-ease), box-shadow .28s ease, border-color .2s ease;
 }
-.topiq-hover-lift:hover,
-.topiq-content-flow .topiq-surface:hover {
+.topiq-hover-lift:hover {
   transform: translateY(-6px);
   border-color: rgba(45, 94, 197, .24);
   box-shadow: 0 24px 58px rgba(22, 47, 127, .12);

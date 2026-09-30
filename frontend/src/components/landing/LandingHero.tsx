@@ -12,7 +12,7 @@ export function LandingHero() {
         </div>
         <div className="mx-auto hidden w-full max-w-md lg:block" aria-hidden="true">
           <div className="topiq-demo-card rounded-[20px] border border-primary-100 bg-white/90 p-6">
-            <div className="mt-4 border-y border-gray-100 py-4">
+            <div className="mt-4 py-4">
               <p className="text-xs font-medium text-gray-400">QUESTION 25</p>
               <p className="mt-2 text-base font-semibold leading-6 text-gray-900">{t("demoInstruction")}</p>
               <div className="mt-3 space-y-2">{["①", "②", "③", "④"].map((number, index) => <div key={number} className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-medium ${index === 1 ? "border-primary bg-primary-50 text-primary" : "border-gray-300 text-gray-500"}`}><span>{number}</span><span className="h-2 rounded-full bg-current opacity-25" style={{ width: `${54 + index * 8}%` }} /></div>)}</div>

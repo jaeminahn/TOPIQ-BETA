@@ -110,8 +110,8 @@ export function LandingPage() {
         onStart={(exam) => void start(exam, mode)}
       />
       <TopikGuide />
-      </div>
       <SiteFooter />
+      </div>
       <SessionResumeDialog entry={resumeEntry} busy={starting !== null} onContinue={continueSession} onRestart={() => void restartSession()} onClose={closeResume} />
     </main>
   );

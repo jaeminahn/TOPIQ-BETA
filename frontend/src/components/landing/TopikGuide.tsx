@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Check, GraduationCap, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, Check, ExternalLink, GraduationCap, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../i18n";
 
@@ -29,6 +29,9 @@ export function TopikGuide() {
               <span className="hidden h-7 w-px bg-gray-300 sm:block" aria-hidden="true" />
               <img src="/niied-logo.png" alt="국립국제교육원" className="h-11 w-auto max-w-[180px] object-contain" />
             </div>
+            <a href="https://www.topik.go.kr/" target="_blank" rel="noreferrer" className="focus-ring mt-6 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary-100 bg-white/60 px-3 py-2 text-xs font-semibold text-primary transition-colors duration-150 hover:border-primary-200 hover:bg-white">
+              {t("topikOfficialLink")} <ExternalLink className="size-3.5" />
+            </a>
           </div>
           <div>
             <ul className="divide-y divide-gray-200 border-y border-gray-200">
