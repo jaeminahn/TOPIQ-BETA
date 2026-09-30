@@ -4,20 +4,20 @@ import { useI18n } from "../i18n";
 export function Header({ compact = false, showLanguageSwitch = true }: { compact?: boolean; showLanguageSwitch?: boolean }) {
   const { locale, setLocale, t } = useI18n();
   return (
-    <header className={`sticky top-0 z-20 border-b border-gray-200 bg-white ${compact ? "" : ""}`}>
+    <header className={`topiq-header sticky top-0 z-30 border-b ${compact ? "" : ""}`}>
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="focus-ring flex items-center gap-2.5 rounded-lg" aria-label="UNIGATE TOPIK home">
           <img
             src="/logo.png"
             alt="UNIGATE"
-            className="h-5 w-auto sm:h-6"
+            className="h-6 w-auto sm:h-7"
           />
           <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-gray-600">
             BETA
           </span>
         </Link>
         {showLanguageSwitch && (
-          <div className="flex items-center rounded-full border border-gray-200 bg-gray-50 p-1" role="group" aria-label={t("language")}>
+          <div className="flex items-center rounded-full border border-gray-200/80 bg-gray-50/80 p-1" role="group" aria-label={t("language")}>
             {(["ko", "en"] as const).map((value) => (
               <button
                 key={value}
