@@ -219,6 +219,7 @@ button { cursor: pointer; }
   transition: transform .28s var(--topiq-ease);
 }
 .topiq-language-switch[data-locale="en"] .topiq-language-indicator { transform: translateX(100%); }
+.topiq-tooltip { animation: topiq-tooltip-in .22s var(--topiq-ease) both; transform-origin: top right; }
 .topiq-section-nav {
   position: fixed;
   top: 50%;
@@ -292,6 +293,14 @@ button { cursor: pointer; }
 }
 .topiq-faq-answer.is-open { grid-template-rows: 1fr; }
 .topiq-faq-answer > div { overflow: hidden; min-height: 0; }
+.topiq-result-detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows .36s var(--topiq-ease), opacity .24s ease;
+}
+.topiq-result-detail.is-open { grid-template-rows: 1fr; opacity: 1; }
+.topiq-result-detail > div { min-height: 0; overflow: hidden; }
 .topiq-star-button {
   transform-origin: 50% 70%;
   transition: transform .24s var(--topiq-ease);
@@ -319,6 +328,10 @@ button { cursor: pointer; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes topiq-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes topiq-tooltip-in {
+  from { opacity: 0; transform: translateY(-6px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 @keyframes topiq-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
 @keyframes topiq-dialog-in {
   from { opacity: 0; transform: translateY(18px) scale(.97); }
