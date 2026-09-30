@@ -20,7 +20,7 @@ export function TopikGuide() {
 
   return (
     <div>
-      <section className="mx-auto max-w-5xl px-4 py-16 sm:px-8 sm:py-24" aria-labelledby="topik-guide-title">
+      <section id="topik-guide" className="mx-auto max-w-5xl scroll-mt-16 px-4 py-16 sm:px-8 sm:py-24" aria-labelledby="topik-guide-title">
         <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16">
           <div>
             <h2 id="topik-guide-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikGuideTitle")}</h2>
@@ -29,9 +29,6 @@ export function TopikGuide() {
               <span className="hidden h-7 w-px bg-gray-300 sm:block" aria-hidden="true" />
               <img src="/niied-logo.png" alt="국립국제교육원" className="h-11 w-auto max-w-[180px] object-contain" />
             </div>
-            <a href="https://www.topik.go.kr/" target="_blank" rel="noreferrer" className="focus-ring mt-6 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-primary-100 bg-white/60 px-3 py-2 text-xs font-semibold text-primary transition-colors duration-150 hover:border-primary-200 hover:bg-white">
-              {t("topikOfficialLink")} <ExternalLink className="size-3.5" />
-            </a>
           </div>
           <div>
             <ul className="divide-y divide-gray-200 border-y border-gray-200">
@@ -41,11 +38,16 @@ export function TopikGuide() {
                 </li>
               ))}
             </ul>
+            <div className="mt-4 flex justify-end">
+              <a href="https://www.topik.go.kr/" target="_blank" rel="noreferrer" className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors duration-150 hover:text-primary-700 hover:underline underline-offset-4">
+                {t("topikOfficialLink")} <ExternalLink className="size-3.5" />
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="py-16 sm:py-24" aria-labelledby="topik-use-title">
+      <section id="topik-uses" className="scroll-mt-16 py-16 sm:py-24" aria-labelledby="topik-use-title">
         <div className="mx-auto max-w-5xl px-4 sm:px-8">
           <div className="max-w-2xl">
             <h2 id="topik-use-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikUseTitle")}</h2>
@@ -53,17 +55,17 @@ export function TopikGuide() {
           </div>
           <div className="mt-9 grid gap-4 md:grid-cols-3">
             {uses.map(({ icon: Icon, title, body }) => (
-              <article key={title} className="topiq-surface topiq-hover-lift rounded-[20px] p-6">
-                <span className="text-primary"><Icon className="size-6" /></span>
-                <h3 className="mt-5 text-lg font-semibold text-gray-900">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600">{body}</p>
+              <article key={title} className="topiq-use-card">
+                <span className="topiq-use-card-icon" aria-hidden="true"><Icon /></span>
+                <h3 className="relative mt-12 text-lg font-semibold text-gray-900">{title}</h3>
+                <p className="relative mt-2 text-sm leading-6 text-gray-600">{body}</p>
               </article>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="border-t border-gray-200/80 py-16 sm:py-24" aria-labelledby="topik-faq-title">
+      <section id="topik-faq" className="scroll-mt-16 border-t border-gray-200/80 py-16 sm:py-24" aria-labelledby="topik-faq-title">
         <div className="mx-auto max-w-3xl px-4 sm:px-8">
           <h2 id="topik-faq-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikFaqTitle")}</h2>
           <div className="mt-8 divide-y divide-gray-200 border-y border-gray-200">

@@ -5,7 +5,6 @@ import { api } from "../api";
 import { Header } from "../components/Header";
 import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
 import { ErrorState, LoadingState } from "../components/States";
-import { localizedExamTitle } from "../examLocalization";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
 import { useExitGuard } from "../hooks/useExitGuard";
@@ -13,7 +12,7 @@ import { positionStorageKey } from "../activeSessions";
 
 export function ReviewPage() {
   const { sessionId } = useParams();
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [submitting, setSubmitting] = useState(false);
@@ -48,8 +47,7 @@ export function ReviewPage() {
         <div className="rounded-2xl border border-gray-300 bg-white p-6">
           <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold text-primary">{localizedExamTitle(session.exam.titleKo, locale, { slug: session.exam.slug, titleEn: session.exam.titleEn })}</p>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">{t("reviewTitle")}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{t("reviewTitle")}</h1>
               <p className="mt-2 text-sm leading-6 text-gray-600">{t("reviewBody")}</p>
             </div>
             <div className={`shrink-0 rounded-xl border px-4 py-3 text-center ${unanswered.length ? "border-orange-200 bg-orange-50 text-orange-700" : "border-green-200 bg-green-50 text-green-700"}`}>

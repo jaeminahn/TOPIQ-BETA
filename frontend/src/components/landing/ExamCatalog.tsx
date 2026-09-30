@@ -4,6 +4,7 @@ import { groupExamsByRound } from "../../examRounds";
 import { useI18n } from "../../i18n";
 import type { Exam, ExamMode } from "../../types";
 import { ErrorState } from "../States";
+import { InteractiveDotField } from "./InteractiveDotField";
 
 type SupportedSection = Extract<Exam["section"], "reading" | "listening">;
 
@@ -38,8 +39,9 @@ export function ExamCatalog({ exams, mode, loading, error, starting, onRetry, on
   };
 
   return (
-    <section id="tests" className="py-14 sm:py-20">
-      <div className="mx-auto max-w-5xl px-4 sm:px-8">
+    <section id="tests" className="topiq-exam-catalog scroll-mt-16 py-14 sm:py-20">
+      <InteractiveDotField />
+      <div className="relative z-[1] mx-auto max-w-5xl px-4 sm:px-8">
         <div className="max-w-2xl"><h2 className="text-3xl font-semibold tracking-[-.035em] text-gray-900 sm:text-4xl">{t("chooseTest")}</h2><p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">{t("chooseSubtitle")}</p></div>
         {error && !exams.length ? <ErrorState message={error} retry={onRetry} /> : (
           <form

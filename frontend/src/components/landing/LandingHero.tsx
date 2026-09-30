@@ -4,8 +4,8 @@ import { useI18n } from "../../i18n";
 export function LandingHero() {
   const { t } = useI18n();
   return (
-    <section className="topiq-stage">
-      <div className="topiq-page-enter mx-auto grid min-h-[520px] max-w-5xl items-center gap-10 px-4 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1.08fr_.92fr] lg:gap-16">
+    <section id="intro" className="topiq-stage scroll-mt-16">
+      <div className="topiq-stage-content topiq-page-enter mx-auto grid min-h-[520px] max-w-5xl items-center gap-10 px-4 py-14 sm:px-8 sm:py-20 lg:grid-cols-[1.08fr_.92fr] lg:gap-16">
         <div>
           <h1 className="max-w-3xl whitespace-pre-line text-[34px] font-semibold leading-[1.12] tracking-[-.045em] text-gray-900 sm:text-5xl lg:text-[56px]">{t("heroTitle")}</h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-gray-600 sm:text-lg">{t("heroBody")}</p>

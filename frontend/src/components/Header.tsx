@@ -23,7 +23,7 @@ export function Header({ compact = false, showLanguageSwitch = true }: { compact
                 type="button"
                 onClick={() => setLocale(value)}
                 aria-pressed={locale === value}
-                className={`focus-ring relative z-10 min-h-7 min-w-[68px] rounded-full px-3.5 text-xs font-semibold transition-colors duration-200 ${locale === value ? "text-primary" : "text-gray-500 hover:text-gray-800"}`}
+                className={`focus-ring relative z-10 min-h-6 min-w-[56px] rounded-full px-2.5 text-[10px] font-semibold transition-colors duration-200 ${locale === value ? "text-primary" : "text-gray-500 hover:text-gray-800"}`}
               >
                 {value === "ko" ? t("korean") : t("english")}
               </button>

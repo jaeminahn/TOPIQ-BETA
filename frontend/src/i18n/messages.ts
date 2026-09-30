@@ -2,6 +2,7 @@ type SupportedLocale = "ko" | "en";
 
 const koMessages = {
   language: "언어", korean: "한국어", english: "English",
+  pageSections: "페이지 섹션", navIntro: "소개", navMockTests: "모의고사", navAboutTopik: "TOPIK 안내", navUses: "성적 활용", navFaq: "자주 묻는 질문",
   heroTitle: "TOPIK II 실력을\n확인해보세요.",
   heroBody: "TOPIK II 읽기와 듣기 50문항을 실전 또는 연습 모드로 풀고, 정확한 응답 분석과 오답 해설을 확인할 수 있습니다.",
   demoInstruction: "다음 신문 기사의 제목을 가장 잘 설명한 것을 고르십시오.",
@@ -98,6 +99,7 @@ export type MessageKey = keyof typeof koMessages;
 
 const enMessages: Record<MessageKey, string> = {
   language: "Language", korean: "한국어", english: "English",
+  pageSections: "Page sections", navIntro: "Overview", navMockTests: "Mock tests", navAboutTopik: "About TOPIK", navUses: "Score uses", navFaq: "FAQ",
   heroTitle: "Find out where you stand in TOPIK II.",
   heroBody: "Take 50-question TOPIK II reading and listening tests in timed or practice mode, then review detailed response analysis and explanations.",
   demoInstruction: "다음 신문 기사의 제목을 가장 잘 설명한 것을 고르십시오.",
