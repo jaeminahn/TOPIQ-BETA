@@ -107,6 +107,41 @@ button { cursor: pointer; }
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
+.topiq-language-switch { isolation: isolate; }
+.topiq-language-indicator {
+  position: absolute;
+  inset-block: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border: 1px solid rgba(209, 213, 219, .9);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 7px rgba(17, 24, 39, .09);
+  transform: translateX(0);
+  transition: transform .28s var(--topiq-ease);
+}
+.topiq-language-switch[data-locale="en"] .topiq-language-indicator { transform: translateX(100%); }
+.topiq-dialog-backdrop {
+  background: rgba(17, 24, 39, .28);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: topiq-backdrop-in .2s ease-out both;
+}
+.topiq-dialog-panel {
+  box-shadow: 0 30px 90px rgba(17, 24, 39, .28), 0 8px 28px rgba(22, 47, 127, .12);
+  animation: topiq-dialog-in .28s var(--topiq-ease) both;
+}
+.topiq-dialog-backdrop.is-closing { animation: topiq-backdrop-out .18s ease-in both; }
+.topiq-dialog-backdrop.is-closing .topiq-dialog-panel { animation: topiq-dialog-out .18s ease-in both; }
+.topiq-star-button {
+  transform-origin: 50% 70%;
+  transition: transform .24s var(--topiq-ease);
+}
+.topiq-star-button svg { transition: color .16s ease, fill .16s ease, filter .2s ease; }
+.topiq-star-button.is-hovered {
+  transform: translateY(-6px) rotate(calc((var(--star-index) - 3) * 2deg)) scale(1.12);
+}
+.topiq-star-button.is-hovered svg { filter: drop-shadow(0 5px 7px rgba(249, 115, 22, .25)); }
 
 @keyframes topiq-page-in {
   from { opacity: 0; transform: translateY(10px); }
@@ -115,6 +150,16 @@ button { cursor: pointer; }
 @keyframes topiq-question-in {
   from { opacity: 0; transform: translateY(8px) scale(.992); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes topiq-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes topiq-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes topiq-dialog-in {
+  from { opacity: 0; transform: translateY(18px) scale(.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes topiq-dialog-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(10px) scale(.98); }
 }
 
 .exam-shell { min-height: 100vh; background: #F3F4F6; }

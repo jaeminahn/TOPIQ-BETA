@@ -20,7 +20,7 @@ export function IncorrectReview({ results }: { results: Results }) {
 
   return (
     <section className="mt-6">
-      <div className="flex items-end justify-between gap-4"><div><p className="text-xs font-semibold text-primary">REVIEW</p><h2 className="mt-1 text-xl font-semibold text-gray-900">{t("incorrect")} · {results.incorrectCount}</h2></div><Link to="/" className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100"><ArrowLeft className="size-4" /> {t("home")}</Link></div>
+      <div className="flex items-end justify-between gap-4"><div><h2 className="text-xl font-semibold text-gray-900">{t("incorrect")} · {results.incorrectCount}</h2></div><Link to="/" className="focus-ring flex min-h-11 items-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100"><ArrowLeft className="size-4" /> {t("home")}</Link></div>
       {results.incorrect.length === 0 ? <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 p-7 text-center font-medium text-green-700">{t("perfect")}</div> : (
         <>
           <div className="mt-5 rounded-2xl border border-gray-300 bg-white p-6">

@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
@@ -67,12 +67,6 @@ export function ReviewPage() {
             ))}
           </div>
 
-          {unanswered.length > 0 && (
-            <div className="mt-5 flex gap-3 rounded-xl bg-orange-50 p-4 text-sm font-medium leading-5 text-orange-700">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0" />
-              <span>{unanswered.map((question) => question.itemOrder).join(", ")} · {t("unanswered")}</span>
-            </div>
-          )}
           <p className="mt-5 text-sm font-medium text-gray-500">{t("submitConfirm")}</p>
           {submitError && <p className="mt-3 text-sm font-semibold text-red-600">{submitError}</p>}
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

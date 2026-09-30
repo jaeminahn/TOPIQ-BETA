@@ -1,5 +1,5 @@
 import { ArrowRight, Mail, MailCheck, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { ApiError, api } from "../api";
 import { clearActiveSession } from "../activeSessions";
@@ -15,6 +15,7 @@ export function FeedbackPage() {
   const { locale, t } = useI18n();
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [rating, setRating] = useState(0);
+  const [hoveredRating, setHoveredRating] = useState(0);
   const [email, setEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -95,10 +96,10 @@ export function FeedbackPage() {
             <h1 className="text-2xl font-semibold text-gray-900">{t("feedbackTitle")}</h1>
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-600">{t("feedbackBody")}</p>
           </div>
-          <div className="mt-5 flex justify-center gap-2" role="radiogroup" aria-label="Rating" aria-required="true">
+          <div className="mt-5 flex justify-center gap-2" role="radiogroup" aria-label="Rating" aria-required="true" onMouseLeave={() => setHoveredRating(0)}>
             {[1, 2, 3, 4, 5].map((value) => (
-              <button type="button" key={value} onClick={() => setRating(value)} className="focus-ring rounded-lg p-1.5" aria-label={`${value} stars`} aria-pressed={rating === value}>
-                <Star className={`size-8 sm:size-9 ${value <= rating ? "fill-orange-500 text-orange-500" : "text-gray-300"}`} />
+              <button type="button" key={value} onClick={() => setRating(value)} onMouseEnter={() => setHoveredRating(value)} onFocus={() => setHoveredRating(value)} onBlur={() => setHoveredRating(0)} className={`focus-ring topiq-star-button rounded-lg p-1.5 ${hoveredRating > 0 && value <= hoveredRating ? "is-hovered" : ""}`} style={{ "--star-index": value } as CSSProperties} aria-label={`${value} stars`} aria-pressed={rating === value}>
+                <Star className={`size-8 sm:size-9 ${value <= (hoveredRating || rating) ? "fill-orange-500 text-orange-500" : "text-gray-300"}`} />
               </button>
             ))}
           </div>

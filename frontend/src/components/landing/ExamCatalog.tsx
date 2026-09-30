@@ -40,7 +40,7 @@ export function ExamCatalog({ exams, mode, loading, error, starting, onRetry, on
   return (
     <section id="tests" className="bg-gray-100 py-14 sm:py-20">
       <div className="mx-auto max-w-5xl px-4 sm:px-8">
-        <div className="max-w-2xl"><p className="topiq-eyebrow mb-3 text-xs font-bold text-primary">MOCK TEST</p><h2 className="text-3xl font-semibold tracking-[-.035em] text-gray-900 sm:text-4xl">{t("chooseTest")}</h2><p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">{t("chooseSubtitle")}</p></div>
+        <div className="max-w-2xl"><h2 className="text-3xl font-semibold tracking-[-.035em] text-gray-900 sm:text-4xl">{t("chooseTest")}</h2><p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">{t("chooseSubtitle")}</p></div>
         {error && !exams.length ? <ErrorState message={error} retry={onRetry} /> : (
           <form
             className="topiq-surface mt-8 flex flex-col gap-4 rounded-[20px] p-5 sm:flex-row sm:flex-wrap sm:p-6 lg:flex-nowrap lg:items-end"

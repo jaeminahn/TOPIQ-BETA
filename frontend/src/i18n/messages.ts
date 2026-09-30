@@ -32,7 +32,7 @@ const koMessages = {
   feedbackTitle: "이번 모의고사는 어떠셨나요?",
   feedbackBody: "별점과 이메일을 입력하면 점수와 오답 해설을 확인할 수 있는 링크를 보내 드립니다.",
   emailLabel: "결과를 받을 이메일 (필수)", emailPlaceholder: "name@email.com",
-  emailPrivacyNotice: "입력한 이메일은 이번 시험 결과 전달에만 사용되며 마케팅 구독에는 추가되지 않습니다.",
+  emailPrivacyNotice: "입력한 이메일은 시험 결과 전달에만 사용되며 마케팅에 활용되지 않습니다.",
   sendResultEmail: "결과 링크 받기", sendingResultEmail: "결과 메일을 보내고 있습니다...",
   emailRequired: "결과를 받을 이메일을 입력해 주세요.", emailSendFailed: "결과 메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
   emailRateLimited: "결과 메일을 너무 자주 요청했습니다. 한 시간 후 다시 시도해 주세요.",
