@@ -14,8 +14,8 @@ type I18nContextValue = {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 function storedLocale(): Locale {
-  if (typeof window === "undefined") return "ko";
-  return window.localStorage.getItem(LOCALE_STORAGE_KEY) === "en" ? "en" : "ko";
+  if (typeof window === "undefined") return "en";
+  return window.localStorage.getItem(LOCALE_STORAGE_KEY) === "ko" ? "ko" : "en";
 }
 
 export function I18nProvider({ children, locale: fixedLocale }: { children: ReactNode; locale?: Locale }) {

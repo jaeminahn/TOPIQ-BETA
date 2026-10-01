@@ -19,9 +19,9 @@ const exams: Exam[] = [
   { id: "listening-2", slug: "topik-listening-2", titleKo: "듣기 2회", descriptionKo: "듣기 연습", durationSeconds: 3600, questionCount: 50, maxScore: 100, section: "listening" },
 ];
 
-function renderLanding() {
+function renderLanding(locale?: "ko" | "en") {
   return render(
-    <I18nProvider>
+    <I18nProvider locale={locale}>
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -55,7 +55,7 @@ describe("LandingPage", () => {
     });
     vi.mocked(api.abandon).mockResolvedValue({ status: "abandoned" });
 
-    renderLanding();
+    renderLanding("ko");
     await userEvent.click(await screen.findByRole("button", { name: /모의고사 시작/ }));
     expect(await screen.findByRole("dialog", { name: "진행 중인 시험이 있습니다" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /다시하기/ }));
@@ -65,7 +65,7 @@ describe("LandingPage", () => {
   });
 
   it("shows one selector row, defaults to the earliest reading test, and starts the chosen test and mode", async () => {
-    renderLanding();
+    renderLanding("ko");
 
     const roundSelect = await screen.findByRole("combobox", { name: "회차" });
     const sectionSelect = screen.getByRole("combobox", { name: "영역" });
@@ -89,7 +89,7 @@ describe("LandingPage", () => {
 
   it("falls back to the available section when a round does not contain the current section", async () => {
     vi.mocked(api.exams).mockResolvedValue([exams[2], exams[3]]);
-    renderLanding();
+    renderLanding("ko");
 
     const roundSelect = await screen.findByRole("combobox", { name: "회차" });
     const sectionSelect = screen.getByRole("combobox", { name: "영역" });
@@ -103,18 +103,18 @@ describe("LandingPage", () => {
     await waitFor(() => expect(api.createSession).toHaveBeenCalledWith("listening-2", "timed"));
   });
 
-  it("switches the public site and selector labels to English and persists the selection", async () => {
+  it("shows the public site and selector labels in English by default", async () => {
     renderLanding();
 
-    await screen.findByRole("combobox", { name: "회차" });
-    await userEvent.click(screen.getByRole("button", { name: "English" }));
+    await screen.findByRole("combobox", { name: "Set" });
 
     expect(screen.getByRole("heading", { name: "Find out where you stand in TOPIK II." })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Set" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Section" })).toHaveValue("reading");
     expect(screen.getByRole("combobox", { name: "Mode" })).toHaveValue("timed");
     expect(screen.getByRole("option", { name: "Reading" })).toBeInTheDocument();
-    expect(localStorage.getItem("unigate.topik.locale")).toBe("en");
+    expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+    expect(localStorage.getItem("unigate.topik.locale")).toBeNull();
     expect(document.documentElement.lang).toBe("en");
   });
 });

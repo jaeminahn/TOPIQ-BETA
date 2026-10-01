@@ -1,6 +1,7 @@
 import { BriefcaseBusiness, Check, ExternalLink, GraduationCap, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useI18n } from "../../i18n";
+import { Reveal } from "../Reveal";
 
 export function TopikGuide() {
   const { t } = useI18n();
@@ -22,15 +23,15 @@ export function TopikGuide() {
     <div>
       <section id="topik-guide" className="mx-auto max-w-5xl scroll-mt-16 px-4 py-16 sm:px-8 sm:py-24" aria-labelledby="topik-guide-title">
         <div className="grid gap-10 lg:grid-cols-[.8fr_1.2fr] lg:gap-16">
-          <div>
+          <Reveal>
             <h2 id="topik-guide-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikGuideTitle")}</h2>
             <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-5" aria-label="TOPIK 주관 기관">
               <img src="/moe-logo.svg" alt="대한민국 교육부" className="h-9 w-auto max-w-[150px] object-contain" />
               <span className="hidden h-7 w-px bg-gray-300 sm:block" aria-hidden="true" />
               <img src="/niied-logo.png" alt="국립국제교육원" className="h-11 w-auto max-w-[180px] object-contain" />
             </div>
-          </div>
-          <div>
+          </Reveal>
+          <Reveal delay={100}>
             <ul className="divide-y divide-gray-200 border-y border-gray-200">
               {[t("topikFactAudience"), t("topikFactLevels"), t("topikFactValidity"), t("topikFactOrganizer")].map((fact) => (
                 <li key={fact} className="topiq-list-item flex gap-3 py-4 text-sm font-medium leading-6 text-gray-700">
@@ -43,17 +44,17 @@ export function TopikGuide() {
                 {t("topikOfficialLink")} <ExternalLink className="size-3.5" />
               </a>
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section id="topik-uses" className="scroll-mt-16 py-16 sm:py-24" aria-labelledby="topik-use-title">
         <div className="mx-auto max-w-5xl px-4 sm:px-8">
-          <div className="max-w-2xl">
+          <Reveal className="max-w-2xl">
             <h2 id="topik-use-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikUseTitle")}</h2>
             <p className="mt-4 leading-7 text-gray-600">{t("topikUseBody")}</p>
-          </div>
-          <div className="mt-9 grid gap-4 md:grid-cols-3">
+          </Reveal>
+          <Reveal className="mt-9 grid gap-4 md:grid-cols-3 topiq-reveal-stagger" delay={100} distance={18}>
             {uses.map(({ icon: Icon, title, body }) => (
               <article key={title} className="topiq-use-card">
                 <span className="topiq-use-card-icon" aria-hidden="true"><Icon /></span>
@@ -61,14 +62,14 @@ export function TopikGuide() {
                 <p className="relative mt-2 text-sm leading-6 text-gray-600">{body}</p>
               </article>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
       <section id="topik-faq" className="scroll-mt-16 border-t border-gray-200/80 py-16 sm:py-24" aria-labelledby="topik-faq-title">
         <div className="mx-auto max-w-3xl px-4 sm:px-8">
-          <h2 id="topik-faq-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikFaqTitle")}</h2>
-          <div className="mt-8 divide-y divide-gray-200 border-y border-gray-200">
+          <Reveal><h2 id="topik-faq-title" className="text-3xl font-semibold tracking-[-.04em] text-gray-900 sm:text-4xl">{t("topikFaqTitle")}</h2></Reveal>
+          <Reveal className="mt-8 divide-y divide-gray-200 border-y border-gray-200" delay={100} distance={18}>
             {faqs.map(([question, answer], index) => {
               const open = openFaq === index;
               return (
@@ -89,7 +90,7 @@ export function TopikGuide() {
                 </div>
               );
             })}
-          </div>
+          </Reveal>
         </div>
       </section>
     </div>
