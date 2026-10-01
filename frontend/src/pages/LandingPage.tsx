@@ -5,7 +5,9 @@ import { clearActiveSession, getActiveSession, positionStorageKey, saveActiveSes
 import { Header } from "../components/Header";
 import { ExamCatalog } from "../components/landing/ExamCatalog";
 import { LandingHero } from "../components/landing/LandingHero";
+import { LandingSectionNav } from "../components/landing/LandingSectionNav";
 import { SiteFooter } from "../components/landing/SiteFooter";
+import { TopikGuide } from "../components/landing/TopikGuide";
 import type { Exam, ExamMode } from "../types";
 import { SessionResumeDialog } from "../components/SessionResumeDialog";
 
@@ -96,7 +98,9 @@ export function LandingPage() {
   return (
     <main className="min-h-screen bg-white">
       <Header />
+      <LandingSectionNav />
       <LandingHero />
+      <div className="topiq-content-flow">
       <ExamCatalog
         exams={exams}
         mode={mode}
@@ -107,7 +111,9 @@ export function LandingPage() {
         onModeChange={setMode}
         onStart={(exam) => void start(exam, mode)}
       />
+      <TopikGuide />
       <SiteFooter />
+      </div>
       <SessionResumeDialog entry={resumeEntry} busy={starting !== null} onContinue={continueSession} onRestart={() => void restartSession()} onClose={closeResume} />
     </main>
   );

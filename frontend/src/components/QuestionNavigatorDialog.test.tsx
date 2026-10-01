@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -54,7 +54,7 @@ describe("QuestionNavigatorDialog", () => {
     expect(screen.getByRole("button", { name: /문제 22, 현재 문제/ })).toHaveAttribute("aria-current", "step");
 
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
     expect(document.body).not.toHaveStyle({ overflow: "hidden" });
   });
@@ -66,10 +66,10 @@ describe("QuestionNavigatorDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: /문제 22, 현재 문제/ }));
     expect(onSelect).toHaveBeenCalledWith(22);
     expect(normalizeQuestionOrder(questions, 22)).toBe(21);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await userEvent.click(screen.getByRole("button", { name: "전체 문제 열기" }));
     await userEvent.click(screen.getByTestId("question-dialog-backdrop"));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

@@ -74,6 +74,7 @@ PORT=4000
 DATABASE_URL=postgresql://user:password@localhost:5432/topik
 DATABASE_SSL=disable
 APP_ORIGINS=http://localhost:5173,https://topiq.unigate.kr
+APP_ORIGINS_EXTRA=
 TRUST_PROXY=false
 
 SUPABASE_URL=https://YOUR_PROJECT.supabase.co
@@ -328,7 +329,13 @@ GOOGLE_CLOUD_CREDENTIALS_JSON={...}
 BREVO_API_KEY=xkeysib-...
 ```
 
-일반 환경변수는 `render.yaml`에 정의되어 있습니다. 최초 배포 후 Render Shell에서 한 번 실행합니다.
+일반 환경변수는 `render.yaml`에 정의되어 있습니다. 프론트엔드 도메인을 추가할 때는
+Render의 `APP_ORIGINS_EXTRA`에 `https://new-frontend.example.com`처럼 프로토콜을 포함한
+주소를 설정하고 API를 재배포합니다. 여러 주소는 쉼표로 구분하며, 경로와 마지막 `/`는
+넣지 않습니다. 기존 `APP_ORIGINS`와 추가 주소가 모두 CORS 허용 목록에 포함되고,
+`APP_ORIGINS_EXTRA`가 비어 있으면 기존 설정만 사용합니다.
+
+최초 배포 후 Render Shell에서 한 번 실행합니다.
 
 ```bash
 ADMIN_EMAIL=admin@unigate.kr ADMIN_PASSWORD='strong-temporary-password' node dist/bootstrap-admin.js

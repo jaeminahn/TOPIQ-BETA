@@ -22,6 +22,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   DATABASE_SSL: z.enum(["disable", "require"]).default("disable"),
   APP_ORIGINS: z.string().default("http://localhost:5173"),
+  APP_ORIGINS_EXTRA: z.string().default(""),
   TRUST_PROXY: z.enum(["true", "false"]).default("false"),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
@@ -78,7 +79,12 @@ export const config = {
   port: parsed.PORT,
   databaseUrl: parsed.DATABASE_URL,
   databaseSsl: parsed.DATABASE_SSL === "require",
-  appOrigins: parsed.APP_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean),
+  appOrigins: [...new Set(
+    [parsed.APP_ORIGINS, parsed.APP_ORIGINS_EXTRA]
+      .flatMap((origins) => origins.split(","))
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  )],
   trustProxy: parsed.TRUST_PROXY === "true",
   supabase: {
     url: parsed.SUPABASE_URL,

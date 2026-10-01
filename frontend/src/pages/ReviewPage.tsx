@@ -1,11 +1,10 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, Send } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { Header } from "../components/Header";
 import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
 import { ErrorState, LoadingState } from "../components/States";
-import { localizedExamTitle } from "../examLocalization";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
 import { useExitGuard } from "../hooks/useExitGuard";
@@ -13,7 +12,7 @@ import { positionStorageKey } from "../activeSessions";
 
 export function ReviewPage() {
   const { sessionId } = useParams();
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [submitting, setSubmitting] = useState(false);
@@ -48,8 +47,7 @@ export function ReviewPage() {
         <div className="rounded-2xl border border-gray-300 bg-white p-6">
           <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-semibold text-primary">{localizedExamTitle(session.exam.titleKo, locale, { slug: session.exam.slug, titleEn: session.exam.titleEn })}</p>
-              <h1 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">{t("reviewTitle")}</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{t("reviewTitle")}</h1>
               <p className="mt-2 text-sm leading-6 text-gray-600">{t("reviewBody")}</p>
             </div>
             <div className={`shrink-0 rounded-xl border px-4 py-3 text-center ${unanswered.length ? "border-orange-200 bg-orange-50 text-orange-700" : "border-green-200 bg-green-50 text-green-700"}`}>
@@ -67,12 +65,6 @@ export function ReviewPage() {
             ))}
           </div>
 
-          {unanswered.length > 0 && (
-            <div className="mt-5 flex gap-3 rounded-xl bg-orange-50 p-4 text-sm font-medium leading-5 text-orange-700">
-              <AlertTriangle className="mt-0.5 size-5 shrink-0" />
-              <span>{unanswered.map((question) => question.itemOrder).join(", ")} · {t("unanswered")}</span>
-            </div>
-          )}
           <p className="mt-5 text-sm font-medium text-gray-500">{t("submitConfirm")}</p>
           {submitError && <p className="mt-3 text-sm font-semibold text-red-600">{submitError}</p>}
           <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
