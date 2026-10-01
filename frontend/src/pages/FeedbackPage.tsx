@@ -1,5 +1,5 @@
 import { ArrowRight, Mail, MailCheck, Star } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { ApiError, api } from "../api";
 import { clearActiveSession } from "../activeSessions";
@@ -7,6 +7,7 @@ import { Header } from "../components/Header";
 import { ErrorState, LoadingState } from "../components/States";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
+import { createPreregistrationConsent, type PreregistrationConsent } from "../preregistration";
 
 type DeliveryReceipt = { maskedEmail: string; expiresAt: string };
 
@@ -21,6 +22,8 @@ export function FeedbackPage() {
   const [saving, setSaving] = useState(false);
   const [delivery, setDelivery] = useState<DeliveryReceipt | null>(null);
   const [editing, setEditing] = useState(false);
+  const submitting = useRef(false);
+  const preregistrationRequest = useRef<{ key: string; consent: PreregistrationConsent } | null>(null);
 
   useEffect(() => {
     if (session?.status === "submitted") clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
@@ -38,12 +41,21 @@ export function FeedbackPage() {
   const acceptedDelivery = editing ? null : delivery ?? existingDelivery;
 
   const save = async () => {
+    if (submitting.current) return;
     if (!rating) return setFormError(t("ratingRequired"));
     if (!email.trim()) return setFormError(t("emailRequired"));
+    submitting.current = true;
     setSaving(true);
     setFormError(null);
     try {
-      const result = await api.resultEmail(sessionId, token, { rating, locale, email: email.trim() });
+      const key = JSON.stringify([sessionId, email.trim(), locale]);
+      if (preregistrationRequest.current?.key !== key) {
+        preregistrationRequest.current = { key, consent: createPreregistrationConsent() };
+      }
+      const result = await api.resultEmail(sessionId, token, {
+        rating, locale, email: email.trim(), preregistration: preregistrationRequest.current.consent,
+      });
+      preregistrationRequest.current = null;
       setDelivery({ maskedEmail: result.maskedEmail, expiresAt: result.expiresAt });
       setEditing(false);
     } catch (cause) {
@@ -61,6 +73,7 @@ export function FeedbackPage() {
         setFormError(cause instanceof Error ? cause.message : t("emailSendFailed"));
       }
     } finally {
+      submitting.current = false;
       setSaving(false);
     }
   };
@@ -107,9 +120,9 @@ export function FeedbackPage() {
             <label htmlFor="result-email" className="block text-sm font-semibold text-gray-700">{t("emailLabel")}</label>
             <label className="relative mt-2 block">
               <Mail className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" />
-              <input id="result-email" required autoComplete="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t("emailPlaceholder")} className="focus-ring min-h-11 w-full rounded-xl border-2 border-gray-400 bg-transparent py-2.5 pl-12 pr-4 text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-600" />
+              <input id="result-email" required autoComplete="email" type="email" maxLength={320} disabled={saving} value={email} onChange={(event) => setEmail(event.target.value)} placeholder={t("emailPlaceholder")} aria-describedby="result-email-notice" className="focus-ring min-h-11 w-full rounded-xl border-2 border-gray-400 bg-transparent py-2.5 pl-12 pr-4 text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-600" />
             </label>
-            <p className="mt-2 text-xs font-medium leading-5 text-gray-500">{t("emailPrivacyNotice")}</p>
+            <p id="result-email-notice" className="mt-2 text-xs font-medium leading-5 text-gray-500">{t("emailPrivacyNotice")}</p>
           </div>
           {formError && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</p>}
           <button type="submit" disabled={saving} className="focus-ring mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">{saving ? t("sendingResultEmail") : t("sendResultEmail")} <ArrowRight className="size-4" /></button>

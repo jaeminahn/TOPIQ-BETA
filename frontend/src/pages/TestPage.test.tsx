@@ -79,6 +79,7 @@ const timedListeningSession: TestSession = {
 describe("TestPage", () => {
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem("unigate.topik.locale", "ko");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-15T00:00:00.000Z"));
     window.scrollTo = vi.fn();

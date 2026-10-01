@@ -27,7 +27,7 @@ function Harness({ onSelect = vi.fn() }: { onSelect?: (order: number) => void })
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   return (
-    <I18nProvider>
+    <I18nProvider locale="ko">
       <button ref={triggerRef} onClick={() => setOpen(true)}>전체 문제 열기</button>
       <QuestionNavigatorDialog
         open={open}

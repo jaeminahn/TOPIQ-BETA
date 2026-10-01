@@ -1,4 +1,4 @@
-import { BookOpen, Download, Headphones, Home, LayoutDashboard, LogOut, MessageSquareText, RefreshCw } from "lucide-react";
+import { BookOpen, Download, Headphones, Home, LayoutDashboard, LogOut, Mail, MessageSquareText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../api";
@@ -10,10 +10,11 @@ import { ReadingAdminPanel } from "../components/admin/reading/ReadingAdminPanel
 import { AdminResponsesPanel } from "../components/admin/responses/AdminResponsesPanel";
 import { ResponseDeleteDialog } from "../components/admin/responses/ResponseDeleteDialog";
 import { useAdminResponses } from "../components/admin/responses/useAdminResponses";
+import { AdminPreregistrationsPanel } from "../components/admin/preregistrations/AdminPreregistrationsPanel";
 import { supabase } from "../supabase";
 import type { AdminListeningSet, AdminReadingSet, AdminSummary, TtsJob } from "../types";
 
-type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports";
+type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports" | "preregistrations";
 
 const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "요약", icon: LayoutDashboard },
@@ -21,6 +22,7 @@ const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }>
   { id: "reading", label: "읽기 문항", icon: BookOpen },
   { id: "responses", label: "사용자 응답", icon: MessageSquareText },
   { id: "exports", label: "데이터 추출", icon: Download },
+  { id: "preregistrations", label: "사전등록", icon: Mail },
 ];
 
 export function AdminPage() {
@@ -128,6 +130,7 @@ export function AdminPage() {
         {tab === "reading" && <ReadingAdminPanel token={token} sets={readingSets} busy={busy} onError={setError} onSetsChanged={loadReadingSets} onTogglePublish={(set) => action(`toggle-reading-${set.setId}`, () => adminApi.publish(token, set.mockTestId!, !set.mockTestPublished))} onPublish={(set) => action(`publish-reading-${set.setId}`, () => adminApi.publishReadingSet(token, set.setId))} />}
         {tab === "responses" && <AdminResponsesPanel token={token} sessions={responses.sessions} total={responses.total} details={responses.details} selectedSessions={responses.selectedSessions} setSelectedSessions={responses.setSelectedSessions} expandedSession={responses.expandedSession} onToggleDetails={(sessionId) => void responses.toggleDetails(sessionId)} status={responses.status} onStatusChange={responses.setStatus} section={responses.section} onSectionChange={responses.setSection} correctness={responses.correctness} onCorrectnessChange={responses.setCorrectness} page={responses.page} onPageChange={responses.setPage} onDeleteRequest={responses.setDeleteDialog} />}
         {tab === "exports" && <AdminDataExportPanel token={token} />}
+        {tab === "preregistrations" && <AdminPreregistrationsPanel token={token} />}
       </main>
       {responses.deleteDialog && <ResponseDeleteDialog dialog={responses.deleteDialog} selectedCount={responses.selectedSessions.size} confirmation={responses.deleteConfirmation} busy={responses.deleting} onConfirmationChange={responses.setDeleteConfirmation} onCancel={responses.closeDeleteDialog} onConfirm={() => void responses.confirmDeletion()} />}
     </div>

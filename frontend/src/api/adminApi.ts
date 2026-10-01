@@ -6,6 +6,8 @@ import type {
   AdminResponseObservation,
   AdminResponseSession,
   AdminSummary,
+  AdminPreregistrationFilters,
+  AdminPreregistrationList,
   AdminExportDataset,
   AdminExportFilters,
   AdminExportOptions,
@@ -26,6 +28,21 @@ function queryString(filters: object) {
 }
 
 export const adminApi = {
+  preregistrations(token: string, filters: AdminPreregistrationFilters, page = 1) {
+    return request<AdminPreregistrationList>(
+      `/v1/admin/preregistrations${queryString({ ...filters, page, pageSize: 50 })}`, { headers: auth(token) },
+    );
+  },
+
+  downloadPreregistrations(token: string, filters: AdminPreregistrationFilters) {
+    return requestBlob(`/v1/admin/preregistrations.csv${queryString(filters)}`, { headers: auth(token) });
+  },
+
+  deletePreregistration(token: string, registrationId: string) {
+    return request<void>(`/v1/admin/preregistrations/${encodeURIComponent(registrationId)}`, {
+      method: "DELETE", headers: auth(token),
+    });
+  },
   login(email: string, password: string) {
     return request<{ accessToken: string; expiresAt: number; admin: { id: string; email: string } }>("/v1/admin/auth/login", {
       method: "POST",

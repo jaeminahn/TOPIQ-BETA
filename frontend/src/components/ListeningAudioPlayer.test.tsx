@@ -15,7 +15,9 @@ vi.mock("../api", () => ({
 }));
 
 const playbackMock = vi.mocked(api.audioPlayback);
-const renderWithI18n = (ui: ReactElement) => render(ui, { wrapper: I18nProvider });
+const renderWithI18n = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <I18nProvider locale="ko">{children}</I18nProvider>,
+});
 
 describe("ListeningAudioPlayer", () => {
   beforeEach(() => {

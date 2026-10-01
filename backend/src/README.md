@@ -4,6 +4,7 @@ The backend is grouped by responsibility so that new code has one predictable ho
 
 - `core/`: configuration, database connection, and shared errors. It must not import feature modules.
 - `exam/`: public exam/session domain logic and persistence.
+- `preregistration/`: consent validation and durable landing/result preregistration writes.
 - `email/`: Brevo transport, billing-cycle policy, usage accounting, and quota warnings.
 - `listening/`: TTS provider integration, narration construction, audio composition, and its worker.
 - `media/`: Supabase storage, image generation helpers, and durable asset cleanup.
@@ -17,9 +18,10 @@ Allowed dependency direction:
 email     -> core
 media     -> core
 listening -> core, media
-exam      -> core, email, media
+preregistration -> core
+exam      -> core, email, media, preregistration
 admin     -> core, email, listening, media
-routes    -> admin, exam, email, listening, media
+routes    -> admin, exam, email, listening, media, preregistration
 app/server -> routes and feature entry points
 ```
 

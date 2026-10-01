@@ -5,6 +5,7 @@ import type { ResultEmailSender } from "../email/brevo-result-email.js";
 import { brevoQuotaWarningWorker } from "../email/quota-warning-worker.js";
 import type { TopikRepository } from "../exam/repository.js";
 import { requireResultToken, requireSessionToken } from "./route-auth.js";
+import { preregistrationConsentSchema } from "../preregistration/validation.js";
 
 const sessionParams = z.object({ sessionId: z.string().uuid() });
 const itemParams = sessionParams.extend({ itemOrder: z.coerce.number().int().min(1).max(100) });
@@ -97,12 +98,20 @@ export function registerPublicRoutes(
         rating: z.number().int().min(1).max(5),
         locale: z.enum(["ko", "en"]),
         email: z.string().trim().email().max(320),
+        preregistration: preregistrationConsentSchema.optional(),
       })
       .parse(request.body);
+    const token = requireSessionToken(request.headers.authorization);
+    if (body.preregistration) {
+      await repository.registerResultPreregistration({
+        sessionId, token, email: body.email, locale: body.locale, ...body.preregistration,
+      });
+    }
+    const { preregistration: _preregistration, ...emailInput } = body;
     const prepared = await repository.prepareResultEmail({
       sessionId,
-      token: requireSessionToken(request.headers.authorization),
-      ...body,
+      token,
+      ...emailInput,
     });
     let messageId: string;
     try {

@@ -1,5 +1,32 @@
 import type { ExamMode, Question, TranscriptTurn } from "./public";
 
+export interface AdminPreregistration {
+  registrationId: string;
+  email: string;
+  source: "landing" | "topik_result";
+  sourceCode: "001" | "002";
+  consentedAt: string;
+  locale: "ko" | "en";
+  privacyConsent: boolean;
+  marketingConsent: boolean;
+  consentVersion: string;
+}
+
+export interface AdminPreregistrationFilters {
+  source?: "landing" | "topik_result";
+  deduplicate: boolean;
+  from?: string;
+  to?: string;
+  search: string;
+}
+
+export interface AdminPreregistrationList {
+  registrations: AdminPreregistration[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface AdminSummary {
   totalItems: number; totalVersions: number; readingVersions: number; listeningVersions: number;
   setCount: number; mockTestCount: number; publishedMockTests: number; audioReady: number;
