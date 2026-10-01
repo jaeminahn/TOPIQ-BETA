@@ -53,7 +53,7 @@ export function InteractiveDotField() {
           ctx.beginPath();
           ctx.arc(x, y, radius, 0, Math.PI * 2);
           ctx.fillStyle = eased > 0.01
-            ? `rgba(45, 94, 197, ${0.18 + eased * 0.42})`
+            ? `rgba(234, 102, 65, ${0.18 + eased * 0.42})`
             : "rgba(45, 94, 197, 0.18)";
           ctx.fill();
         }

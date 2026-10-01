@@ -40,7 +40,7 @@ export function TopikGuide() {
               ))}
             </ul>
             <div className="mt-4 flex justify-end">
-              <a href="https://www.topik.go.kr/" target="_blank" rel="noreferrer" className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors duration-150 hover:text-primary-700 hover:underline underline-offset-4">
+              <a href="https://www.topik.go.kr/" target="_blank" rel="noreferrer" className="focus-ring inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors duration-150 hover:text-accent hover:underline underline-offset-4">
                 {t("topikOfficialLink")} <ExternalLink className="size-3.5" />
               </a>
             </div>

@@ -24,7 +24,7 @@ export function IncorrectReview({ results }: { results: Results }) {
       {results.incorrect.length === 0 ? <div className="mt-5 rounded-2xl border border-green-200 bg-green-50 p-7 text-center font-medium text-green-700">{t("perfect")}</div> : (
         <>
           <div className="mt-5 rounded-2xl border border-gray-300 bg-white p-6">
-            <p className="text-xs font-semibold tracking-[.12em] text-primary">{t("wrongAnswerSummary")}</p>
+            <p className="text-xs font-semibold tracking-[.12em] text-accent">{t("wrongAnswerSummary")}</p>
             <h3 className="mt-2 text-xl font-semibold text-gray-900">{t("wrongTypesAndQuestions")}</h3>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">{incorrectGroups.map((questions) => <button key={`${questions[0].section}-${questions[0].itemType}`} onClick={() => { const order = questions[0].itemOrder; setExpanded((current) => new Set(current).add(order)); document.getElementById(`incorrect-${order}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); }} className="focus-ring flex min-h-11 items-center justify-between rounded-xl border border-gray-300 p-3 text-left hover:border-primary-200 hover:bg-primary-50"><span><b className="block text-sm font-medium text-gray-900">{questionTypeLabel(questions[0].itemType, questions[0].section, locale)}</b><span className="mt-1 block text-xs font-medium text-gray-400">{questions.map((question) => `${question.itemOrder}${t("questionNumberSuffix")}`).join(", ")}</span></span><span className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600">{questions.length}</span></button>)}</div>
           </div>

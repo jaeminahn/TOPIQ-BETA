@@ -12,7 +12,7 @@ export function Header({ compact = false, showLanguageSwitch = true }: { compact
             alt="UNIGATE"
             className="h-8 w-auto sm:h-9"
           />
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold tracking-wider text-gray-500">BETA</span>
+          <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[10px] font-bold tracking-wider text-accent">BETA</span>
         </Link>
         {showLanguageSwitch && (
           <div className="topiq-language-switch relative grid grid-cols-2 items-center rounded-full border border-gray-200/80 bg-gray-50/80 p-1" data-locale={locale} role="group" aria-label={t("language")}>

@@ -43,7 +43,7 @@ export function ResultsSummary({ results }: { results: Results }) {
     <section className="rounded-2xl border border-gray-300 bg-white p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
-          <p className="text-xs font-semibold tracking-[0.12em] text-primary">{localizedExamTitle(results.titleKo, locale, { titleEn: results.titleEn })}</p>
+          <p className="text-xs font-semibold tracking-[0.12em] text-accent">{localizedExamTitle(results.titleKo, locale, { titleEn: results.titleEn })}</p>
           <h1 className="mt-2 text-2xl font-semibold text-gray-900 sm:text-3xl">{t("resultTitle")}</h1>
           <div className="mt-4 flex flex-wrap gap-2 text-xs font-medium text-gray-600"><span className="rounded-full bg-green-50 px-3 py-1.5 text-green-700">{t("correctCount")} {50 - results.incorrectCount} / 50</span><span className="rounded-full bg-red-50 px-3 py-1.5 text-red-700">{t("incorrect")} {results.incorrectCount}{t("questionUnit")}</span></div>
         </div>

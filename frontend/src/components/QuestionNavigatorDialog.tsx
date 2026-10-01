@@ -112,7 +112,7 @@ export function QuestionNavigatorDialog({
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-300 bg-gray-50 px-4 py-3 text-xs font-medium text-gray-600 sm:px-6">
           <span className="flex items-center gap-1.5"><span className="size-3 rounded bg-primary" />{t("currentQuestion")}</span>
-          <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-primary" />{t("answered")}</span>
+          <span className="flex items-center gap-1.5"><CheckCircle2 className="size-3.5 text-accent" />{t("answered")}</span>
           <span className="flex items-center gap-1.5"><Circle className="size-3.5 text-gray-400" />{t("unanswered")}</span>
           <button type="button" onClick={requestClose} className="focus-ring ml-auto min-h-11 rounded-xl border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-100">{t("close")}</button>
         </div>
