@@ -100,6 +100,7 @@ export function TestPage() {
       <main className="mx-auto max-w-5xl px-4 py-4 sm:px-8 sm:py-5">
         <div className="min-w-0">
           <QuestionProgress firstOrder={displayQuestions[0]?.itemOrder ?? current.itemOrder} lastOrder={lastDisplayOrder} total={session.questions.length} answered={answered} />
+          <div key={displayStartOrder} className="topiq-question-enter">
           {current.section === "listening" && audioQuestion?.audioAssetId && <ListeningAudioPlayer key={audioQuestion.audioAssetId} sessionId={sessionId} token={token} audioAssetId={audioQuestion.audioAssetId} repeatCount={audioQuestion.repeatCount ?? 1} mode={session.mode} />}
           {current.itemType.startsWith("paired_") ? (
             <QuestionGroup
@@ -113,6 +114,7 @@ export function TestPage() {
               <QuestionCard question={current} transcriptMode={current.section === "listening" ? session.mode === "timed" ? "hidden" : "collapsible" : "hidden"} onAnswer={(option) => void answer(current.itemOrder, option)} />
             </div>
           )}
+          </div>
           {saveError && <p role="alert" className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{t("saveError")}</p>}
         </div>
       </main>

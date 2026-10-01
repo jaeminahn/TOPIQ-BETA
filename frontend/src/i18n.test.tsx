@@ -10,8 +10,7 @@ function LocaleProbe({ testId }: { testId: string }) {
 describe("I18nProvider", () => {
   beforeEach(() => localStorage.clear());
 
-  it("restores the selected English locale for every public page", () => {
-    localStorage.setItem("unigate.topik.locale", "en");
+  it("uses English by default", () => {
     render(
       <I18nProvider>
         <LocaleProbe testId="selected-locale" />
@@ -19,5 +18,16 @@ describe("I18nProvider", () => {
     );
 
     expect(screen.getByTestId("selected-locale")).toHaveTextContent("en:Review Answers");
+  });
+
+  it("restores a previously selected Korean locale", () => {
+    localStorage.setItem("unigate.topik.locale", "ko");
+    render(
+      <I18nProvider>
+        <LocaleProbe testId="selected-locale" />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByTestId("selected-locale")).toHaveTextContent("ko:답안 검토");
   });
 });

@@ -10,7 +10,7 @@ describe("ExitConfirmationDialog", () => {
     render(<I18nProvider><ExitConfirmationDialog open variant="test" answered={13} total={50} onStay={stay} onLeave={vi.fn()} /></I18nProvider>);
     expect(screen.getByText(/13문제를 풀었고 37문제가 남았습니다/)).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
-    expect(stay).toHaveBeenCalled();
+    await vi.waitFor(() => expect(stay).toHaveBeenCalled());
   });
 
   it("uses result-specific retention copy", () => {

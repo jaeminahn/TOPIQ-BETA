@@ -28,6 +28,8 @@ describe("ResultsSummary", () => {
   it.each(["reading", "listening"] as const)("shows a predicted grade for %s results", (section) => {
     renderSummary({ ...baseResults, section });
 
+    expect(screen.getByText("정답 42 / 50")).toBeInTheDocument();
+    expect(screen.getByText("다시 볼 문제 8문항")).toBeInTheDocument();
     expect(screen.getByText("TOPIK II 예측 급수")).toBeInTheDocument();
     expect(screen.getByText("6급")).toBeInTheDocument();
   });
@@ -70,7 +72,7 @@ describe("ResultsSummary", () => {
     expect(screen.getByText("Predicted TOPIK II level")).toBeInTheDocument();
     expect(screen.getByText("Level 6")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "View predicted level criteria" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("85–100 points · Level 6");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("85 to 100 points · Level 6");
     expect(screen.getByRole("tooltip")).toHaveTextContent("combined Listening, Reading, and Writing score");
   });
 });

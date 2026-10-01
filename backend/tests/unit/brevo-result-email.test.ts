@@ -23,6 +23,7 @@ describe("Brevo result email", () => {
     expect(result.htmlContent).toContain("#EDF2FC");
     expect(result.htmlContent).toContain("#C9D8F7");
     expect(result.htmlContent).not.toContain("#6d28d9");
+    expect(result.htmlContent).not.toContain("UNIGATE TOPIK II");
     expect(result.textContent).not.toMatch(/\b\d{1,3}\s*점\b/);
   });
 
