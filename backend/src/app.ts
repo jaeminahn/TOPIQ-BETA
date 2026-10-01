@@ -16,6 +16,10 @@ import { registerAdminExportRoutes } from "./routes/admin/export-routes.js";
 import { registerAdminMediaRoutes, ttsStyleSchema } from "./routes/admin/media-routes.js";
 import { registerAdminResponseRoutes } from "./routes/admin/response-routes.js";
 import { registerPublicRoutes } from "./routes/public-routes.js";
+import { PreregistrationRepository } from "./preregistration/repository.js";
+import { AdminPreregistrationRepository } from "./admin/preregistrations/repository.js";
+import { registerPreregistrationRoutes } from "./routes/preregistration-routes.js";
+import { registerAdminPreregistrationRoutes } from "./routes/admin/preregistration-routes.js";
 
 export { ttsStyleSchema };
 
@@ -32,6 +36,8 @@ export async function buildApp(
   adminRepository = new AdminRepository(),
   resultEmailSender: ResultEmailSender = new BrevoResultEmailSender(),
   adminExportRepository: AdminExportSource = new AdminExportRepository(),
+  preregistrationRepository = new PreregistrationRepository(),
+  adminPreregistrationRepository = new AdminPreregistrationRepository(),
 ) {
   const app = Fastify({
     logger: config.nodeEnv !== "test",
@@ -56,6 +62,8 @@ export async function buildApp(
   await app.register(multipart, { limits: { files: 1, fileSize: 5 * 1024 * 1024 } });
 
   registerPublicRoutes(app, repository, resultEmailSender);
+  registerPreregistrationRoutes(app, preregistrationRepository);
+  registerAdminPreregistrationRoutes(app, adminPreregistrationRepository);
   registerAdminCoreRoutes(app, adminRepository);
   registerAdminResponseRoutes(app, adminRepository);
   registerAdminExportRoutes(app, adminExportRepository);

@@ -13,6 +13,7 @@ import {
 import { AppError, invalidResultToken, notFound, resultLinkExpired, sessionClosed, unauthorized } from "../core/errors.js";
 import { emailUsageRepository } from "../email/usage-repository.js";
 import { SupabaseStorage } from "../media/storage.js";
+import { insertPreregistration, type PreregistrationInput } from "../preregistration/repository.js";
 
 type SessionRow = {
   session_id: string;
@@ -633,6 +634,25 @@ export class TopikRepository {
       }
       await client.query("COMMIT");
       return { status: "abandoned" as const };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async registerResultPreregistration(input: PreregistrationInput & { sessionId: string; token: string }) {
+    const client = await begin();
+    try {
+      const session = await loadSession(client, input.sessionId, true);
+      assertToken(session, input.token);
+      if (session.status !== "submitted") {
+        throw new AppError(409, "SESSION_NOT_SUBMITTED", "Submit the session first");
+      }
+      const result = await insertPreregistration(client, { ...input, source: "topik_result" });
+      await client.query("COMMIT");
+      return result;
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

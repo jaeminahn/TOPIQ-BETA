@@ -1,7 +1,7 @@
 import { Clock3 } from "lucide-react";
 import { useI18n } from "../../i18n";
 
-export function LandingHero() {
+export function LandingHero({ onPreregister }: { onPreregister: () => void }) {
   const { t } = useI18n();
   return (
     <section id="intro" className="topiq-stage scroll-mt-16">
@@ -9,6 +9,7 @@ export function LandingHero() {
         <div>
           <h1 className="max-w-3xl whitespace-pre-line text-[34px] font-semibold leading-[1.12] tracking-[-.045em] text-gray-900 sm:text-5xl lg:text-[56px]">{t("heroTitle")}</h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-gray-600 sm:text-lg">{t("heroBody")}</p>
+          <button type="button" onClick={onPreregister} className="focus-ring mt-7 min-h-11 rounded-xl bg-primary px-7 py-3 text-sm font-semibold text-white hover:bg-primary-dark">{t("preregistrationTitle")}</button>
         </div>
         <div className="mx-auto hidden w-full max-w-md lg:block" aria-hidden="true">
           <div className="topiq-demo-card rounded-[20px] border border-primary-100 bg-white/90 p-6">

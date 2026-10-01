@@ -61,6 +61,22 @@ pnpm build
 
 실제 PostgreSQL 통합 테스트까지 실행하려면 백엔드가 접근할 수 있는 `DATABASE_URL`을 설정한다. SSL이 필요한 환경에서는 `DATABASE_SSL=require`도 설정한다. 자격 증명은 저장소나 문서에 기록하지 않는다.
 
+## 사전등록 PostgreSQL 통합 테스트
+
+`tests/integration/preregistration.integration.test.ts`는 생성·삭제를 검증하는 쓰기 테스트이며,
+`PREREGISTRATION_TEST_DATABASE_URL`이 있을 때만 실행합니다. 기존 읽기 전용 문제은행 테스트와
+별도로, 빈 임시 DB `unigate_preregistration_test`를 준비해야 합니다. DB 이름이 다르거나
+`topik_app` 스키마가 이미 있으면 실행을 거부합니다. 테스트가 만든 스키마는 종료 시 제거합니다.
+
+```powershell
+$env:PREREGISTRATION_TEST_DATABASE_URL = 'postgresql://USER:PASSWORD@127.0.0.1:PORT/unigate_preregistration_test'
+corepack pnpm --filter @unigate/topik-api test tests/integration/preregistration.integration.test.ts
+Remove-Item Env:PREREGISTRATION_TEST_DATABASE_URL
+```
+
+동시 ID 발급과 재시도, KST 날짜 경계, 필터 후 중복 제거, CSV, 개별 삭제·감사 기록의
+트랜잭션, 시험 세션 삭제 시 신청 보존을 실제 PostgreSQL에서 확인합니다.
+
 ## 빌드와 중복 실행 방지
 
 - 백엔드 `tsconfig.build.json`은 `src/**/*.test.ts`, `tests`, `dist`를 명시적으로 제외한다.

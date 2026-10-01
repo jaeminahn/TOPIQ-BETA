@@ -9,7 +9,7 @@ import type { Exam } from "../types";
 import { LandingPage } from "./LandingPage";
 
 vi.mock("../api", () => ({
-  api: { exams: vi.fn(), createSession: vi.fn(), session: vi.fn(), abandon: vi.fn() },
+  api: { exams: vi.fn(), createSession: vi.fn(), session: vi.fn(), abandon: vi.fn(), preregister: vi.fn() },
 }));
 
 const exams: Exam[] = [
@@ -41,6 +41,72 @@ describe("LandingPage", () => {
     vi.mocked(api.createSession).mockResolvedValue({ sessionId: "new-session", userId: "user-2", token: "new-token" });
     vi.mocked(api.session).mockReset();
     vi.mocked(api.abandon).mockReset();
+    vi.mocked(api.preregister).mockReset();
+    vi.mocked(api.preregister).mockResolvedValue({ registrationId: "001-00000001" });
+  });
+
+  it("validates email, announces consent, confirms registration and restores focus", async () => {
+    renderLanding("ko");
+    const opener = screen.getByRole("button", { name: "사전등록" });
+    await userEvent.click(opener);
+    const email = screen.getByRole("textbox", { name: "이메일" });
+    expect(email).toHaveFocus();
+    expect(screen.getByText("사전등록 신청 시 개인정보 수집·이용 및 마케팅 정보 수신에 동의합니다.")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    await userEvent.type(email, "invalid");
+    await userEvent.click(screen.getByRole("button", { name: "사전등록 신청" }));
+    expect(api.preregister).not.toHaveBeenCalled();
+    await userEvent.clear(email);
+    await userEvent.type(email, "User@Example.com");
+    await userEvent.click(screen.getByRole("button", { name: "사전등록 신청" }));
+    expect(await screen.findByRole("dialog", { name: "사전등록 신청이 완료되었습니다." })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "이메일" })).not.toBeInTheDocument();
+    expect(api.preregister).toHaveBeenCalledWith({ email: "User@Example.com", locale: "ko", requestId: expect.any(String), consentVersion: "preregistration_v1" });
+    await userEvent.click(screen.getByRole("button", { name: "확인" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
+  it("retains input and the same request ID after a save failure", async () => {
+    vi.mocked(api.preregister).mockRejectedValueOnce(new Error("Network failed"));
+    renderLanding("ko");
+    await userEvent.click(screen.getByRole("button", { name: "사전등록" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "이메일" }), "user@example.com");
+    await userEvent.click(screen.getByRole("button", { name: "사전등록 신청" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("저장하지 못했습니다");
+    expect(screen.getByRole("textbox", { name: "이메일" })).toHaveValue("user@example.com");
+    const first = vi.mocked(api.preregister).mock.calls[0]![0];
+    await userEvent.click(screen.getByRole("button", { name: "사전등록 신청" }));
+    await screen.findByRole("dialog", { name: "사전등록 신청이 완료되었습니다." });
+    expect(vi.mocked(api.preregister).mock.calls[1]![0]).toEqual(first);
+  });
+
+  it("traps keyboard focus and closes with Escape in English", async () => {
+    renderLanding("en");
+    const opener = screen.getByRole("button", { name: "Pre-register" });
+    await userEvent.click(opener);
+    const email = screen.getByRole("textbox", { name: "Email" });
+    expect(email).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Submit pre-registration" })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
+  it("prevents duplicate submissions while the server is saving", async () => {
+    let resolve!: (value: { registrationId: string }) => void;
+    vi.mocked(api.preregister).mockReturnValue(new Promise((done) => { resolve = done; }));
+    renderLanding("ko");
+    await userEvent.click(screen.getByRole("button", { name: "사전등록" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "이메일" }), "user@example.com");
+    await userEvent.dblClick(screen.getByRole("button", { name: "사전등록 신청" }));
+    expect(api.preregister).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "신청 중..." })).toBeDisabled();
+    resolve({ registrationId: "001-00000001" });
+    await screen.findByRole("dialog", { name: "사전등록 신청이 완료되었습니다." });
   });
 
   it("asks to continue or restart a valid in-progress session and abandons it before restarting", async () => {

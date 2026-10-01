@@ -1,5 +1,6 @@
 import type { Exam, ExamMode, Results, TestSession } from "../types";
 import { auth, request, requestWithRetry } from "./request";
+import type { PreregistrationConsent } from "../preregistration";
 
 export const sessionStorageKey = (sessionId: string) => `unigate.topik.session.${sessionId}`;
 
@@ -8,6 +9,11 @@ export function getSessionToken(sessionId: string): string | null {
 }
 
 export const api = {
+  preregister(input: PreregistrationConsent & { email: string; locale: "ko" | "en" }) {
+    return request<{ registrationId: string }>("/v1/preregistrations", {
+      method: "POST", body: JSON.stringify(input),
+    });
+  },
   async exams(): Promise<Exam[]> {
     const data = await request<{ exams: Exam[] }>("/v1/exams");
     return data.exams;
@@ -88,7 +94,7 @@ export const api = {
   resultEmail(
     sessionId: string,
     token: string,
-    input: { rating: number; locale: "ko" | "en"; email: string },
+    input: { rating: number; locale: "ko" | "en"; email: string; preregistration?: PreregistrationConsent },
   ) {
     return request<{ emailAccepted: true; maskedEmail: string; expiresAt: string }>(
       `/v1/sessions/${sessionId}/result-email`,

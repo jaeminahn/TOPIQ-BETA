@@ -23,7 +23,9 @@ const baseQuestion: Question = {
 };
 
 const makeQuestion = (input: Partial<Question>): Question => ({ ...baseQuestion, ...input });
-const renderWithI18n = (ui: ReactElement) => render(ui, { wrapper: I18nProvider });
+const renderWithI18n = (ui: ReactElement) => render(ui, {
+  wrapper: ({ children }) => <I18nProvider locale="ko">{children}</I18nProvider>,
+});
 
 describe("QuestionCard", () => {
   it("uses the grammar fallback instruction and records a choice", async () => {

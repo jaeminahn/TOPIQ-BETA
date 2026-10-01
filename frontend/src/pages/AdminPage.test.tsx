@@ -11,6 +11,7 @@ vi.mock("../api", () => ({
     me: vi.fn(), dashboard: vi.fn(), jobs: vi.fn(), listeningSets: vi.fn(), setEmailEnabled: vi.fn(),
     readingSets: vi.fn(), responseSessions: vi.fn(), responseSession: vi.fn(),
     exportOptions: vi.fn(), exportPreview: vi.fn(), downloadExport: vi.fn(),
+    preregistrations: vi.fn(), downloadPreregistrations: vi.fn(), deletePreregistration: vi.fn(),
   },
 }));
 vi.mock("../supabase", () => ({ supabase: null }));
@@ -40,6 +41,15 @@ describe("AdminPage", () => {
     vi.mocked(adminApi.responseSessions).mockResolvedValue({ sessions: [], total: 0 });
     vi.mocked(adminApi.setEmailEnabled).mockResolvedValue({ enabled: true, updatedAt: "2026-09-11T00:00:00Z" });
     vi.mocked(adminApi.exportOptions).mockResolvedValue({ mockTests: [], itemTypes: [] });
+    vi.mocked(adminApi.preregistrations).mockResolvedValue({ registrations: [], total: 0, page: 1, pageSize: 50 });
+  });
+
+  it("opens the preregistration tab", async () => {
+    render(<MemoryRouter><AdminPage /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "서비스 요약" });
+    await userEvent.click(screen.getByRole("button", { name: "사전등록" }));
+    expect(await screen.findByRole("heading", { name: "사전등록 신청" })).toBeInTheDocument();
+    expect(await screen.findByText("조건에 맞는 사전등록 신청이 없습니다.")).toBeInTheDocument();
   });
 
   it("loads the dashboard and keeps response navigation available", async () => {

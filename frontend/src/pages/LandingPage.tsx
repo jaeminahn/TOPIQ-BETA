@@ -10,6 +10,7 @@ import { SiteFooter } from "../components/landing/SiteFooter";
 import { TopikGuide } from "../components/landing/TopikGuide";
 import type { Exam, ExamMode } from "../types";
 import { SessionResumeDialog } from "../components/SessionResumeDialog";
+import { PreregistrationDialog } from "../components/landing/PreregistrationDialog";
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export function LandingPage() {
   const [resumeEntry, setResumeEntry] = useState<ActiveSessionEntry | null>(null);
   const [resumeExam, setResumeExam] = useState<Exam | null>(null);
   const [resumeMode, setResumeMode] = useState<ExamMode>("timed");
+  const [preregistrationOpen, setPreregistrationOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -99,7 +101,7 @@ export function LandingPage() {
     <main className="min-h-screen bg-white">
       <Header />
       <LandingSectionNav />
-      <LandingHero />
+      <LandingHero onPreregister={() => setPreregistrationOpen(true)} />
       <div className="topiq-content-flow">
       <ExamCatalog
         exams={exams}
@@ -115,6 +117,7 @@ export function LandingPage() {
       <SiteFooter />
       </div>
       <SessionResumeDialog entry={resumeEntry} busy={starting !== null} onContinue={continueSession} onRestart={() => void restartSession()} onClose={closeResume} />
+      {preregistrationOpen && <PreregistrationDialog onClose={() => setPreregistrationOpen(false)} />}
     </main>
   );
 }
