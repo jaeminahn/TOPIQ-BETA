@@ -57,7 +57,7 @@ describe("AdminPage", () => {
 
     expect(await screen.findByRole("heading", { name: "서비스 요약" })).toBeInTheDocument();
     expect(screen.getByText("100")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "사용자 응답" }));
+    await userEvent.click(screen.getByRole("button", { name: "세트 응답" }));
     expect(screen.getByRole("heading", { name: "응시 세션별 사용자 응답" })).toBeInTheDocument();
     expect(adminApi.dashboard).toHaveBeenCalledWith("admin-token");
   });

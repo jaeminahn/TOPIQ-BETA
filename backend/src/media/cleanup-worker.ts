@@ -91,7 +91,9 @@ export class MediaCleanupWorker {
         await client.query("COMMIT");
         return;
       }
-      if (asset.rows[0].is_current) {
+      const marathonReference = await client.query(`SELECT 1 FROM topik_app.marathon_items mi JOIN topik_app.marathon_sessions ms USING(session_id)
+        WHERE ms.status='in_progress' AND $1::uuid=ANY(mi.visual_asset_ids) LIMIT 1`,[job.asset_id]);
+      if (asset.rows[0].is_current || marathonReference.rowCount) {
         await this.waitForLastReference(client, job.cleanup_job_id);
         await client.query("COMMIT");
         return;
@@ -133,7 +135,9 @@ export class MediaCleanupWorker {
           WHERE audio_asset_id=$1 AND is_current
          UNION ALL
          SELECT 1 FROM topik_app.question_set_item_audio_bindings
-          WHERE audio_asset_id=$1 AND is_current LIMIT 1`,
+          WHERE audio_asset_id=$1 AND is_current
+         UNION ALL SELECT 1 FROM topik_app.marathon_items mi JOIN topik_app.marathon_sessions ms USING(session_id)
+          WHERE mi.audio_asset_id=$1 AND ms.status='in_progress' LIMIT 1`,
         [job.asset_id],
       );
       if (currentBinding.rowCount) {

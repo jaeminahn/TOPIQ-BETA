@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "../core/db.js";
+import { browserForToken } from "../marathon/repository.js";
 import {
   clampActiveDuration,
   maskEmail,
@@ -222,7 +223,7 @@ export class TopikRepository {
     return result.rows;
   }
 
-  async createSession(mockTestId: string, mode: ExamMode) {
+  async createSession(mockTestId: string, mode: ExamMode, browserToken?: string) {
     const userId = randomUUID();
     const sessionId = randomUUID();
     const token = randomBytes(32).toString("base64url");
@@ -240,6 +241,7 @@ export class TopikRepository {
       );
       const selectedExam = exam.rows[0];
       if (!selectedExam) throw notFound("Mock test not found");
+      const browser = browserToken ? await browserForToken(client,browserToken) : null;
 
       await client.query("INSERT INTO topik_app.users(user_id) VALUES ($1)", [userId]);
       await client.query(
@@ -262,6 +264,7 @@ export class TopikRepository {
         ],
       );
 
+      if (browser) await client.query('UPDATE topik_app.sessions SET browser_id=$2 WHERE session_id=$1',[sessionId,browser.browser_id]);
       const inserted = await client.query(
          `INSERT INTO topik_app.session_items(
            session_id, item_order, section, test_position,

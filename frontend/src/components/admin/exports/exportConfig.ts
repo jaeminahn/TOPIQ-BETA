@@ -2,6 +2,7 @@ import { FileQuestion, FileSpreadsheet, Rows3, Users } from "lucide-react";
 import type { AdminExportDataset, AdminExportFilters, AdminExportOptions } from "../../../types";
 
 export const initialExportFilters: AdminExportFilters = {
+  source: "set",
   status: "submitted",
   minAssignedCount: 0,
   outcome: "all",
@@ -67,12 +68,13 @@ export function exportFilterSummary(
   options: AdminExportOptions,
 ) {
   const labels = [
+    filters.source==='marathon'?'마라톤':filters.source==='all'?'세트 + 마라톤':'세트',
     filters.mockTestId
       ? options.mockTests.find((test) => test.mockTestId === filters.mockTestId)?.titleKo ?? "선택 시험"
       : "전체 시험",
     filters.section === "reading" ? "읽기" : filters.section === "listening" ? "듣기" : "전체 영역",
     filters.mode === "timed" ? "실전" : filters.mode === "practice" ? "연습" : "전체 모드",
-    filters.status === "submitted" ? "제출 완료" : filters.status === "abandoned" ? "폐기됨" : "제출+폐기",
+    filters.status === "submitted" ? "제출 완료" : filters.status === "abandoned" ? "폐기됨" : filters.status === 'in_progress' ? '진행 중' : "전체",
     filters.from || filters.to ? `${filters.from ?? "처음"} ~ ${filters.to ?? "현재"} (KST)` : "전체 기간",
   ];
   if (dataset === "questions") {

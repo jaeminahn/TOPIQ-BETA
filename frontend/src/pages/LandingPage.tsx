@@ -11,6 +11,7 @@ import { TopikGuide } from "../components/landing/TopikGuide";
 import type { Exam, ExamMode } from "../types";
 import { SessionResumeDialog } from "../components/SessionResumeDialog";
 import { PreregistrationDialog } from "../components/landing/PreregistrationDialog";
+import { MarathonSection } from "../components/landing/MarathonSection";
 
 export function LandingPage() {
   const navigate = useNavigate();
@@ -103,6 +104,7 @@ export function LandingPage() {
       <LandingSectionNav />
       <LandingHero onPreregister={() => setPreregistrationOpen(true)} />
       <div className="topiq-content-flow">
+      <MarathonSection />
       <ExamCatalog
         exams={exams}
         mode={mode}

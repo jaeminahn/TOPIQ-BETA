@@ -14,6 +14,7 @@ export function QuestionCard({
   variant = "standalone",
   sharedText = "",
   transcriptMode = "visible",
+  displayNumber,
 }: {
   question: Question;
   onAnswer?: (option: number) => void;
@@ -22,6 +23,7 @@ export function QuestionCard({
   variant?: "standalone" | "group-item";
   sharedText?: string;
   transcriptMode?: TranscriptMode;
+  displayNumber?: number;
 }) {
   const presentation = getQuestionPresentation(question);
   const grouped = variant === "group-item";
@@ -30,7 +32,7 @@ export function QuestionCard({
   return (
     <article data-question-variant={variant} className="topiq-surface rounded-[20px] p-6 sm:p-7">
       <div className={`${grouped ? "mb-3 pb-3" : "mb-4 pb-4"} flex items-start gap-3 border-b border-gray-100`}>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs font-semibold text-white">{question.testPosition}</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs font-semibold text-white">{displayNumber ?? question.testPosition}</span>
         <h1 className="pt-0.5 text-base font-semibold text-gray-900 sm:text-lg">{presentation.instruction}</h1>
       </div>
 

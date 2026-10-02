@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { api } from "../api";
 
-export function useActiveTime(sessionId: string, token: string, itemOrder: number, enabled: boolean) {
+type EventSender = (sessionId:string,token:string,itemOrder:number,eventType:'presented'|'hidden'|'heartbeat',durationMs:number) => Promise<unknown>;
+export function useActiveTime(sessionId: string, token: string, itemOrder: number, enabled: boolean, sendEvent: EventSender = api.event) {
   const activeSinceRef = useRef<number | null>(null);
 
   const takeDuration = useCallback(() => {
@@ -15,18 +16,18 @@ export function useActiveTime(sessionId: string, token: string, itemOrder: numbe
     if (!enabled) return;
     const duration = takeDuration();
     if (eventType === "hidden") activeSinceRef.current = null;
-    void api.event(sessionId, token, itemOrder, eventType, duration).catch(() => undefined);
-  }, [enabled, itemOrder, sessionId, takeDuration, token]);
+    void sendEvent(sessionId, token, itemOrder, eventType, duration).catch(() => undefined);
+  }, [enabled, itemOrder, sessionId, takeDuration, token, sendEvent]);
 
   useEffect(() => {
     if (!enabled) return;
     activeSinceRef.current = document.visibilityState === "visible" ? performance.now() : null;
-    void api.event(sessionId, token, itemOrder, "presented", 0).catch(() => undefined);
+    void sendEvent(sessionId, token, itemOrder, "presented", 0).catch(() => undefined);
     const visibility = () => {
       if (document.visibilityState === "hidden") flush("hidden");
       else {
         activeSinceRef.current = performance.now();
-        void api.event(sessionId, token, itemOrder, "presented", 0).catch(() => undefined);
+        void sendEvent(sessionId, token, itemOrder, "presented", 0).catch(() => undefined);
       }
     };
     const pagehide = () => flush("hidden");
@@ -42,7 +43,7 @@ export function useActiveTime(sessionId: string, token: string, itemOrder: numbe
       window.clearInterval(heartbeat);
       if (activeSinceRef.current !== null) flush("hidden");
     };
-  }, [enabled, flush, itemOrder, sessionId, token]);
+  }, [enabled, flush, itemOrder, sessionId, token, sendEvent]);
 
   return { takeDuration, flush };
 }

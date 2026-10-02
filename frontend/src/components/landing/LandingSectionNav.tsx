@@ -3,6 +3,7 @@ import { useI18n } from "../../i18n";
 
 const sections = [
   { id: "intro", label: "navIntro" },
+  { id: "marathon", label: "marathonTitle" },
   { id: "tests", label: "navMockTests" },
   { id: "topik-guide", label: "navAboutTopik" },
   { id: "topik-uses", label: "navUses" },

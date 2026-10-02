@@ -191,6 +191,14 @@ export class AdminMediaRepository extends AdminResponseRepository {
       );
       const row = asset.rows[0];
       if (!row) throw notFound("Current visual asset not found");
+      const marathonReference = await client.query(`SELECT 1 FROM topik_app.marathon_items mi JOIN topik_app.marathon_sessions ms USING(session_id)
+        WHERE ms.status='in_progress' AND $1::uuid=ANY(mi.visual_asset_ids) LIMIT 1`,[visualAssetId]);
+      if (marathonReference.rows.length) {
+        await client.query('UPDATE topik_app.item_visual_assets SET is_current=FALSE WHERE visual_asset_id=$1',[visualAssetId]);
+        await queueMediaCleanup(client,'visual',[{assetId:visualAssetId,bucket:row.storage_bucket,path:row.storage_path}]);
+        await client.query('COMMIT');
+        return {deleted:true,storageDeleted:false,sharedAssetRetained:true};
+      }
       const shared = await client.query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM topik_app.item_visual_assets
           WHERE storage_bucket=$1 AND storage_path=$2 AND visual_asset_id<>$3`,

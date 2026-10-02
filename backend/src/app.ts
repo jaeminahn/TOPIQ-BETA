@@ -20,6 +20,9 @@ import { PreregistrationRepository } from "./preregistration/repository.js";
 import { AdminPreregistrationRepository } from "./admin/preregistrations/repository.js";
 import { registerPreregistrationRoutes } from "./routes/preregistration-routes.js";
 import { registerAdminPreregistrationRoutes } from "./routes/admin/preregistration-routes.js";
+import { MarathonRepository } from "./marathon/repository.js";
+import { registerMarathonRoutes } from "./routes/marathon-routes.js";
+import { registerAdminMarathonRoutes } from "./routes/admin/marathon-routes.js";
 
 export { ttsStyleSchema };
 
@@ -38,6 +41,7 @@ export async function buildApp(
   adminExportRepository: AdminExportSource = new AdminExportRepository(),
   preregistrationRepository = new PreregistrationRepository(),
   adminPreregistrationRepository = new AdminPreregistrationRepository(),
+  marathonRepository = new MarathonRepository(),
 ) {
   const app = Fastify({
     logger: config.nodeEnv !== "test",
@@ -63,6 +67,8 @@ export async function buildApp(
 
   registerPublicRoutes(app, repository, resultEmailSender);
   registerPreregistrationRoutes(app, preregistrationRepository);
+  registerMarathonRoutes(app, marathonRepository);
+  registerAdminMarathonRoutes(app);
   registerAdminPreregistrationRoutes(app, adminPreregistrationRepository);
   registerAdminCoreRoutes(app, adminRepository);
   registerAdminResponseRoutes(app, adminRepository);
@@ -74,13 +80,14 @@ export async function buildApp(
     void reply.code(404).send({ error: { code: "NOT_FOUND", message: "Route not found" } });
   });
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof ZodError) {
       return reply.code(400).send({
         error: { code: "VALIDATION_ERROR", message: "Invalid request", issues: error.issues },
       });
     }
     if (error instanceof AppError) {
+      if (request.url.startsWith('/v1/marathon/')) request.log.warn({code:error.code,statusCode:error.statusCode},'Marathon request rejected');
       return reply.code(error.statusCode).send({
         error: { code: error.code, message: error.message },
       });

@@ -6,7 +6,7 @@ const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
 });
 
 export const preregistrationFiltersSchema = z.object({
-  source: z.enum(["landing", "topik_result"]).optional(),
+  source: z.enum(["landing", "topik_result", "marathon"]).optional(),
   deduplicate: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   from: dateOnly.optional(),
   to: dateOnly.optional(),

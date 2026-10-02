@@ -7,7 +7,7 @@ import { AccessibleDialog } from "../../AccessibleDialog";
 const initialFilters: AdminPreregistrationFilters = { deduplicate: false, search: "" };
 const inputClass = "focus-ring mt-1.5 min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900";
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" });
-const sourceLabel = (source: AdminPreregistration["source"]) => source === "landing" ? "랜딩 페이지" : "TOPIK 결과 확인";
+const sourceLabel = (source: AdminPreregistration["source"]) => source === "landing" ? "랜딩 페이지" : source === "marathon" ? "마라톤" : "TOPIK 결과 확인";
 
 export function AdminPreregistrationsPanel({ token }: { token: string }) {
   const [draft, setDraft] = useState(initialFilters);
@@ -105,7 +105,7 @@ export function AdminPreregistrationsPanel({ token }: { token: string }) {
     </div>
     <form className="mt-6 rounded-xl border border-gray-200 p-4" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <label className="text-xs font-semibold text-gray-600">유입 경로<select value={draft.source ?? ""} onChange={(event) => updateFilter("source", (event.target.value || undefined) as AdminPreregistrationFilters["source"])} className={inputClass}><option value="">전체 경로</option><option value="landing">랜딩 페이지 (001)</option><option value="topik_result">TOPIK 결과 확인 (002)</option></select></label>
+        <label className="text-xs font-semibold text-gray-600">유입 경로<select value={draft.source ?? ""} onChange={(event) => updateFilter("source", (event.target.value || undefined) as AdminPreregistrationFilters["source"])} className={inputClass}><option value="">전체 경로</option><option value="landing">랜딩 페이지 (001)</option><option value="topik_result">TOPIK 결과 확인 (002)</option><option value="marathon">마라톤 (003)</option></select></label>
         <label className="text-xs font-semibold text-gray-600">시작일 (KST)<input type="date" value={draft.from ?? ""} onChange={(event) => updateFilter("from", event.target.value || undefined)} className={inputClass} /></label>
         <label className="text-xs font-semibold text-gray-600">종료일 (KST)<input type="date" value={draft.to ?? ""} onChange={(event) => updateFilter("to", event.target.value || undefined)} className={inputClass} /></label>
         <label className="text-xs font-semibold text-gray-600">이메일 검색<input type="search" maxLength={320} value={draft.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="이메일 일부 입력" className={inputClass} /></label>

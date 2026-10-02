@@ -1,4 +1,6 @@
 import type { AdminExportDataset, AdminExportFilters, SqlQuery } from "./types.js";
+import { columns } from "./types.js";
+import { marathonExportQuery } from "./marathon-queries.js";
 
 export function buildSessionFilters(filters: AdminExportFilters, values: unknown[], alias = "s") {
   const clauses: string[] = [];
@@ -10,11 +12,12 @@ export function buildSessionFilters(filters: AdminExportFilters, values: unknown
   else clauses.push(`${alias}.status=${parameter(filters.status)}`);
   if (filters.mockTestId) clauses.push(`${alias}.mock_test_id=${parameter(filters.mockTestId)}`);
   if (filters.mode) clauses.push(`${alias}.mode=${parameter(filters.mode)}`);
+  const dateColumn=filters.status==='in_progress' ? `${alias}.started_at` : `COALESCE(${alias}.submitted_at,${alias}.abandoned_at)`;
   if (filters.from) {
-    clauses.push(`COALESCE(${alias}.submitted_at,${alias}.abandoned_at) >= (${parameter(filters.from)}::date AT TIME ZONE 'Asia/Seoul')`);
+    clauses.push(`${dateColumn} >= (${parameter(filters.from)}::date AT TIME ZONE 'Asia/Seoul')`);
   }
   if (filters.to) {
-    clauses.push(`COALESCE(${alias}.submitted_at,${alias}.abandoned_at) < ((${parameter(filters.to)}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Seoul')`);
+    clauses.push(`${dateColumn} < ((${parameter(filters.to)}::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Seoul')`);
   }
   if (filters.section) {
     clauses.push(`EXISTS (SELECT 1 FROM topik_app.session_items section_item WHERE section_item.session_id=${alias}.session_id AND section_item.section=${parameter(filters.section)})`);
@@ -261,8 +264,12 @@ function sessionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery {
 }
 
 export function buildAdminExportQuery(dataset: AdminExportDataset, filters: AdminExportFilters, ordered = true): SqlQuery {
-  if (dataset === "questions") return questionQuery(filters, ordered);
-  if (dataset === "responses") return responseQuery(filters, ordered);
-  return sessionQuery(filters, ordered);
+  const set = dataset==='questions' ? questionQuery(filters,ordered) : dataset==='responses' ? responseQuery(filters,ordered) : sessionQuery(filters,ordered);
+  if (!filters.source || filters.source==='set') return {text:`SELECT 'set'::text AS source,export_rows.* FROM (${set.text}) export_rows`,values:set.values};
+  const marathon = marathonExportQuery(dataset,filters);
+  if (filters.source==='marathon') return marathon;
+  const project = (alias:string,source:string) => columns[dataset].map(({key}) => key==='source' ? `'${source}'::text AS source` : `to_jsonb(${alias})->>'${key}' AS "${key}"`).join(',');
+  const shifted = marathon.text.replace(/\$(\d+)/g,(_match,index:string) => `$${Number(index)+set.values.length}`);
+  return {text:`SELECT ${project('set_rows','set')} FROM (${set.text}) set_rows UNION ALL SELECT ${project('marathon_rows','marathon')} FROM (${shifted}) marathon_rows`,values:[...set.values,...marathon.values]};
 }
 

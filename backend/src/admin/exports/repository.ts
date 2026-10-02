@@ -27,6 +27,11 @@ export class AdminExportRepository implements AdminExportSource {
       const count = rowCount.rows[0]?.count ?? 0;
       return { rowCount: count, sessionCount: count };
     }
+    if (filters.source && filters.source!=='set') {
+      const sessions = buildAdminExportQuery('responses',{...filters,itemType:undefined,minAssignedCount:0},false);
+      const count = await pool.query<{count:number}>(`SELECT COUNT(DISTINCT session_id)::int AS count FROM (${sessions.text}) matching`,sessions.values);
+      return {rowCount:rowCount.rows[0]?.count ?? 0,sessionCount:count.rows[0]?.count ?? 0};
+    }
     const sessionValues: unknown[] = [];
     const sessionFilters = buildSessionFilters(filters, sessionValues);
     const sessionCount = await pool.query<{ count: number }>(

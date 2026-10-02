@@ -129,7 +129,7 @@ describe("admin CSV exports", () => {
     }
     const csv = Buffer.concat(chunks).toString("utf8");
 
-    expect(csv.startsWith("\uFEFF\"session_id\",\"user_id\"")).toBe(true);
+    expect(csv.startsWith("\uFEFF\"source\",\"session_id\",\"user_id\"")).toBe(true);
     expect(csv).toContain('"session-1","user-1","test-1"');
     expect(csv).toContain('"learner@example.com","true"');
     expect(query).toHaveBeenCalledWith(expect.stringContaining("DECLARE admin_export_cursor"), ["submitted"]);

@@ -1,6 +1,7 @@
 import type { Exam, ExamMode, Results, TestSession } from "../types";
 import { auth, request, requestWithRetry } from "./request";
 import type { PreregistrationConsent } from "../preregistration";
+import { ensureBrowser } from "./marathonApi";
 
 export const sessionStorageKey = (sessionId: string) => `unigate.topik.session.${sessionId}`;
 
@@ -20,9 +21,10 @@ export const api = {
   },
 
   async createSession(mockTestId: string, mode: ExamMode) {
+    const browserToken = await ensureBrowser();
     const created = await request<{ sessionId: string; userId: string; token: string }>("/v1/sessions", {
       method: "POST",
-      body: JSON.stringify({ mockTestId, mode }),
+      body: JSON.stringify({ mockTestId, mode, browserToken }),
     });
     localStorage.setItem(sessionStorageKey(created.sessionId), created.token);
     return created;

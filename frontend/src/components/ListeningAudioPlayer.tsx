@@ -5,8 +5,8 @@ import { useI18n } from "../i18n";
 import type { ExamMode } from "../types";
 
 export function ListeningAudioPlayer({
-  sessionId, token, audioAssetId, repeatCount, mode,
-}: { sessionId: string; token: string; audioAssetId: string; repeatCount: number; mode: ExamMode }) {
+  sessionId, token, audioAssetId, repeatCount, mode, playback = api.audioPlayback,
+}: { sessionId: string; token: string; audioAssetId: string; repeatCount: number; mode: ExamMode; playback?: typeof api.audioPlayback }) {
   const { t } = useI18n();
   const audioRef = useRef<HTMLAudioElement>(null);
   const currentPlayId = useRef<string | null>(null);
@@ -27,7 +27,7 @@ export function ListeningAudioPlayer({
     if (autoPlayTimer.current !== null) window.clearTimeout(autoPlayTimer.current);
     if (startedPlayId.current && !audioRef.current?.ended) {
       audioRef.current?.pause();
-      void api.audioPlayback(sessionId, token, audioAssetId, startedPlayId.current, "interrupted").catch(() => undefined);
+      void playback(sessionId, token, audioAssetId, startedPlayId.current, "interrupted").catch(() => undefined);
     }
     const playAt = Date.now() + delayMs;
     setStatus(delayMs ? "waiting" : "loading"); setMessage("");
@@ -38,7 +38,7 @@ export function ListeningAudioPlayer({
     startedPlayId.current = null;
     startConfirmation.current = null;
     try {
-      const result = await api.audioPlayback(sessionId, token, audioAssetId, id, "prepared");
+      const result = await playback(sessionId, token, audioAssetId, id, "prepared");
       if (!mounted.current || generation !== requestGeneration.current || !result.audioUrl) return;
       setSrc(result.audioUrl);
       const playPreparedAudio = () => {
@@ -69,11 +69,11 @@ export function ListeningAudioPlayer({
       if (audio) {
         audio.pause(); audio.currentTime = 0; audio.removeAttribute("src"); audio.load();
       }
-      if (interruptedPlayId) void api.audioPlayback(sessionId, token, audioAssetId, interruptedPlayId, "interrupted").catch(() => undefined);
+      if (interruptedPlayId) void playback(sessionId, token, audioAssetId, interruptedPlayId, "interrupted").catch(() => undefined);
     };
     // A new asset represents a new listening group; start() intentionally runs once per group.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioAssetId, mode, sessionId, token]);
+  }, [audioAssetId, mode, sessionId, token, playback]);
 
   const confirmStarted = () => {
     const id = currentPlayId.current;
@@ -83,9 +83,9 @@ export function ListeningAudioPlayer({
     setStatus("playing"); setMessage("");
     startConfirmation.current = (async () => {
       try {
-        const result = await api.audioPlayback(sessionId, token, audioAssetId, id, "started");
+        const result = await playback(sessionId, token, audioAssetId, id, "started");
         if (!mounted.current || generation !== requestGeneration.current || currentPlayId.current !== id) {
-          void api.audioPlayback(sessionId, token, audioAssetId, id, "interrupted").catch(() => undefined);
+          void playback(sessionId, token, audioAssetId, id, "interrupted").catch(() => undefined);
           return;
         }
         startedPlayId.current = id;
@@ -95,7 +95,7 @@ export function ListeningAudioPlayer({
       } catch (cause) {
         if (currentPlayId.current !== id) return;
         audioRef.current?.pause();
-        void api.audioPlayback(sessionId, token, audioAssetId, id, "interrupted").catch(() => undefined);
+        void playback(sessionId, token, audioAssetId, id, "interrupted").catch(() => undefined);
         if (cause instanceof ApiError && cause.code === "AUDIO_REPLAY_LIMIT") { setStatus("complete"); setMessage(t("audioReplayLimit")); }
         else { setStatus("error"); setMessage(cause instanceof Error ? cause.message : t("audioLoadFailed")); }
       } finally {
@@ -108,7 +108,7 @@ export function ListeningAudioPlayer({
     await startConfirmation.current;
     const id = startedPlayId.current;
     if (!id) return;
-    if (id) await api.audioPlayback(sessionId, token, audioAssetId, id, "completed").catch(() => undefined);
+    if (id) await playback(sessionId, token, audioAssetId, id, "completed").catch(() => undefined);
     if (mode === "timed" && playIndex.current < repeatCount) void start();
     else setStatus("complete");
   };

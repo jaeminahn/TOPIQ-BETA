@@ -5,7 +5,12 @@ import { useI18n } from "../../i18n";
 import { createPreregistrationConsent, type PreregistrationConsent } from "../../preregistration";
 import { AccessibleDialog } from "../AccessibleDialog";
 
-export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
+export function PreregistrationDialog({ onClose, onSubmit = api.preregister, onComplete, description }: {
+  onClose: () => void;
+  onSubmit?: (input: PreregistrationConsent & {email:string;locale:'ko'|'en'}) => Promise<unknown>;
+  onComplete?: () => void;
+  description?: string;
+}) {
   const { locale, t } = useI18n();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,7 +26,7 @@ export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
     try {
       const key = JSON.stringify([email.trim(), locale]);
       if (request.current?.key !== key) request.current = { key, consent: createPreregistrationConsent() };
-      await api.preregister({ email: email.trim(), locale, ...request.current.consent });
+      await onSubmit({ email: email.trim(), locale, ...request.current.consent });
       setComplete(true);
     } catch {
       setError(t("preregistrationFailed"));
@@ -33,8 +38,9 @@ export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
   return <AccessibleDialog key={complete ? "complete" : "form"} title={complete ? t("preregistrationComplete") : t("preregistrationTitle")} closeLabel={t("close")} busy={busy} onClose={onClose}>
     {complete ? <>
       <MailCheck className="mx-auto mt-6 size-12 text-green-600" aria-hidden="true" />
-      <button data-autofocus type="button" onClick={onClose} className="focus-ring mt-6 min-h-11 w-full rounded-xl bg-primary px-5 py-2.5 font-semibold text-white">{t("preregistrationConfirm")}</button>
+      <button data-autofocus type="button" onClick={onComplete ?? onClose} className="focus-ring mt-6 min-h-11 w-full rounded-xl bg-primary px-5 py-2.5 font-semibold text-white">{t("preregistrationConfirm")}</button>
     </> : <form className="mt-5" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      {description && <p className="mb-4 text-sm text-gray-600">{description}</p>}
       <label htmlFor="preregistration-email" className="block text-sm font-semibold text-gray-700">{t("preregistrationEmail")}</label>
       <div className="relative mt-2">
         <Mail className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-gray-400" aria-hidden="true" />

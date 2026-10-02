@@ -77,6 +77,30 @@ Remove-Item Env:PREREGISTRATION_TEST_DATABASE_URL
 동시 ID 발급과 재시도, KST 날짜 경계, 필터 후 중복 제거, CSV, 개별 삭제·감사 기록의
 트랜잭션, 시험 세션 삭제 시 신청 보존을 실제 PostgreSQL에서 확인합니다.
 
+## 마라톤 PostgreSQL 통합 테스트
+
+`tests/integration/marathon.integration.test.ts`는 **폐기 가능한 DB `unigate_marathon_test` 전용**입니다.
+현재 문제은행 스키마·문항 데이터와 `001`~`019` 마이그레이션을 적용한 로컬 DB를 준비한 뒤 실행합니다.
+테스트는 마라톤 및 연결된 테스트 세션 데이터를 초기화하므로 운영 DB를 지정하면 안 됩니다.
+DB 이름과 마라톤 테이블을 검사하며, 연결 변수를 생략하면 건너뜁니다.
+
+```powershell
+$env:MARATHON_TEST_DATABASE_URL = 'postgresql://USER:PASSWORD@127.0.0.1:PORT/unigate_marathon_test'
+pnpm --filter @unigate/topik-api test tests/integration/marathon.integration.test.ts
+Remove-Item Env:MARATHON_TEST_DATABASE_URL
+```
+
+검증 범위: 3문항 등록 제한과 재시작·영역 전환, 동시 제출·다음 문항·등록 재시도,
+활성 시간과 답 변경, 003 등록 통계, 출제 난이도·문항 버전 보존, 듣기 대본 비공개와 음원 보존,
+진행 중 응답 및 세트/마라톤/전체 CSV의 미리보기·다운로드 일치.
+듣기 파일 URL 발급과 스토리지 삭제는 테스트 대역을 사용하며 외부 파일을 생성하거나 삭제하지 않습니다.
+
+마라톤 출시 시에는 `019_marathon.sql` → 백엔드 → 프런트엔드 순서로 적용합니다.
+기존 세트 세션과 001/002 신청 기록은 유지됩니다. CSV에 `source` 및 마라톤 정책 열이 추가되므로
+열 번호 기반 외부 분석은 열 이름 기준으로 갱신해야 합니다. 전체 출처는 출처별 행을 함께 반환합니다.
+출제 실패(`MARATHON_NO_QUESTIONS`), 등록 차단(`MARATHON_REGISTRATION_REQUIRED`), 저장 오류는
+API 오류 코드와 서버 요청 로그로 확인합니다.
+
 ## 빌드와 중복 실행 방지
 
 - 백엔드 `tsconfig.build.json`은 `src/**/*.test.ts`, `tests`, `dist`를 명시적으로 제외한다.

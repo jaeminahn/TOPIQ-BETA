@@ -3,8 +3,8 @@ import type { ExamMode, Question, TranscriptTurn } from "./public";
 export interface AdminPreregistration {
   registrationId: string;
   email: string;
-  source: "landing" | "topik_result";
-  sourceCode: "001" | "002";
+  source: "landing" | "topik_result" | "marathon";
+  sourceCode: "001" | "002" | "003";
   consentedAt: string;
   locale: "ko" | "en";
   privacyConsent: boolean;
@@ -13,7 +13,7 @@ export interface AdminPreregistration {
 }
 
 export interface AdminPreregistrationFilters {
-  source?: "landing" | "topik_result";
+  source?: "landing" | "topik_result" | "marathon";
   deduplicate: boolean;
   from?: string;
   to?: string;
@@ -159,10 +159,11 @@ export interface AdminResponseObservation {
 }
 
 export type AdminExportDataset = "questions" | "responses" | "sessions";
-export type AdminExportStatus = "submitted" | "abandoned" | "all";
+export type AdminExportStatus = "submitted" | "abandoned" | "in_progress" | "all";
 export type AdminExportOutcome = "all" | "answered" | "correct" | "incorrect" | "unanswered";
 
 export interface AdminExportFilters {
+  source?: "set" | "marathon" | "all";
   mockTestId?: string;
   section?: "reading" | "listening";
   mode?: ExamMode;

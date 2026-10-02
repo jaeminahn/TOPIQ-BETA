@@ -22,9 +22,9 @@ export function registerPublicRoutes(
 
   app.post("/v1/sessions", async (request, reply) => {
     const body = z
-      .object({ mockTestId: z.string().uuid(), mode: z.enum(["timed", "practice"]) })
+      .object({ mockTestId: z.string().uuid(), mode: z.enum(["timed", "practice"]), browserToken: z.string().min(32).max(128).optional() })
       .parse(request.body);
-    const created = await repository.createSession(body.mockTestId, body.mode);
+    const created = await repository.createSession(body.mockTestId, body.mode, body.browserToken);
     return reply.code(201).send(created);
   });
 

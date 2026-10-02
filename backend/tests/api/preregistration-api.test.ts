@@ -138,6 +138,7 @@ describe("preregistration admin API", () => {
       expect((await app.inject({ method: "DELETE", url: "/v1/admin/preregistrations/001-00000001", headers })).statusCode).toBe(204);
     }
     expect(remove).toHaveBeenCalledWith("10000000-0000-4000-8000-000000000001", "001-00000001");
-    expect((await app.inject({ method: "DELETE", url: "/v1/admin/preregistrations/003-00000001", headers })).statusCode).toBe(400);
+    expect((await app.inject({ method: "DELETE", url: "/v1/admin/preregistrations/003-00000001", headers })).statusCode).toBe(204);
+    expect((await app.inject({ method: "DELETE", url: "/v1/admin/preregistrations/004-00000001", headers })).statusCode).toBe(400);
   });
 });

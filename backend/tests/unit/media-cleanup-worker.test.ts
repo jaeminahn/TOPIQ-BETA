@@ -36,6 +36,7 @@ describe("media cleanup worker", () => {
       .mockResolvedValueOnce({ rows: [], rowCount: 0 });
     const query = vi.fn(async (sql: string) => {
       if (sql.includes("SELECT is_current")) return { rows: [{ is_current: false }], rowCount: 1 };
+      if (sql.includes("marathon_items")) return { rows: [], rowCount: 0 };
       if (sql.includes("storage_bucket=$1")) return { rows: [], rowCount: 0 };
       if (sql.includes("DELETE FROM topik_app.item_visual_assets")) operations.push("metadata-delete");
       return { rows: [], rowCount: 1 };

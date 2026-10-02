@@ -8,10 +8,11 @@ const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
 });
 
 const exportFilterSchema = z.object({
+  source: z.enum(["set", "marathon", "all"]).default("set"),
   mockTestId: z.string().uuid().optional(),
   section: z.enum(["reading", "listening"]).optional(),
   mode: z.enum(["timed", "practice"]).optional(),
-  status: z.enum(["submitted", "abandoned", "all"]).default("submitted"),
+  status: z.enum(["submitted", "abandoned", "in_progress", "all"]).default("submitted"),
   from: dateOnly.optional(),
   to: dateOnly.optional(),
   itemType: z.string().trim().min(1).max(100).optional(),

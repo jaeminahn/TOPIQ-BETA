@@ -2,10 +2,11 @@ export const adminExportDatasets = ["questions", "responses", "sessions"] as con
 export type AdminExportDataset = (typeof adminExportDatasets)[number];
 
 export type AdminExportFilters = {
+  source?: "set" | "marathon" | "all";
   mockTestId?: string;
   section?: "reading" | "listening";
   mode?: "timed" | "practice";
-  status: "submitted" | "abandoned" | "all";
+  status: "submitted" | "abandoned" | "in_progress" | "all";
   from?: string;
   to?: string;
   itemType?: string;
@@ -49,4 +50,10 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "incorrect_count", "rating", "feedback_locale", "result_email", "result_email_accepted",
   ].map((key) => ({ key, header: key })),
 };
+
+for (const dataset of adminExportDatasets) {
+  columns[dataset].unshift({key:'source',header:'source'});
+  for (const key of ['marathon_difficulty','requested_difficulty','recent_accuracy']) columns[dataset].push({key,header:key});
+  if (dataset!=='responses') columns[dataset].push({key:'policy_version',header:'policy_version'});
+}
 

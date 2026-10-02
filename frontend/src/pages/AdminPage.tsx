@@ -11,16 +11,18 @@ import { AdminResponsesPanel } from "../components/admin/responses/AdminResponse
 import { ResponseDeleteDialog } from "../components/admin/responses/ResponseDeleteDialog";
 import { useAdminResponses } from "../components/admin/responses/useAdminResponses";
 import { AdminPreregistrationsPanel } from "../components/admin/preregistrations/AdminPreregistrationsPanel";
+import { AdminMarathonPanel } from "../components/admin/marathon/AdminMarathonPanel";
 import { supabase } from "../supabase";
 import type { AdminListeningSet, AdminReadingSet, AdminSummary, TtsJob } from "../types";
 
-type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports" | "preregistrations";
+type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports" | "preregistrations" | "marathon";
 
 const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "요약", icon: LayoutDashboard },
   { id: "listening", label: "듣기 문항", icon: Headphones },
   { id: "reading", label: "읽기 문항", icon: BookOpen },
-  { id: "responses", label: "사용자 응답", icon: MessageSquareText },
+  { id: "responses", label: "세트 응답", icon: MessageSquareText },
+  { id: "marathon", label: "마라톤", icon: BookOpen },
   { id: "exports", label: "데이터 추출", icon: Download },
   { id: "preregistrations", label: "사전등록", icon: Mail },
 ];
@@ -131,6 +133,7 @@ export function AdminPage() {
         {tab === "responses" && <AdminResponsesPanel token={token} sessions={responses.sessions} total={responses.total} details={responses.details} selectedSessions={responses.selectedSessions} setSelectedSessions={responses.setSelectedSessions} expandedSession={responses.expandedSession} onToggleDetails={(sessionId) => void responses.toggleDetails(sessionId)} status={responses.status} onStatusChange={responses.setStatus} section={responses.section} onSectionChange={responses.setSection} correctness={responses.correctness} onCorrectnessChange={responses.setCorrectness} page={responses.page} onPageChange={responses.setPage} onDeleteRequest={responses.setDeleteDialog} />}
         {tab === "exports" && <AdminDataExportPanel token={token} />}
         {tab === "preregistrations" && <AdminPreregistrationsPanel token={token} />}
+        {tab === "marathon" && <AdminMarathonPanel token={token} />}
       </main>
       {responses.deleteDialog && <ResponseDeleteDialog dialog={responses.deleteDialog} selectedCount={responses.selectedSessions.size} confirmation={responses.deleteConfirmation} busy={responses.deleting} onConfirmationChange={responses.setDeleteConfirmation} onCancel={responses.closeDeleteDialog} onConfirm={() => void responses.confirmDeletion()} />}
     </div>

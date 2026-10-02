@@ -23,7 +23,7 @@ export function registerAdminPreregistrationRoutes(app: FastifyInstance, reposit
 
   app.delete("/v1/admin/preregistrations/:registrationId", async (request, reply) => {
     const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
-    const { registrationId } = z.object({ registrationId: z.string().regex(/^00[12]-\d{8,19}$/) }).parse(request.params);
+    const { registrationId } = z.object({ registrationId: z.string().regex(/^00[123]-\d{8,19}$/) }).parse(request.params);
     await repository.delete(admin.adminUserId, registrationId);
     return reply.header("Cache-Control", "no-store").code(204).send();
   });

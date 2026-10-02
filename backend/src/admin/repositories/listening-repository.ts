@@ -5,6 +5,7 @@ import { AppError, notFound } from "../../core/errors.js";
 import type { DialogueTurn, TtsStyle } from "../../listening/google-tts.js";
 import { buildNarrationScript, EXAM_TRACK_VERSION } from "../../listening/narration.js";
 import { AdminOverviewRepository } from "./overview-repository.js";
+import { queueMediaCleanup } from "../../media/cleanup-queue.js";
 
 export class AdminListeningRepository extends AdminOverviewRepository {
   async listListeningItems(setId?: string, status?: "ready" | "missing" | "failed") {
@@ -465,10 +466,13 @@ export class AdminListeningRepository extends AdminOverviewRepository {
         `SELECT 1 FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1 AND is_current
          UNION ALL
          SELECT 1 FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1 AND is_current
+         UNION ALL SELECT 1 FROM topik_app.marathon_items mi JOIN topik_app.marathon_sessions ms USING(session_id)
+          WHERE mi.audio_asset_id=$1 AND ms.status='in_progress'
          LIMIT 1`,
         [audioAssetId],
       );
       let storageDeleted = false;
+      if (shared.rowCount) await queueMediaCleanup(client,'audio',[{assetId:audioAssetId,bucket:row.storage_bucket,path:row.storage_path}]);
       if (!shared.rowCount) {
         await removeObject(row.storage_bucket, row.storage_path);
         await client.query("UPDATE topik_app.tts_generation_jobs SET audio_asset_id=NULL WHERE audio_asset_id=$1", [audioAssetId]);

@@ -13,6 +13,13 @@ vi.mock("../../../api", () => ({
 }));
 
 describe("AdminDataExportPanel", () => {
+  it('includes marathon source and in-progress filters in the preview',async()=>{
+    render(<AdminDataExportPanel token="admin-token"/>);
+    await userEvent.selectOptions(await screen.findByRole('combobox',{name:'응답 출처'}),'marathon');
+    await userEvent.selectOptions(screen.getByRole('combobox',{name:'세션 상태'}),'in_progress');
+    await userEvent.click(screen.getByRole('button',{name:'추출 대상 확인'}));
+    await waitFor(()=>expect(adminApi.exportPreview).toHaveBeenCalledWith('admin-token','questions',expect.objectContaining({source:'marathon',status:'in_progress'})));
+  });
   beforeEach(() => {
     vi.mocked(adminApi.exportOptions).mockResolvedValue({
       mockTests: [{

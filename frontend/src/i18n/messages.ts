@@ -1,6 +1,16 @@
 type SupportedLocale = "ko" | "en";
 
 const koMessages = {
+  marathonTitle: "TOPIK 문제 마라톤", marathonBody: "한 문제씩 풀고 바로 해설을 확인하세요. 실력에 맞춰 다음 문제가 이어집니다.",
+  marathonStart: "마라톤 시작", marathonContinue: "이어하기", marathonRestart: "새로 시작",
+  marathonResume: "풀던 마라톤이 있어요", marathonResumeBody: "이어서 풀거나 쉬운 3문제부터 새로 시작할 수 있어요.",
+  marathonHint: "쉬운 3문제로 시작 · 3문제 후 무료 사전등록 · 시간 제한 없음",
+  marathonSubmit: "답 제출", marathonNext: "다음 문제", marathonCorrect: "정답입니다!", marathonIncorrect: "다시 살펴볼까요?",
+  marathonGate: "3문제를 완료했어요. 이메일로 사전등록하면 계속 풀 수 있어요.",
+  marathonError: "요청을 처리하지 못했습니다. 다시 시도해 주세요.", marathonUnavailable: "아직 시작할 수 있는 문제가 준비되지 않았어요.",
+  marathonExpired: "이 마라톤에 접근할 수 없습니다. 홈에서 다시 시작해 주세요.",
+  marathonLoading: "문제를 준비하고 있어요…", marathonRetry: "다시 시도", marathonNumber: "번째 문제",
+  marathonExplanation: "정답과 해설", marathonMissingExplanation: "이 문제의 해설은 준비 중입니다.",
   language: "언어", korean: "한국어", english: "English",
   pageSections: "페이지 섹션", navIntro: "소개", navMockTests: "모의고사", navAboutTopik: "TOPIK 안내", navUses: "성적 활용", navFaq: "자주 묻는 질문",
   heroTitle: "TOPIK II 실력을\n확인해보세요.",
@@ -103,6 +113,16 @@ const koMessages = {
 export type MessageKey = keyof typeof koMessages;
 
 const enMessages: Record<MessageKey, string> = {
+  marathonTitle: "TOPIK Question Marathon", marathonBody: "Answer one question and see the explanation right away. Keep going with questions matched to your level.",
+  marathonStart: "Start marathon", marathonContinue: "Continue", marathonRestart: "Start over",
+  marathonResume: "Your marathon is waiting", marathonResumeBody: "Continue where you left off, or start over with three easy questions.",
+  marathonHint: "Start with 3 easy questions · Free preregistration after 3 · No time limit",
+  marathonSubmit: "Submit answer", marathonNext: "Next question", marathonCorrect: "Correct!", marathonIncorrect: "Let's review this one",
+  marathonGate: "You have completed 3 questions. Preregister with your email to keep going.",
+  marathonError: "We couldn't complete your request. Please try again.", marathonUnavailable: "No questions are ready for this marathon yet.",
+  marathonExpired: "This marathon is unavailable. Please start again from the home page.",
+  marathonLoading: "Getting your question ready…", marathonRetry: "Try again", marathonNumber: "Question",
+  marathonExplanation: "Answer and explanation", marathonMissingExplanation: "An explanation for this question is not available yet.",
   preregistrationTitle: "Pre-register", preregistrationEmail: "Email",
   preregistrationSubmit: "Submit pre-registration", preregistrationSaving: "Submitting...",
   preregistrationNotice: "By submitting, you agree to the collection and use of your personal information and to receive marketing information.",
