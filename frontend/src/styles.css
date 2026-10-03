@@ -300,6 +300,7 @@ button { cursor: pointer; }
 .topiq-language-switch[data-locale="ko"] .topiq-language-indicator { transform: translateX(100%); }
 .topiq-tooltip { animation: topiq-tooltip-in .22s var(--topiq-ease) both; transform-origin: top right; }
 .topiq-section-nav {
+  display: none;
   order: 3;
   width: 100%;
   overflow-x: auto;
@@ -322,10 +323,10 @@ button { cursor: pointer; }
   white-space: nowrap;
   transition: color .2s ease, background-color .2s ease;
 }
-.topiq-section-nav a:hover { color: var(--color-primary-dark); background: var(--color-primary-50); }
-.topiq-section-nav a.is-active { color: var(--color-primary-dark); background: var(--color-primary-50); font-weight: 650; }
+.topiq-section-nav a:hover { color: var(--color-primary-dark); }
+.topiq-section-nav a.is-active { color: var(--color-primary-dark); font-weight: 700; }
 @media (min-width: 768px) {
-  .topiq-section-nav { order: initial; width: auto; margin-left: auto; overflow: visible; }
+  .topiq-section-nav { display: block; order: initial; width: auto; margin-left: auto; overflow: visible; }
   .topiq-section-nav-list { padding: 0; }
   .topiq-section-nav a { padding-inline: .6rem; }
 }
