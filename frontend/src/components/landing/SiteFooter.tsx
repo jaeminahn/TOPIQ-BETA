@@ -7,7 +7,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-5xl px-4 sm:px-8">
         <div className="border-t border-gray-200/80 pt-5 text-xs text-gray-500">
           <div className="flex flex-col items-center justify-between gap-2 sm:flex-row"><span className="font-medium text-gray-700">UNIGATE TOPIQ</span><span>© 2026 UNIGATE. All rights reserved.</span></div>
-          <p className="mt-4 text-center leading-5 sm:text-left">{t("footerTrademark")}</p>
+          <p className="mt-4 text-center leading-5 lg:text-left">{t("footerTrademark")}</p>
         </div>
       </div>
     </footer>
