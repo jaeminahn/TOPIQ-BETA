@@ -45,13 +45,24 @@ describe("LandingPage", () => {
     vi.mocked(api.preregister).mockResolvedValue({ registrationId: "001-00000001" });
   });
 
+  it("shows the consolidated landing navigation in the header", () => {
+    renderLanding("ko");
+    const navigation = screen.getByRole("navigation", { name: "페이지 섹션" });
+    expect(navigation).toHaveTextContent("소개");
+    expect(navigation).toHaveTextContent("모의고사");
+    expect(navigation).toHaveTextContent("TOPIQ 소개");
+    expect(navigation).toHaveTextContent("TOPIK 안내");
+    expect(navigation).toHaveTextContent("FAQ");
+    expect(navigation).not.toHaveTextContent("성적 활용");
+  });
+
   it("validates email, announces consent, confirms registration and restores focus", async () => {
     renderLanding("ko");
     const opener = screen.getByRole("button", { name: "사전등록" });
     await userEvent.click(opener);
     const email = screen.getByRole("textbox", { name: "이메일" });
     expect(email).toHaveFocus();
-    expect(screen.getByText("사전등록 신청 시 개인정보 수집·이용 및 마케팅 정보 수신에 동의합니다.")).toBeInTheDocument();
+    expect(screen.getAllByText("사전등록을 신청하면 정식 출시에 관한 소식을 이메일로 받아볼 수 있습니다").length).toBeGreaterThan(0);
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
     await userEvent.type(email, "invalid");
     await userEvent.click(screen.getByRole("button", { name: "사전등록 신청" }));
@@ -63,7 +74,8 @@ describe("LandingPage", () => {
     expect(screen.queryByRole("textbox", { name: "이메일" })).not.toBeInTheDocument();
     expect(api.preregister).toHaveBeenCalledWith({ email: "User@Example.com", locale: "ko", requestId: expect.any(String), consentVersion: "preregistration_v1" });
     await userEvent.click(screen.getByRole("button", { name: "확인" }));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog").parentElement).toHaveClass("is-closing");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(opener).toHaveFocus();
   });
 
@@ -92,7 +104,8 @@ describe("LandingPage", () => {
     await userEvent.tab();
     expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog").parentElement).toHaveClass("is-closing");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(opener).toHaveFocus();
   });
 

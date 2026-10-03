@@ -79,7 +79,7 @@ describe("FeedbackPage result email delivery", () => {
     vi.mocked(api.resultEmail).mockRejectedValueOnce(new ApiError(502, "RESULT_EMAIL_SEND_FAILED", "Failed"));
     renderFeedback();
     const email = await screen.findByRole("textbox", { name: "결과를 받을 이메일 (필수)" });
-    expect(screen.getByText(/사전등록이 신청되며/)).toBeInTheDocument();
+    expect(screen.getByText("결과를 받을 이메일을 입력하면 정식 출시 소식도 함께 받아볼 수 있습니다.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "5 stars" }));
     await userEvent.type(email, "user@example.com");
     await userEvent.click(screen.getByRole("button", { name: /결과 링크 받기/ }));

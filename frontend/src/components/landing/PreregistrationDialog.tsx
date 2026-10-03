@@ -33,7 +33,7 @@ export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
   return <AccessibleDialog key={complete ? "complete" : "form"} title={complete ? t("preregistrationComplete") : t("preregistrationTitle")} closeLabel={t("close")} busy={busy} onClose={onClose}>
     {complete ? <>
       <MailCheck className="mx-auto mt-6 size-12 text-green-600" aria-hidden="true" />
-      <button data-autofocus type="button" onClick={onClose} className="focus-ring mt-6 min-h-11 w-full rounded-xl bg-primary px-5 py-2.5 font-semibold text-white">{t("preregistrationConfirm")}</button>
+      <button data-autofocus data-dialog-close type="button" className="focus-ring mt-6 min-h-11 w-full rounded-xl bg-primary px-5 py-2.5 font-semibold text-white">{t("preregistrationConfirm")}</button>
     </> : <form className="mt-5" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <label htmlFor="preregistration-email" className="block text-sm font-semibold text-gray-700">{t("preregistrationEmail")}</label>
       <div className="relative mt-2">

@@ -4,8 +4,8 @@ import { useI18n } from "../../i18n";
 const sections = [
   { id: "intro", label: "navIntro" },
   { id: "tests", label: "navMockTests" },
+  { id: "full-version", label: "navFullVersion" },
   { id: "topik-guide", label: "navAboutTopik" },
-  { id: "topik-uses", label: "navUses" },
   { id: "topik-faq", label: "navFaq" },
 ] as const;
 
@@ -48,13 +48,12 @@ export function LandingSectionNav() {
 
   return (
     <nav className="topiq-section-nav" aria-label={t("pageSections")}>
-      <ol>
+      <ol className="topiq-section-nav-list">
         {sections.map((section) => {
           const active = section.id === activeId;
           return (
             <li key={section.id}>
               <a href={`#${section.id}`} className={active ? "is-active" : ""} aria-current={active ? "location" : undefined}>
-                <span className="topiq-section-nav-dot" aria-hidden="true" />
                 <span>{t(section.label)}</span>
               </a>
             </li>
