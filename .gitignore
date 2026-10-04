@@ -107,5 +107,8 @@ $RECYCLE.BIN/
 # Backup
 *.backup
 
+# Local security and optimization review notes
+/local-reviews/
+
 # etc
 TOPIK자료화면

@@ -9,6 +9,8 @@ import { mediaCleanupWorker } from "../media/cleanup-worker.js";
 import { queueMediaCleanup } from "../media/cleanup-queue.js";
 import { SupabaseStorage } from "../media/storage.js";
 
+const JOB_COOLDOWN_MS = 120_000;
+
 type Job = {
   job_id: string; item_id: string; item_version: number; requested_by: string;
   force_regenerate: boolean; attempts: number; tts_style: TtsStyle;
@@ -112,6 +114,7 @@ export function splitLiteralUtterances(text: string) {
 
 export class TtsWorker {
   private running = false;
+  private nextJobAt = 0;
   private timer?: NodeJS.Timeout;
 
   constructor(
@@ -153,11 +156,17 @@ export class TtsWorker {
   }
 
   async runOnce() {
-    if (this.running) return;
+    if (this.running || Date.now() < this.nextJobAt) return;
     this.running = true;
     try {
-      let job: Job | null;
-      while ((job = await this.claim())) await this.process(job);
+      const job = await this.claim();
+      if (!job) return;
+      try {
+        await this.process(job);
+      } finally {
+        // Start the cooldown after the entire attempt, including failure handling.
+        this.nextJobAt = Date.now() + JOB_COOLDOWN_MS;
+      }
     } catch (error) {
       console.error("TTS worker polling failed", error);
     } finally { this.running = false; }
