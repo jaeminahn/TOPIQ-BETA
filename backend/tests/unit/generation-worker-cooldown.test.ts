@@ -48,7 +48,7 @@ describe.each([
   { name: "audio", create: () => new TtsWorker() },
   { name: "image", create: () => new VisualWorker() },
 ])("$name worker cooldown", ({ create }) => {
-  it("starts immediately, handles only one job, and leaves the next queued for 120 seconds", async () => {
+  it("starts immediately, handles only one job, and leaves the next queued for 180 seconds", async () => {
     const { worker, jobs, claim, process } = schedule(create());
 
     await worker.runOnce();
@@ -56,7 +56,7 @@ describe.each([
     expect(claim).toHaveBeenCalledTimes(1);
     expect(jobs).toEqual([{ job_id: "second" }]);
 
-    await vi.advanceTimersByTimeAsync(119_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     await worker.runOnce();
     expect(claim).toHaveBeenCalledTimes(1);
     expect(process).toHaveBeenCalledTimes(1);
@@ -75,7 +75,7 @@ describe.each([
     const inFlight = worker.runOnce();
     await Promise.resolve();
     expect(process).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(180_000);
+    await vi.advanceTimersByTimeAsync(240_000);
     worker.kick();
     worker.kick();
     await worker.runOnce();
@@ -83,7 +83,7 @@ describe.each([
 
     finish();
     await inFlight;
-    await vi.advanceTimersByTimeAsync(119_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     await worker.runOnce();
     expect(process).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
@@ -97,7 +97,7 @@ describe.each([
     await vi.advanceTimersByTimeAsync(0);
     expect(process).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(119_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     worker.kick();
     worker.kick();
     await worker.runOnce();
@@ -114,7 +114,7 @@ describe.each([
     await worker.runOnce();
     expect(process).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(120_000);
+    await vi.advanceTimersByTimeAsync(180_000);
     await worker.runOnce();
     jobs.push({ job_id: "second" });
     await worker.runOnce();
@@ -131,7 +131,10 @@ describe.each([
     await worker.runOnce();
     expect(claim).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(119_999);
+    await worker.runOnce();
+    expect(process).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
     await worker.runOnce();
     expect(process).toHaveBeenLastCalledWith({ job_id: "new-request" });
   });
@@ -142,7 +145,7 @@ describe.each([
     vi.spyOn(console, "error").mockImplementation(() => {});
     await worker.runOnce();
 
-    await vi.advanceTimersByTimeAsync(119_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     await worker.runOnce();
     expect(process).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
@@ -179,7 +182,7 @@ it("keeps audio and image cooldowns independent", async () => {
   await image.worker.runOnce();
   expect(image.process).toHaveBeenCalledTimes(1);
 
-  await vi.advanceTimersByTimeAsync(90_000);
+  await vi.advanceTimersByTimeAsync(150_000);
   await audio.worker.runOnce();
   await image.worker.runOnce();
   expect(audio.process).toHaveBeenCalledTimes(2);
@@ -190,22 +193,33 @@ it("keeps audio and image cooldowns independent", async () => {
   expect(image.process).toHaveBeenCalledTimes(2);
 });
 
-it("waits after a normal TTS failure and leaves the failed attempt terminal", async () => {
+it("counts the TTS failure cooldown from failure persistence and leaves the attempt terminal", async () => {
   const synthesize = vi.fn().mockRejectedValue(new Error("quota exceeded"));
   const worker = new TtsWorker({ synthesize } as unknown as GoogleTtsClient);
+  let persistFailure!: () => void;
+  const failurePersistence = new Promise<{ rows: []; rowCount: number }>((resolve) => {
+    persistFailure = () => resolve({ rows: [], rowCount: 1 });
+  });
   poolMock.query.mockResolvedValue({ rows: [], rowCount: 0 })
     .mockResolvedValueOnce({ rows: [{
       job_id: "audio-1", item_id: "item-1", item_version: 1, requested_by: "admin-1",
       force_regenerate: true, attempts: 1, tts_style: { speakingRate: 1, stylePrompt: "" },
       set_id: null, script_snapshot: null,
     }] })
-    .mockResolvedValueOnce({ rows: [{ content_json: { dialogue_turns: [{ speaker: "남자", text: "안녕하세요." }] } }] });
+    .mockResolvedValueOnce({ rows: [{ content_json: { dialogue_turns: [{ speaker: "남자", text: "안녕하세요." }] } }] })
+    .mockImplementationOnce(() => failurePersistence);
 
-  await worker.runOnce();
+  const inFlight = worker.runOnce();
+  await vi.advanceTimersByTimeAsync(240_000);
   expect(synthesize).toHaveBeenCalledTimes(1);
   expect(String(poolMock.query.mock.calls[2]?.[0])).toContain("SET status='failed'");
   expect(poolMock.query.mock.calls[2]?.[1]).toEqual(["audio-1", "quota exceeded"]);
-  await vi.advanceTimersByTimeAsync(119_999);
+  worker.kick();
+  await worker.runOnce();
+  expect(poolMock.query).toHaveBeenCalledTimes(3);
+  persistFailure();
+  await inFlight;
+  await vi.advanceTimersByTimeAsync(179_999);
   worker.kick();
   await worker.runOnce();
   expect(poolMock.query).toHaveBeenCalledTimes(3);
@@ -215,7 +229,7 @@ it("waits after a normal TTS failure and leaves the failed attempt terminal", as
   expect(synthesize).toHaveBeenCalledTimes(1);
 });
 
-it("spaces image retries by 120 seconds while preserving the three-attempt limit", async () => {
+it("spaces image retries by 180 seconds while preserving the three-attempt limit", async () => {
   const generate = vi.fn().mockRejectedValue(new Error("quota exceeded"));
   const worker = new VisualWorker({ generate } as unknown as GoogleImageClient);
   poolMock.query.mockResolvedValue({ rows: [], rowCount: 0 });
@@ -233,7 +247,7 @@ it("spaces image retries by 120 seconds while preserving the three-attempt limit
     await worker.runOnce();
     expect(generate).toHaveBeenCalledTimes(attempt);
     expect(poolMock.query).toHaveBeenCalledTimes(attempt * 3);
-    await vi.advanceTimersByTimeAsync(119_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     worker.kick();
     await worker.runOnce();
     expect(poolMock.query).toHaveBeenCalledTimes(attempt * 3);

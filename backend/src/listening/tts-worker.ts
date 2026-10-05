@@ -9,7 +9,7 @@ import { mediaCleanupWorker } from "../media/cleanup-worker.js";
 import { queueMediaCleanup } from "../media/cleanup-queue.js";
 import { SupabaseStorage } from "../media/storage.js";
 
-const JOB_COOLDOWN_MS = 120_000;
+const JOB_COOLDOWN_MS = 180_000;
 
 type Job = {
   job_id: string; item_id: string; item_version: number; requested_by: string;
