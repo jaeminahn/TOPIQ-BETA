@@ -126,6 +126,8 @@ export function AdminListeningAudioDock({
           <button type="button" onClick={onClose} className="focus-ring grid size-10 place-items-center rounded-lg text-gray-500" aria-label="재생바 닫기"><X className="size-5" /></button>
         </div>
 
+        {(audioError || group?.lastError) && <p role="alert" className="mt-2 max-h-24 overflow-auto break-words text-xs font-semibold text-red-600">{audioError || group?.lastError}</p>}
+
         {bulk?.phase === "running" && bulk.total > 0 && (
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-100" aria-label={`일괄 생성 진행률 ${progress}%`} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
             <div className={`h-full rounded-full transition-[width] ${bulk.failed ? "bg-orange-500" : "bg-primary"}`} style={{ width: `${progress}%` }} />
@@ -155,7 +157,6 @@ export function AdminListeningAudioDock({
                   : <button type="button" disabled={!canPlay} onClick={onPlay} className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">
                     {audioLoading ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : <Play className="size-4" />}{audioLoading ? "불러오는 중" : generating ? "적용 후 재생 가능" : "음원 재생"}
                   </button>}
-                {(audioError || group.lastError) && <p role="alert" className="mt-2 max-h-24 overflow-auto break-words text-xs font-semibold text-red-600">{audioError || group.lastError}</p>}
               </>
             ) : (
               <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">

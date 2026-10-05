@@ -5,6 +5,7 @@ import { requireAdmin } from "../../admin/auth.js";
 import type { AdminRepository } from "../../admin/repository.js";
 import { visualWorker } from "../../admin/workers/visual-worker.js";
 import { AppError } from "../../core/errors.js";
+import { config } from "../../core/config.js";
 import { ttsWorker } from "../../listening/tts-worker.js";
 import { mediaCleanupWorker } from "../../media/cleanup-worker.js";
 import { SupabaseStorage } from "../../media/storage.js";
@@ -32,6 +33,15 @@ function imageExtension(mimeType: string) {
   return mimeType === "image/png" ? "png" : mimeType === "image/webp" ? "webp" : "jpg";
 }
 
+function requireGenerationWorker(kind: "tts" | "visual") {
+  const enabled = kind === "tts" ? config.googleTts.workerEnabled : config.googleImage.workerEnabled;
+  if (enabled) return;
+  const variable = kind === "tts" ? "TTS_WORKER_ENABLED" : "VISUAL_WORKER_ENABLED";
+  const label = kind === "tts" ? "음원" : "그림";
+  throw new AppError(503, kind === "tts" ? "TTS_WORKER_DISABLED" : "VISUAL_WORKER_DISABLED",
+    `${variable} 환경변수가 true로 설정되지 않아 ${label} 생성이 차단되었습니다. 백엔드 환경변수를 ${variable}=true로 설정한 뒤 서버를 재시작해 주세요.`);
+}
+
 export function registerAdminMediaRoutes(app: FastifyInstance, repository: AdminRepository) {
   app.get("/v1/admin/listening/audio/:audioAssetId/url", async (request) => {
     await requireAdmin(requireSessionToken(request.headers.authorization));
@@ -46,6 +56,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
   ]) {
     app.post(path, async (request, reply) => {
       const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      requireGenerationWorker("tts");
       const { setId } = setParams.parse(request.params);
       const body = ttsGenerationBody.parse(request.body ?? {});
       const result = await repository.enqueueSet(admin.adminUserId, setId, body.forceRegenerate, body.ttsStyle);
@@ -60,6 +71,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
   ]) {
     app.post(path, async (request, reply) => {
       const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      requireGenerationWorker("tts");
       const { setId, leaderItemId } = listeningGroupParams.parse(request.params);
       const body = ttsGenerationBody.parse(request.body ?? {});
       const result = await repository.enqueueGroup(admin.adminUserId, setId, leaderItemId, body.forceRegenerate, body.ttsStyle);
@@ -122,6 +134,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
 
   app.post("/v1/admin/listening/items/:itemId/versions/:itemVersion/visual-options/:optionNumber/generate", async (request, reply) => {
     const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+    requireGenerationWorker("visual");
     const { itemId, itemVersion, optionNumber } = visualParams.parse(request.params);
     const body = generationBody.parse(request.body ?? {});
     const result = await repository.enqueueVisualOption(admin.adminUserId, itemId, itemVersion, optionNumber, body.forceRegenerate);
@@ -135,6 +148,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
   ]) {
     app.post(path, async (request, reply) => {
       const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      requireGenerationWorker("visual");
       const { setId } = setParams.parse(request.params);
       const body = generationBody.parse(request.body ?? {});
       const result = await repository.enqueueVisualSet(admin.adminUserId, setId, body.forceRegenerate);
@@ -193,6 +207,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
 
   app.post("/v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material/generate", async (request, reply) => {
     const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+    requireGenerationWorker("visual");
     const { itemId, itemVersion } = readingItemParams.parse(request.params);
     const body = generationBody.parse(request.body ?? {});
     const result = await repository.enqueueReadingMaterial(admin.adminUserId, itemId, itemVersion, body.forceRegenerate);
@@ -206,6 +221,7 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
   ]) {
     app.post(path, async (request, reply) => {
       const admin = await requireAdmin(requireSessionToken(request.headers.authorization));
+      requireGenerationWorker("visual");
       const { setId } = setParams.parse(request.params);
       const body = generationBody.parse(request.body ?? {});
       const result = await repository.enqueueReadingVisualSet(admin.adminUserId, setId, body.forceRegenerate);

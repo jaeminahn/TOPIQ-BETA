@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("dotenv", () => ({ config: vi.fn() }));
 import { resolveBackendRoot } from "../../src/core/config.js";
 
 afterEach(() => {
@@ -10,6 +11,23 @@ afterEach(() => {
 describe("backend configuration paths", () => {
   it("loads environment files from the backend root after source modules are grouped", () => {
     expect(resolveBackendRoot()).toBe(resolve(process.cwd()));
+  });
+});
+
+describe("generation worker opt-in", () => {
+  it.each([
+    { tts: undefined, visual: undefined, enabled: [false, false] },
+    { tts: "false", visual: "false", enabled: [false, false] },
+    { tts: "true", visual: "true", enabled: [true, true] },
+    { tts: "true", visual: undefined, enabled: [true, false] },
+    { tts: undefined, visual: "true", enabled: [false, true] },
+  ])("enables workers only when explicitly true: $tts / $visual", async ({ tts, visual, enabled }) => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("TTS_WORKER_ENABLED", tts);
+    vi.stubEnv("VISUAL_WORKER_ENABLED", visual);
+    vi.resetModules();
+    const { config } = await import("../../src/core/config.js");
+    expect([config.googleTts.workerEnabled, config.googleImage.workerEnabled]).toEqual(enabled);
   });
 });
 

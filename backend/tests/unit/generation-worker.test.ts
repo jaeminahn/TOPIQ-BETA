@@ -3,12 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn(), connect: vi.fn() },
 }));
-vi.mock("../../src/core/config.js", () => ({
-  config: {
-    googleTts: { workerEnabled: true, model: "test", femaleVoice: "female", maleVoice: "male" },
-    googleImage: { workerEnabled: true },
-  },
+const workerConfig = vi.hoisted(() => ({
+  googleTts: { workerEnabled: true, model: "test", femaleVoice: "female", maleVoice: "male" },
+  googleImage: { workerEnabled: true },
 }));
+vi.mock("../../src/core/config.js", () => ({ config: workerConfig }));
 
 import { pool } from "../../src/core/db.js";
 import { TtsWorker } from "../../src/listening/tts-worker.js";
@@ -37,6 +36,8 @@ beforeEach(async () => {
   vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
   poolMock.query.mockReset();
   poolMock.connect.mockReset();
+  workerConfig.googleTts.workerEnabled = true;
+  workerConfig.googleImage.workerEnabled = true;
   ({ withGoogleGenerationRequest } = await import("../../src/media/google-generation-request-limit.js"));
 });
 
@@ -50,6 +51,19 @@ describe.each([
   { name: "audio", create: () => new TtsWorker() },
   { name: "image", create: () => new VisualWorker() },
 ])("$name generation worker", ({ name, create }) => {
+  it("does not claim jobs through polling, kicks or direct execution when disabled", async () => {
+    const settings = name === "audio" ? workerConfig.googleTts : workerConfig.googleImage;
+    settings.workerEnabled = false;
+    const { worker, claim, process } = schedule(create());
+    worker.start();
+    worker.kick();
+    await worker.runOnce();
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(claim).not.toHaveBeenCalled();
+    expect(process).not.toHaveBeenCalled();
+    worker.stop();
+  });
+
   it("handles one job at a time without adding a delay before the next job", async () => {
     const { worker, jobs, claim, process } = schedule(create());
     await worker.runOnce();

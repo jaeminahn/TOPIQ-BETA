@@ -174,7 +174,8 @@ export function ListeningAdminPanel({
       if (result.jobId) setItems((current) => current.map((group) => group.leaderItemId === leaderItemId ? { ...group,generationJobId:result.jobId } : group));
       await Promise.all([loadItems(),onSetsChanged()]);
     } catch (cause) {
-      onError(cause instanceof Error ? cause.message:"음원 생성 요청에 실패했습니다.");
+      const message = cause instanceof Error ? cause.message:"음원 생성 요청에 실패했습니다.";
+      setAudioError(message); onError(message);
       await loadItems();
     } finally { setBusy(""); }
   };
@@ -198,7 +199,8 @@ export function ListeningAdminPanel({
       setDock({ kind:"bulk",phase:"running",targetCount:result.jobIds.length,jobIds:result.jobIds });
       await Promise.all([loadItems(),onSetsChanged()]);
     } catch (cause) {
-      onError(cause instanceof Error ? cause.message:"일괄 음원 생성 요청에 실패했습니다.");
+      const message = cause instanceof Error ? cause.message:"일괄 음원 생성 요청에 실패했습니다.";
+      setAudioError(message); onError(message);
       setDock({ kind:"bulk",phase:"configure",targetCount:candidates.length,jobIds:[] });
       await loadItems();
     } finally { setBusy(""); }

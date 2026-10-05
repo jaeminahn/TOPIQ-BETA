@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../src/core/db.js", () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 vi.mock("../../src/core/config.js", () => ({
   config: {
-    googleTts: { projectId: "project", model: "gemini-2.5-flash-tts", femaleVoice: "Aoede", maleVoice: "Charon" },
+    googleTts: { projectId: "project", model: "gemini-2.5-flash-tts", femaleVoice: "Aoede", maleVoice: "Charon", workerEnabled: true },
     googleImage: { projectId: "project", model: "gemini-2.5-flash-image", location: "global" },
   },
 }));
@@ -14,7 +14,8 @@ vi.mock("google-auth-library", () => ({
 }));
 
 import { buildNarrationScript } from "../../src/listening/narration.js";
-import { synthesizeExamTrackParts } from "../../src/listening/tts-worker.js";
+import { TtsWorker, synthesizeExamTrackParts } from "../../src/listening/tts-worker.js";
+import { pool } from "../../src/core/db.js";
 
 const fetchMock = vi.fn();
 let withGoogleGenerationRequest: typeof import("../../src/media/google-generation-request-limit.js").withGoogleGenerationRequest;
@@ -117,6 +118,36 @@ describe("Google generation request pacing", () => {
 });
 
 describe("actual Google client calls", () => {
+  it("blocks the next job's API request after a failed TTS job even when the worker is kicked", async () => {
+    const query = vi.mocked(pool.query);
+    query.mockReset();
+    const jobs = ["first", "second"].map((job_id) => ({
+      job_id, item_id: job_id, item_version: 1, requested_by: "admin",
+      force_regenerate: true, attempts: 1, tts_style: { speakingRate: 1, stylePrompt: "" },
+      set_id: null, script_snapshot: null,
+    }));
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes("WITH abandoned")) return { rows: jobs.length ? [jobs.shift()] : [], rowCount: 1 };
+      if (sql.includes("content_json")) return {
+        rows: [{ content_json: { dialogue_turns: [{ speaker: "남자", text: "안녕하세요." }] } }], rowCount: 1,
+      };
+      return { rows: [], rowCount: 1 };
+    });
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({ error: { message: "Quota exceeded" } }) });
+    const worker = new TtsWorker(new GoogleTtsClient());
+    await worker.runOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status='failed'"))).toBe(true);
+    const next = worker.runOnce();
+    await vi.advanceTimersByTimeAsync(179_999);
+    worker.kick();
+    await worker.runOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(1);
+    await next;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("paces every sentence request within one shared listening audio track", async () => {
     const requestTimes: number[] = [];
     fetchMock.mockImplementation(async () => {

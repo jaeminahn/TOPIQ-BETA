@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { adminApi } from "../../../api";
+import { ApiError } from "../../../api/request";
 import type { AdminReadingItem, AdminReadingSet } from "../../../types";
 import { ReadingAdminPanel } from "./ReadingAdminPanel";
 
@@ -194,5 +195,27 @@ describe("ReadingAdminPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
     await userEvent.click(await screen.findByRole("button", { name: /누락 그래프 생성/ }));
     await waitFor(() => expect(adminApi.generateReadingSetVisuals).toHaveBeenCalledWith("admin-token", missingSet.setId));
+  });
+
+  it.each(["single", "bulk"])("reports the environment block for %s graph generation", async (mode) => {
+    const message = "VISUAL_WORKER_ENABLED 환경변수가 true로 설정되지 않아 그림 생성이 차단되었습니다. 백엔드 환경변수를 VISUAL_WORKER_ENABLED=true로 설정한 뒤 서버를 재시작해 주세요.";
+    const blocked = new ApiError(503, "VISUAL_WORKER_DISABLED", message);
+    vi.mocked(adminApi.generateReadingMaterial).mockRejectedValue(blocked);
+    vi.mocked(adminApi.generateReadingSetVisuals).mockRejectedValue(blocked);
+    vi.mocked(adminApi.readingItems).mockResolvedValue({ items: [{
+      ...item, position: 10,
+      materialVisual: {
+        description: "교통수단 이용률 그래프", imagePrompt: "흑백 막대그래프", sourceText: "버스 34%",
+        visualAssetId: null, imageUrl: null, generationStatus: null, generationError: null,
+      },
+    }] });
+    const onError = vi.fn();
+    render(<ReadingAdminPanel token="admin-token" sets={[{ ...linkedSet, visualReady: 0 }]} busy="" onPublish={vi.fn()} onError={onError} />);
+    await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
+    if (mode === "single") await userEvent.click((await screen.findAllByText("첫 번째 읽기 문제"))[0]!);
+    const label = mode === "single" ? "그래프 생성" : "누락 그래프 생성";
+    await userEvent.click(await screen.findByRole("button", { name: label }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(message));
+    await waitFor(() => expect(screen.getByRole("button", { name: label })).toBeEnabled());
   });
 });

@@ -99,7 +99,8 @@ GOOGLE_TTS_MODEL=gemini-2.5-flash-tts
 GOOGLE_TTS_FEMALE_VOICE=Aoede
 GOOGLE_TTS_MALE_VOICE=Charon
 FFMPEG_PATH=ffmpeg
-TTS_WORKER_ENABLED=true
+TTS_WORKER_ENABLED=false
+VISUAL_WORKER_ENABLED=false
 
 ADMIN_EMAIL=admin@unigate.kr
 ADMIN_PASSWORD=12자-이상의-강한-임시-비밀번호
@@ -196,6 +197,8 @@ corepack pnpm --filter @unigate/topik-web dev
 음원과 이미지 생성 워커는 각각 독립적으로 한 작업씩 처리합니다. 생성·업로드·문항 연결 또는 실패 처리가 끝나면 작업 단위의 추가 대기 없이 다음 요청이나 기존 3초 주기 검사에서 다음 작업을 확인합니다. 음원 실패는 자동 재시도하지 않으며 이미지 생성은 최대 3회 시도합니다.
 
 분당 Google 요청 할당량 초과를 줄이기 위해 실제 Google API 요청 사이에만 3분 대기를 적용합니다. 문장별 TTS 호출과 그림 재시도를 포함하며, 성공·실패 응답 처리가 끝난 뒤 다음 요청까지 180초를 기다립니다. 단일 백엔드 프로세스를 기준으로 프로젝트·모델별 공통 요청 큐와 대기 시각을 서버 메모리에 보관합니다. 여러 클라이언트 인스턴스와 추가 생성 요청도 같은 큐를 사용하며, 실패한 요청 뒤에도 대기를 지킵니다. 서로 다른 모델의 음원·이미지 요청은 독립적으로 진행됩니다. 캐시 음원 재사용과 로컬 그래프 렌더링처럼 Google API를 호출하지 않는 작업에는 3분 대기가 없습니다. 서버 재시작 시 요청 큐와 대기 시각은 초기화됩니다. 음원 하나에도 여러 요청이 필요하므로 생성에 수십 분 이상 걸릴 수 있습니다. 별도 SQL 테이블이나 DB 마이그레이션 없이 백엔드 재배포 후 적용됩니다.
+
+`TTS_WORKER_ENABLED`와 `VISUAL_WORKER_ENABLED`의 기본값은 모두 `false`입니다. 음원을 생성할 백엔드에는 `TTS_WORKER_ENABLED=true`, 그림을 생성할 백엔드에는 `VISUAL_WORKER_ENABLED=true`를 명시적으로 설정한 뒤 재시작합니다. 환경변수가 없거나 `false`이면 관리자 일괄·개별 생성 요청은 작업 큐에 등록되기 전에 차단되며, 관리자 페이지에 차단한 환경변수와 `true` 설정 안내가 표시됩니다. 활성 워커는 서버 시작 시 자동으로 실행되어 3초마다 DB 큐를 확인하므로, 기존 메모리 대기를 유지하려면 같은 프로젝트의 생성 워커를 한 백엔드에서만 켭니다. 비활성 설정은 관리자 요청의 `kick()`에도 적용되며 `render.yaml`의 초기 설정도 모두 `false`입니다.
 
 작업은 DB에 남으므로 서버가 재시작되어도 재개됩니다. 동일 대화·모델·음성 해시는 재사용하며 21~50번 묶음 문제는 같은 음원을 공유합니다.
 

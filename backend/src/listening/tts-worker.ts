@@ -153,7 +153,7 @@ export class TtsWorker {
   }
 
   async runOnce() {
-    if (this.running) return;
+    if (!config.googleTts.workerEnabled || this.running) return;
     this.running = true;
     try {
       const job = await this.claim();

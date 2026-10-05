@@ -2,6 +2,7 @@ import { fireEvent,render,screen,waitFor,within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach,describe,expect,it,vi } from "vitest";
 import { adminApi } from "../../../api";
+import { ApiError } from "../../../api/request";
 import { I18nProvider } from "../../../i18n";
 import type { AdminListeningGroup, AdminListeningSet } from "../../../types";
 import { ListeningAdminPanel } from "./ListeningAdminPanel";
@@ -147,6 +148,24 @@ describe("ListeningAdminPanel",()=>{
 
     await waitFor(()=>expect(adminApi.generateSet).toHaveBeenCalledWith("token",pending.setId,false,{speakingRate:1,stylePrompt:""}));
     expect(await screen.findByText("1개 중 0개 완료 · 1개 진행 중")).toBeInTheDocument();
+  });
+
+  it.each(["group", "bulk"])("shows the environment block and restores the %s generation controls", async (mode) => {
+    const message = "TTS_WORKER_ENABLED 환경변수가 true로 설정되지 않아 음원 생성이 차단되었습니다. 백엔드 환경변수를 TTS_WORKER_ENABLED=true로 설정한 뒤 서버를 재시작해 주세요.";
+    const blocked = new ApiError(503, "TTS_WORKER_DISABLED", message);
+    vi.mocked(adminApi.listeningItems).mockResolvedValue({ items: [missingGroup] });
+    vi.mocked(adminApi.generateGroup).mockRejectedValue(blocked);
+    vi.mocked(adminApi.generateSet).mockRejectedValue(blocked);
+    const onError = vi.fn();
+    render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={onError} />);
+    await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
+    await userEvent.click(await screen.findByRole("button", { name: mode === "group" ? "음원 생성" : "누락 음원 생성" }));
+    const startLabel = mode === "group" ? "음원 생성 시작" : "누락 음원 생성 시작";
+    await userEvent.click(screen.getByRole("button", { name: startLabel }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(message));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    await waitFor(() => expect(screen.getByRole("button", { name: startLabel })).toBeEnabled());
+    expect(screen.queryByText("음원 생성 대기 중")).not.toBeInTheDocument();
   });
 
   it("keeps the previous audio playable after regeneration fails",async()=>{

@@ -49,7 +49,7 @@ export class VisualWorker {
   }
 
   async runOnce() {
-    if (this.running) return;
+    if (!config.googleImage.workerEnabled || this.running) return;
     this.running = true;
     try {
       const job = await this.claim();
