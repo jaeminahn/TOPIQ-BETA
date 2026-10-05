@@ -6,8 +6,6 @@ import { GoogleImageClient, renderChartSvg, type ChartSpec } from "../../media/g
 import { SupabaseStorage } from "../../media/storage.js";
 import { AdminRepository } from "../repository.js";
 
-const JOB_COOLDOWN_MS = 300_000;
-
 type VisualJob = {
   job_id: string; item_id: string; item_version: number; option_number: number;
   visual_role: "choice" | "material";
@@ -18,7 +16,6 @@ type VisualJob = {
 
 export class VisualWorker {
   private running = false;
-  private nextJobAt = 0;
   private timer?: NodeJS.Timeout;
 
   constructor(
@@ -52,17 +49,12 @@ export class VisualWorker {
   }
 
   async runOnce() {
-    if (this.running || Date.now() < this.nextJobAt) return;
+    if (this.running) return;
     this.running = true;
     try {
       const job = await this.claim();
       if (!job) return;
-      try {
-        await this.process(job);
-      } finally {
-        // Start the cooldown after the entire attempt, including failure handling.
-        this.nextJobAt = Date.now() + JOB_COOLDOWN_MS;
-      }
+      await this.process(job);
     } catch (error) {
       console.error("Visual worker polling failed", error);
     } finally { this.running = false; }

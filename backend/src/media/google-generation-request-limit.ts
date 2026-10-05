@@ -1,4 +1,4 @@
-export const GOOGLE_GENERATION_REQUEST_COOLDOWN_MS = 300_000;
+export const GOOGLE_GENERATION_REQUEST_COOLDOWN_MS = 180_000;
 
 type RequestQueue = { tail: Promise<void>; nextRequestAt: number };
 const queues = new Map<string, RequestQueue>();

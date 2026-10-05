@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("Google generation request pacing", () => {
-  it.each(["success", "failure"])("waits five minutes after a long request ends with %s", async (outcome) => {
+  it.each(["success", "failure"])("waits three minutes after a long request ends with %s", async (outcome) => {
     let finish!: () => void;
     const firstRequest = vi.fn(() => new Promise<void>((resolve, reject) => {
       finish = outcome === "success" ? resolve : () => reject(new Error("quota exceeded"));
@@ -57,7 +57,7 @@ describe("Google generation request pacing", () => {
     expect(nextRequest).not.toHaveBeenCalled();
     finish();
     await first;
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(nextRequest).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     await expect(next).resolves.toBe("second");
@@ -70,7 +70,7 @@ describe("Google generation request pacing", () => {
     const next = withGoogleGenerationRequest("project", "tts", nextRequest);
     await expect(withGoogleGenerationRequest("project", "image", async () => "image")).resolves.toBe("image");
     await expect(withGoogleGenerationRequest("other-project", "tts", async () => "other")).resolves.toBe("other");
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(nextRequest).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     await expect(next).resolves.toBe("second");
@@ -81,7 +81,7 @@ describe("Google generation request pacing", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     const request = vi.fn().mockResolvedValue("second");
     const pending = withGoogleGenerationRequest("project", "tts", request);
-    await vi.advanceTimersByTimeAsync(239_999);
+    await vi.advanceTimersByTimeAsync(119_999);
     expect(request).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     await expect(pending).resolves.toBe("second");
@@ -104,11 +104,11 @@ describe("Google generation request pacing", () => {
     }).catch((error: Error) => error.message);
     const third = withGoogleGenerationRequest("project", "tts", async () => { calls.push("third"); return "third"; });
     await expect(first).resolves.toBe("first");
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(calls).toEqual(["first"]);
     await vi.advanceTimersByTimeAsync(1);
     await expect(second).resolves.toBe("quota exceeded");
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(calls).toEqual(["first", "second"]);
     await vi.advanceTimersByTimeAsync(1);
     await expect(third).resolves.toBe("third");
@@ -131,15 +131,15 @@ describe("actual Google client calls", () => {
       client.synthesize.bind(client), client.synthesizeLiteral.bind(client));
     await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(fetchMock).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(900_000);
+    await vi.advanceTimersByTimeAsync(540_000);
     await pending;
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(requestTimes.slice(1).map((time, index) => time - requestTimes[index]!))
-      .toEqual([300_000, 300_000, 300_000, 300_000]);
+      .toEqual([180_000, 180_000, 180_000, 180_000]);
   });
 
   it("waits after a quota error before a new literal or legacy client request", async () => {
@@ -148,7 +148,7 @@ describe("actual Google client calls", () => {
     await expect(new GoogleTtsClient().synthesizeLiteral({ speaker: "남자", text: "안녕하세요." }))
       .rejects.toThrow("Quota exceeded");
     const pending = new GoogleTtsClient().synthesize([{ speaker: "여자", text: "반갑습니다." }]);
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(fetchMock).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1);
     await pending;
@@ -171,7 +171,7 @@ describe("actual Google client calls", () => {
       new GoogleTtsClient().synthesizeLiteral({ speaker: "여자", text: "반갑습니다." }),
       new GoogleImageClient().generate("독서 통계", "reading_material"),
     ]);
-    await vi.advanceTimersByTimeAsync(299_999);
+    await vi.advanceTimersByTimeAsync(179_999);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1);
     await pending;
