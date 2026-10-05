@@ -1,6 +1,7 @@
 import { GoogleAuth } from "google-auth-library";
 import { config } from "../core/config.js";
 import { AppError } from "../core/errors.js";
+import { withGoogleGenerationRequest } from "../media/google-generation-request-limit.js";
 
 export type DialogueTurn = { speaker: "남자" | "여자"; text: string };
 export type TtsStyle = { speakingRate: number; stylePrompt: string };
@@ -132,26 +133,29 @@ function credentials() {
 
 export class GoogleTtsClient {
   private async request(synthesisRequest: ReturnType<typeof buildGoogleTtsRequest> | ReturnType<typeof buildLiteralGoogleTtsRequest>) {
-    if (!config.googleTts.projectId) {
+    const { projectId, model } = config.googleTts;
+    if (!projectId) {
       throw new AppError(503, "TTS_NOT_CONFIGURED", "Google Cloud TTS is not configured");
     }
-    const auth = new GoogleAuth({
-      projectId: config.googleTts.projectId,
-      credentials: credentials(),
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    return withGoogleGenerationRequest(projectId, model, async () => {
+      const auth = new GoogleAuth({
+        projectId,
+        credentials: credentials(),
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      });
+      const client = await auth.getClient();
+      const headers = await client.getRequestHeaders();
+      const response = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
+        method: "POST",
+        headers: { ...Object.fromEntries(headers.entries()), "x-goog-user-project": projectId, "Content-Type": "application/json" },
+        body: JSON.stringify(synthesisRequest),
+      });
+      const body = await response.json() as { audioContent?: string; error?: { message?: string } };
+      if (!response.ok || !body.audioContent) {
+        throw new AppError(502, "TTS_PROVIDER_FAILED", body.error?.message ?? "Google Cloud TTS failed");
+      }
+      return Buffer.from(body.audioContent, "base64");
     });
-    const client = await auth.getClient();
-    const headers = await client.getRequestHeaders();
-    const response = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
-      method: "POST",
-      headers: { ...Object.fromEntries(headers.entries()), "x-goog-user-project": config.googleTts.projectId, "Content-Type": "application/json" },
-      body: JSON.stringify(synthesisRequest),
-    });
-    const body = await response.json() as { audioContent?: string; error?: { message?: string } };
-    if (!response.ok || !body.audioContent) {
-      throw new AppError(502, "TTS_PROVIDER_FAILED", body.error?.message ?? "Google Cloud TTS failed");
-    }
-    return Buffer.from(body.audioContent, "base64");
   }
 
   async synthesize(turns: DialogueTurn[], style: TtsStyle = defaultTtsStyle, audio: TtsAudioOptions = {}) {

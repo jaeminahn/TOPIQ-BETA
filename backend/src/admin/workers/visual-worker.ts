@@ -6,7 +6,7 @@ import { GoogleImageClient, renderChartSvg, type ChartSpec } from "../../media/g
 import { SupabaseStorage } from "../../media/storage.js";
 import { AdminRepository } from "../repository.js";
 
-const JOB_COOLDOWN_MS = 180_000;
+const JOB_COOLDOWN_MS = 300_000;
 
 type VisualJob = {
   job_id: string; item_id: string; item_version: number; option_number: number;

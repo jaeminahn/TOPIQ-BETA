@@ -1,6 +1,7 @@
 import { GoogleAuth } from "google-auth-library";
 import { config } from "../core/config.js";
 import { AppError } from "../core/errors.js";
+import { withGoogleGenerationRequest } from "./google-generation-request-limit.js";
 
 function credentials() {
   if (!config.googleImage.credentialsJson) return undefined;
@@ -98,24 +99,26 @@ export class GoogleImageClient {
   async generate(prompt: string, kind: VisualPromptKind = "listening_choice") {
     const { projectId, location, model } = config.googleImage;
     if (!projectId) throw new AppError(503, "IMAGE_PROVIDER_NOT_CONFIGURED", "Google Vertex image generation is not configured");
-    const auth = new GoogleAuth({
-      projectId,
-      credentials: credentials(),
-      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    return withGoogleGenerationRequest(projectId, model, async () => {
+      const auth = new GoogleAuth({
+        projectId,
+        credentials: credentials(),
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      });
+      const client = await auth.getClient();
+      const headers = await client.getRequestHeaders();
+      const endpoint = buildGoogleImageEndpoint(projectId, location, model);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" },
+        body: JSON.stringify(buildGeminiImageRequest(prompt, kind)),
+      });
+      const body = await response.json() as GeminiImageResponse;
+      if (!response.ok) {
+        throw new AppError(502, "IMAGE_PROVIDER_FAILED", body.error?.message ?? "Google Vertex image generation failed");
+      }
+      return extractGeminiImage(body);
     });
-    const client = await auth.getClient();
-    const headers = await client.getRequestHeaders();
-    const endpoint = buildGoogleImageEndpoint(projectId, location, model);
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" },
-      body: JSON.stringify(buildGeminiImageRequest(prompt, kind)),
-    });
-    const body = await response.json() as GeminiImageResponse;
-    if (!response.ok) {
-      throw new AppError(502, "IMAGE_PROVIDER_FAILED", body.error?.message ?? "Google Vertex image generation failed");
-    }
-    return extractGeminiImage(body);
   }
 }
 
