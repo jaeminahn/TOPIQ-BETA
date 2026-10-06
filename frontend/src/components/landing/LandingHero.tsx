@@ -12,7 +12,7 @@ export function LandingHero() {
           <a href="#full-version" className="focus-ring mt-7 inline-flex min-h-10 items-center rounded-full border border-primary bg-white px-6 py-2.5 text-sm font-semibold text-primary transition-colors duration-150 hover:bg-primary-50">{t("heroFullVersionCta")}</a>
         </div>
         <div className="mx-auto hidden w-full max-w-md lg:block" aria-hidden="true">
-          <div className="topiq-demo-card rounded-[20px] border border-primary-100 bg-white/90 p-6">
+          <div className="topiq-demo-card rounded-[20px] bg-white/90 p-6">
             <div className="mt-4 py-4">
               <p className="text-xs font-medium text-accent">QUESTION 25</p>
               <p className="mt-2 text-base font-semibold leading-6 text-gray-900">{t("demoInstruction")}</p>

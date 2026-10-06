@@ -17,7 +17,7 @@ describe("I18nProvider", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId("selected-locale")).toHaveTextContent("en:Review Answers");
+    expect(screen.getByTestId("selected-locale")).toHaveTextContent("en:Review");
   });
 
   it("restores a previously selected Korean locale", () => {

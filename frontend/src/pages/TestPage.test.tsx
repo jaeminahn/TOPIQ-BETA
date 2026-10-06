@@ -184,7 +184,7 @@ describe("TestPage", () => {
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText("Time Left 05:00")).toBeInTheDocument();
     expect(screen.getByText("Answered 0")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "All Questions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Questions" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
   });
 });
