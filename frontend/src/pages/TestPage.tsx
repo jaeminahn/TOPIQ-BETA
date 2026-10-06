@@ -19,6 +19,7 @@ import { useExitGuard } from "../hooks/useExitGuard";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
 import { localizedExamTitle } from "../examLocalization";
+import { questionParameters, sessionParameters, trackEvent, trackEventOnce } from "../analytics";
 
 export function TestPage() {
   const { sessionId } = useParams();
@@ -61,8 +62,15 @@ export function TestPage() {
   useEffect(() => {
     if (remaining !== 0 || !sessionId || !token || submitting) return;
     setSubmitting(true);
-    void api.submit(sessionId, token).finally(() => navigate(`/session/${sessionId}/feedback`, { replace: true }));
-  }, [navigate, remaining, sessionId, submitting, token]);
+    void api.submit(sessionId, token).then(() => {
+      if (session) trackEventOnce(`quiz_complete.${sessionId}`, "quiz_complete", {
+        ...sessionParameters(session),
+        app_locale: locale,
+        answered_count: session.questions.filter((question) => question.selectedOption !== null).length,
+        completion_method: "time_expired",
+      });
+    }).finally(() => navigate(`/session/${sessionId}/feedback`, { replace: true }));
+  }, [navigate, remaining, session, sessionId, submitting, token]);
 
   const answered = useMemo(() => session?.questions.filter((question) => question.selectedOption !== null).length ?? 0, [session]);
 
@@ -78,6 +86,9 @@ export function TestPage() {
   };
 
   const answer = async (itemOrder: number, selectedOption: number) => {
+    const answeredQuestion = session.questions.find((question) => question.itemOrder === itemOrder);
+    const answerChanged = answeredQuestion?.selectedOption !== null;
+    const responseTimeMs = Math.round(activeTime?.takeDuration() ?? 0);
     setSaveError(false);
     setSession({
       ...session,
@@ -85,8 +96,24 @@ export function TestPage() {
     });
     setActiveOrder(itemOrder);
     try {
-      const result = await api.answer(sessionId, token, itemOrder, selectedOption, activeTime?.takeDuration() ?? 0);
-      if (result.submitted) navigate(`/session/${sessionId}/feedback`, { replace: true });
+      const result = await api.answer(sessionId, token, itemOrder, selectedOption, responseTimeMs);
+      if (answeredQuestion) trackEvent("question_answer", {
+        ...questionParameters(answeredQuestion),
+        ...sessionParameters(session),
+        app_locale: locale,
+        selected_option: selectedOption,
+        response_time_ms: responseTimeMs,
+        answer_changed: answerChanged,
+      });
+      if (result.submitted) {
+        trackEventOnce(`quiz_complete.${sessionId}`, "quiz_complete", {
+          ...sessionParameters(session),
+          app_locale: locale,
+          answered_count: session.questions.filter((question) => question.selectedOption !== null || question.itemOrder === itemOrder).length,
+          completion_method: "server_auto_submit",
+        });
+        navigate(`/session/${sessionId}/feedback`, { replace: true });
+      }
     } catch {
       setSaveError(true);
     }

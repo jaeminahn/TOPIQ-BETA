@@ -9,10 +9,12 @@ import { ErrorState, LoadingState } from "../components/States";
 import { useExitGuard } from "../hooks/useExitGuard";
 import { useI18n } from "../i18n";
 import type { Results } from "../types";
+import { resultParameters, trackEventOnce } from "../analytics";
+import { predictTopikGrade } from "../topikGrade";
 
 export function ResultsPage() {
   const location = useLocation();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const resultToken = useMemo(
     () => new URLSearchParams(location.hash.replace(/^#/, "")).get("token")?.trim() || null,
     [location.hash],
@@ -32,7 +34,15 @@ export function ResultsPage() {
     setLoading(true);
     setError(null);
     try {
-      setResults(await api.results(resultToken));
+      const loadedResults = await api.results(resultToken);
+      setResults(loadedResults);
+      const predictedGrade = predictTopikGrade(loadedResults.score);
+      trackEventOnce(`result_view.${loadedResults.sessionId}`, "result_view", {
+        ...resultParameters(loadedResults),
+        app_locale: locale,
+        estimated_level: predictedGrade === "below-3" ? "BELOW_TOPIK_3" : `TOPIK_${predictedGrade}`,
+        result_source: "email_link",
+      });
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "RESULT_LINK_EXPIRED") {
         setError(t("resultLinkExpired"));
@@ -44,7 +54,7 @@ export function ResultsPage() {
     } finally {
       setLoading(false);
     }
-  }, [resultToken, t]);
+  }, [locale, resultToken, t]);
 
   useEffect(() => { void load(); }, [load]);
 

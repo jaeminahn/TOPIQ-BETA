@@ -9,10 +9,11 @@ import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
 import { useExitGuard } from "../hooks/useExitGuard";
 import { positionStorageKey } from "../activeSessions";
+import { sessionParameters, trackEventOnce } from "../analytics";
 
 export function ReviewPage() {
   const { sessionId } = useParams();
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const { token, session, error, loading, reload } = useSession(sessionId);
   const [submitting, setSubmitting] = useState(false);
@@ -33,6 +34,12 @@ export function ReviewPage() {
     setSubmitError(null);
     try {
       await api.submit(sessionId, token);
+      trackEventOnce(`quiz_complete.${sessionId}`, "quiz_complete", {
+        ...sessionParameters(session),
+        app_locale: locale,
+        answered_count: session.questions.length - unanswered.length,
+        completion_method: "manual_submit",
+      });
       navigate(`/session/${sessionId}/feedback`, { replace: true });
     } catch (cause) {
       setSubmitError(cause instanceof Error ? cause.message : "Unable to submit");

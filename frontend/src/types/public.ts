@@ -66,6 +66,7 @@ export interface Results {
   titleKo: string;
   titleEn?: string;
   section: "reading" | "listening" | "writing";
+  questionCount?: number;
   score: number;
   maxScore: number;
   submittedAt: string | null;

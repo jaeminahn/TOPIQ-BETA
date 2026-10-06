@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n";
 import { createPreregistrationConsent, type PreregistrationConsent } from "../../preregistration";
 import { AccessibleDialog } from "../AccessibleDialog";
+import { trackEvent } from "../../analytics";
 
 export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
   const { locale, t } = useI18n();
@@ -22,6 +23,7 @@ export function PreregistrationDialog({ onClose }: { onClose: () => void }) {
       const key = JSON.stringify([email.trim(), locale]);
       if (request.current?.key !== key) request.current = { key, consent: createPreregistrationConsent() };
       await api.preregister({ email: email.trim(), locale, ...request.current.consent });
+      trackEvent("waitlist_signup", { signup_location: "landing_page", locale });
       setComplete(true);
     } catch {
       setError(t("preregistrationFailed"));

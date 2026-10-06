@@ -8,6 +8,7 @@ import { ErrorState, LoadingState } from "../components/States";
 import { useSession } from "../hooks/useSession";
 import { useI18n } from "../i18n";
 import { createPreregistrationConsent, type PreregistrationConsent } from "../preregistration";
+import { sessionParameters, trackEvent, trackEventOnce } from "../analytics";
 
 type DeliveryReceipt = { maskedEmail: string; expiresAt: string };
 
@@ -26,7 +27,10 @@ export function FeedbackPage() {
   const preregistrationRequest = useRef<{ key: string; consent: PreregistrationConsent } | null>(null);
 
   useEffect(() => {
-    if (session?.status === "submitted") clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
+    if (session?.status === "submitted") {
+      clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
+      trackEventOnce(`feedback_view.${session.sessionId}`, "feedback_view", sessionParameters(session));
+    }
     if (session?.rating) setRating(session.rating);
   }, [session]);
 
@@ -57,6 +61,13 @@ export function FeedbackPage() {
       });
       preregistrationRequest.current = null;
       setDelivery({ maskedEmail: result.maskedEmail, expiresAt: result.expiresAt });
+      trackEvent("result_email_signup", {
+        ...sessionParameters(session),
+        signup_location: "feedback_page",
+        rating,
+        locale,
+      });
+      trackEventOnce(`waitlist_signup.${sessionId}`, "waitlist_signup", { signup_location: "feedback_page", locale });
       setEditing(false);
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_HOURLY_LIMIT_REACHED") {
