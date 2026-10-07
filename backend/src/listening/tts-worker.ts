@@ -10,9 +10,15 @@ import { queueMediaCleanup } from "../media/cleanup-queue.js";
 import { SupabaseStorage } from "../media/storage.js";
 
 type Job = {
-  job_id: string; item_id: string; item_version: number; requested_by: string;
-  force_regenerate: boolean; attempts: number; tts_style: TtsStyle;
-  set_id: string | null; group_start_position: number | null;
+  job_id: string; 
+  item_id: string; 
+  item_version: number; 
+  requested_by: string;
+  force_regenerate: boolean; 
+  attempts: number; 
+  tts_style: TtsStyle;
+  set_id: string | null; 
+  group_start_position: number | null;
   script_snapshot: unknown;
 };
 
@@ -166,11 +172,16 @@ export class TtsWorker {
 
   private async process(job: Job) {
     try {
-      if (job.set_id && isAdminNarrationScript(job.script_snapshot)) {
-        await this.processExamTrack(job, job.script_snapshot);
-      } else {
-        await this.processLegacyDialogue(job);
+      if (!job.set_id) {
+        throw new Error("Listening TTS job is missing a question set");
       }
+
+      if (!isAdminNarrationScript(job.script_snapshot)) {
+        throw new Error("Listening TTS script snapshot is missing or invalid");
+      }
+
+      await this.processExamTrack(job, job.script_snapshot);
+      
     } catch (error) {
       const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
       await pool.query(
@@ -279,80 +290,7 @@ export class TtsWorker {
     if (cleanupQueued) mediaCleanupWorker.kick();
   }
 
-  private async processLegacyDialogue(job: Job) {
-    const item = await pool.query<{ content_json: Record<string, unknown> }>(
-      "SELECT content_json FROM topik_bank.item_versions WHERE item_id=$1 AND item_version=$2 AND section='listening'",
-      [job.item_id, job.item_version],
-    );
-    const turns = (item.rows[0]?.content_json.dialogue_turns ?? []) as DialogueTurn[];
-    if (!validTurns(turns)) throw new Error("Listening dialogue_turns are missing or invalid");
-    const sourceHash = createHash("sha256").update(JSON.stringify({
-      turns, promptVersion: "TOPIK_NEUTRAL_V1", model: config.googleTts.model,
-      female: config.googleTts.femaleVoice, male: config.googleTts.maleVoice, style: job.tts_style,
-    })).digest("hex");
-    let audioAssetId = await this.findAsset(sourceHash, job.force_regenerate);
-    if (!audioAssetId) {
-      const audio = await this.tts.synthesize(turns, job.tts_style);
-      const path = `listening/${sourceHash.slice(0, 2)}/${sourceHash}.mp3`;
-      const uploaded = await this.storageFactory().uploadAudio(path, audio);
-      audioAssetId = randomUUID();
-      await pool.query(
-        `INSERT INTO topik_app.tts_audio_assets(
-           audio_asset_id,source_hash,model_name,female_voice,male_voice,storage_bucket,
-           storage_path,storage_url,byte_size,created_by,tts_style,narration_version
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'dialogue_v1')
-         ON CONFLICT (source_hash,model_name,female_voice,male_voice) DO UPDATE SET
-           storage_bucket=EXCLUDED.storage_bucket,storage_path=EXCLUDED.storage_path,
-           storage_url=EXCLUDED.storage_url,byte_size=EXCLUDED.byte_size,
-           tts_style=EXCLUDED.tts_style,narration_version='dialogue_v1',deleted_at=NULL
-         RETURNING audio_asset_id`,
-        [audioAssetId, sourceHash, config.googleTts.model, config.googleTts.femaleVoice,
-          config.googleTts.maleVoice, uploaded.bucket, uploaded.path, uploaded.url,
-          audio.length, job.requested_by, job.tts_style],
-      ).then((result) => { audioAssetId = result.rows[0].audio_asset_id; });
-    }
 
-    const targetResult = await pool.query<{ item_id: string; item_version: number }>(
-      `SELECT item_id,item_version FROM topik_app.tts_generation_job_targets WHERE job_id=$1
-       UNION ALL SELECT $2::uuid,$3::integer WHERE NOT EXISTS (
-         SELECT 1 FROM topik_app.tts_generation_job_targets WHERE job_id=$1
-       )`,
-      [job.job_id, job.item_id, job.item_version],
-    );
-    const targetIds = targetResult.rows.map((target) => target.item_id);
-    const targetVersions = targetResult.rows.map((target) => target.item_version);
-    const selectedAudioAssetId = audioAssetId;
-    if (!selectedAudioAssetId) throw new Error("Generated dialogue audio asset is missing");
-    const client = await pool.connect();
-    let cleanupQueued = false;
-    try {
-      await client.query("BEGIN");
-      const replaced = await client.query<{ audio_asset_id: string }>(
-        `UPDATE topik_app.item_audio_bindings SET is_current=FALSE WHERE is_current
-          AND (item_id,item_version) IN (SELECT * FROM unnest($1::uuid[],$2::integer[]))
-          RETURNING audio_asset_id`,
-        [targetIds, targetVersions],
-      );
-      await client.query(
-        `INSERT INTO topik_app.item_audio_bindings(item_id,item_version,audio_asset_id,source_hash)
-         SELECT target.item_id,target.item_version,$3,$4
-           FROM unnest($1::uuid[],$2::integer[]) AS target(item_id,item_version)
-         ON CONFLICT (item_id,item_version,audio_asset_id)
-         DO UPDATE SET source_hash=EXCLUDED.source_hash,is_current=TRUE`,
-        [targetIds, targetVersions, selectedAudioAssetId, sourceHash],
-      );
-      cleanupQueued = await queueSupersededAudio(
-        client, replaced.rows.map((row) => row.audio_asset_id), selectedAudioAssetId,
-      );
-      await client.query(
-        `UPDATE topik_app.tts_generation_jobs SET status='succeeded',audio_asset_id=$2,
-           completed_at=CURRENT_TIMESTAMP,lease_expires_at=NULL WHERE job_id=$1`,
-        [job.job_id, selectedAudioAssetId],
-      );
-      await client.query("COMMIT");
-    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
-    if (cleanupQueued) mediaCleanupWorker.kick();
-  }
 }
 
 export const ttsWorker = new TtsWorker();

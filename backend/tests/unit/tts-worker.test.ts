@@ -86,19 +86,69 @@ describe("exam-track synthesis", () => {
 
   it("stores the provider error after the first failure without requeuing", async () => {
     poolMock.query
-      .mockRejectedValueOnce(new Error("quota exceeded"))
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
-    const worker = new TtsWorker() as unknown as { process(job: Record<string, unknown>): Promise<void> };
+    const synthesize = vi.fn();
+    const synthesizeLiteral = vi.fn().mockRejectedValue(new Error("quota exceeded"));
+    const worker = new TtsWorker({
+      synthesize, synthesizeLiteral,
+    } as unknown as ConstructorParameters<typeof TtsWorker>[0]) as unknown as {
+      process(job: Record<string, unknown>): Promise<void>;
+    };
 
     await worker.process({
       job_id: "job-1", item_id: "item-1", item_version: 1, requested_by: "admin-1",
       force_regenerate: false, attempts: 1, tts_style: { speakingRate: 1, stylePrompt: "" },
-      set_id: null, group_start_position: null, script_snapshot: null,
+      set_id: "set-1", group_start_position: 1,
+      script_snapshot: buildNarrationScript([{
+        position: 1, questionPrompt: "질문",
+        dialogueTurns: [{ speaker: "남자", text: "안녕하세요." }],
+      }]),
     });
 
+    expect(synthesizeLiteral).toHaveBeenCalledOnce();
+    expect(synthesize).not.toHaveBeenCalled();
+    expect(poolMock.query).toHaveBeenCalledTimes(2);
     const failureSql = String(poolMock.query.mock.calls[1]?.[0]);
     expect(failureSql).toContain("SET status='failed',error_message=$2");
     expect(failureSql).not.toContain("'queued'");
     expect(poolMock.query.mock.calls[1]?.[1]).toEqual(["job-1", "quota exceeded"]);
+  });
+
+  it("fails legacy and malformed jobs before requesting speech or uploading audio", async () => {
+    const validScript = buildNarrationScript([{
+      position: 1, questionPrompt: "질문",
+      dialogueTurns: [{ speaker: "남자", text: "안녕하세요." }],
+    }]);
+    const cases = [
+      { set_id: null, script_snapshot: validScript, message: "Listening TTS job is missing a question set" },
+      { set_id: "set-1", script_snapshot: null, message: "Listening TTS script snapshot is missing or invalid" },
+      { set_id: "set-1", script_snapshot: {}, message: "Listening TTS script snapshot is missing or invalid" },
+    ];
+
+    for (const invalidJob of cases) {
+      poolMock.query.mockReset().mockResolvedValue({ rows: [] });
+      const synthesize = vi.fn();
+      const synthesizeLiteral = vi.fn();
+      const storageFactory = vi.fn();
+      const worker = new TtsWorker({
+        synthesize, synthesizeLiteral,
+      } as unknown as ConstructorParameters<typeof TtsWorker>[0], storageFactory) as unknown as {
+        process(job: Record<string, unknown>): Promise<void>;
+      };
+
+      await worker.process({
+        job_id: "invalid-job", item_id: "item-1", item_version: 1, requested_by: "admin-1",
+        force_regenerate: false, attempts: 1, tts_style: { speakingRate: 1, stylePrompt: "" },
+        group_start_position: 1, ...invalidJob,
+      });
+
+      expect(synthesize).not.toHaveBeenCalled();
+      expect(synthesizeLiteral).not.toHaveBeenCalled();
+      expect(storageFactory).not.toHaveBeenCalled();
+      expect(poolMock.query).toHaveBeenCalledOnce();
+      expect(String(poolMock.query.mock.calls[0]?.[0])).toContain("SET status='failed',error_message=$2");
+      expect(poolMock.query.mock.calls[0]?.[1]).toEqual(["invalid-job", invalidJob.message]);
+    }
   });
 });
