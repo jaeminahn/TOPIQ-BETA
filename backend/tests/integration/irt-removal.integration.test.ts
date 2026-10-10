@@ -13,7 +13,6 @@ import { AdminRepository } from "../../src/admin/repository.js";
 import { buildAdminExportQuery, parseAdminExportFilters } from "../../src/admin/export.js";
 import { TtsService } from "../../src/listening/tts-service.js";
 import { VisualService } from "../../src/media/visual-service.js";
-import { MediaCleanupWorker, mediaCleanupWorker } from "../../src/media/cleanup-worker.js";
 import { withGeneration } from "../../src/media/generation.js";
 
 const examId = randomUUID(), setId = randomUUID(), itemId = randomUUID(), listeningItem = randomUUID();
@@ -194,7 +193,6 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
   });
 
   it("removes generation queues atomically and preserves media, playback, and direct generation", async () => {
-    vi.spyOn(mediaCleanupWorker,"kick").mockImplementation(()=>undefined);
     const adminId = randomUUID();
     await pool.query("INSERT INTO topik_app.admin_users(admin_user_id,auth_user_id,email_normalized) VALUES ($1,$2,'media@example.test')",[adminId,randomUUID()]);
     await pool.query("UPDATE topik_bank.item_versions SET content_json=$2 WHERE item_id=$1",[listeningItem,{
@@ -230,10 +228,11 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
     expect((await pool.query("SELECT count(*)::int AS n FROM topik_app.tts_generation_job_targets")).rows[0].n).toBe(1);
     await pool.query("DROP VIEW topik_app.external_job_dependency");
     await applyMigration();
+    await pool.query(await readFile(resolve(process.cwd(),"migrations/022_remove_media_cleanup_jobs.sql"),"utf8"));
     expect(await mediaSnapshot()).toEqual(mediaBefore);
     expect(await snapshot()).toEqual(examBefore);
     expect(objects.size).toBe(2);
-    for (const table of ["tts_generation_jobs","tts_generation_job_targets","visual_generation_jobs"]) {
+    for (const table of ["tts_generation_jobs","tts_generation_job_targets","visual_generation_jobs","media_cleanup_jobs"]) {
       expect((await pool.query("SELECT to_regclass($1) AS name",[`topik_app.${table}`])).rows[0].name).toBeNull();
     }
     expect(await tts.generateGroup(adminId,listeningSetId,listeningItem,false,style)).toMatchObject({audioAssetId:audio.audioAssetId,reused:true});
@@ -252,7 +251,6 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
       await expect(withGeneration("tts",async()=>true)).rejects.toMatchObject({code:"GENERATION_BUSY"});
       expect(await withGeneration("visual",async()=>true)).toBe(true);
     });
-    await new MediaCleanupWorker(()=>storage as never).runOnce();
     expect((await pool.query("SELECT count(*)::int AS n FROM topik_app.audio_playback_events WHERE audio_asset_id=$1",[audio.audioAssetId])).rows[0].n).toBe(1);
     expect((await pool.query("SELECT deleted_at FROM topik_app.tts_audio_assets WHERE audio_asset_id=$1",[audio.audioAssetId])).rows[0].deleted_at).not.toBeNull();
     await admin.deleteAudioGroup(listeningSetId,listeningItem,nextAudio.audioAssetId,storage.removeObject);

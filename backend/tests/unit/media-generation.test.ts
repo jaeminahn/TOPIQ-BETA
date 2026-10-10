@@ -1,7 +1,6 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../src/core/db.js", () => ({pool:{connect:vi.fn()}}));
-vi.mock("../../src/media/cleanup-worker.js", () => ({mediaCleanupWorker:{kick:vi.fn()}}));
 vi.mock("../../src/core/config.js", async (original) => ({config:{...(await original<typeof import("../../src/core/config.js")>()).config,mediaGenerationTimeoutMs:50}}));
 import { pool } from "../../src/core/db.js";
 import { TtsService } from "../../src/listening/tts-service.js";
@@ -12,9 +11,12 @@ import { MediaCommitUncertainError } from "../../src/core/errors.js";
 const targets = [{item_id:"item-1",item_version:1,position:1,question_prompt:"질문",dialogue_turns:[{speaker:"남자",text:"안녕하세요."}]}];
 const style = {speakingRate:1,stylePrompt:""};
 let cached = false;
+let replacedAudio = false;
 const query = vi.fn(async (sql:string, _values?:unknown[]) => {
   if (sql.includes("pg_try_advisory_lock")) return {rows:[{locked:true}],rowCount:1};
   if (sql.includes("WHERE model_name")) return {rows:cached ? [{audio_asset_id:"cached"}] : [],rowCount:cached ? 1 : 0};
+  if (sql.includes("UPDATE topik_app.question_set_item_audio_bindings")) return {rows:replacedAudio ? [{audio_asset_id:"old-audio"}] : [],rowCount:replacedAudio ? 1 : 0};
+  if (sql.includes("SELECT storage_bucket,storage_path FROM topik_app.tts_audio_assets")) return {rows:[{storage_bucket:"audio",storage_path:"old-audio.mp3"}],rowCount:1};
   if (sql.includes("FOR UPDATE")) return {rows:[{}],rowCount:1};
   return {rows:[],rowCount:0};
 });
@@ -30,7 +32,7 @@ const visual = () => new VisualService({generate} as never,storage,{visualGenera
 const visualInput = {adminUserId:"admin",itemId:"item",itemVersion:1,optionNumber:1,visualRole:"choice" as const,forceRegenerate:false};
 
 beforeEach(() => {
-  vi.clearAllMocks(); cached=false;
+  vi.clearAllMocks(); cached=false; replacedAudio=false;
   vi.mocked(pool.connect).mockResolvedValue(client as never);
   resolveAudioGroup.mockReset().mockResolvedValue(targets);
   synthesizeLiteral.mockReset().mockResolvedValue(Buffer.from("speech"));
@@ -62,6 +64,22 @@ describe("direct media generation", () => {
     const next = await tts().generateGroup("admin","set","item-1",true,style);
     expect(next.audioAssetId).not.toBe("cached");
     expect(uploadAudio.mock.calls[0]![0]).toContain(next.audioAssetId);
+  });
+  it.each([false,true])("keeps the new audio committed when deleting the old recording (failure: %s)", async (fails) => {
+    replacedAudio=true;
+    const errorLog=vi.spyOn(console,"error").mockImplementation(()=>undefined);
+    removeObject.mockImplementation(async()=>{
+      expect(query).toHaveBeenCalledWith("COMMIT");
+      if(fails)throw new Error("storage unavailable");
+    });
+    try {
+      const result=await tts().generateGroup("admin","set","item-1",true,style);
+      expect(result).toMatchObject({positions:[1],reused:false});
+      expect(removeObject).toHaveBeenCalledExactlyOnceWith("audio","old-audio.mp3");
+      expect(query.mock.calls.some(([sql])=>sql.startsWith("DELETE FROM topik_app.tts_audio_assets"))).toBe(!fails);
+      expect(query.mock.calls.some(([sql])=>sql.includes("media_cleanup_jobs"))).toBe(false);
+      if(fails)expect(query).toHaveBeenCalledWith("ROLLBACK");
+    } finally { errorLog.mockRestore(); }
   });
   it("rolls back changed questions and removes only the new upload", async () => {
     resolveAudioGroup.mockResolvedValueOnce(targets).mockResolvedValueOnce([{...targets[0],item_version:2}]);

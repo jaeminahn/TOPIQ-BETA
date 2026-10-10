@@ -5,7 +5,6 @@ import { AppError, MediaCommitUncertainError } from "../core/errors.js";
 import { GoogleImageClient, renderChartSvg, type ChartSpec } from "./google-image.js";
 import { withGeneration } from "./generation.js";
 import { SupabaseStorage } from "./storage.js";
-import { mediaCleanupWorker } from "./cleanup-worker.js";
 
 export class VisualService {
   constructor(
@@ -46,9 +45,9 @@ export class VisualService {
         const result = await this.repository.bindVisualAsset({
           ...input,bucket:uploaded.bucket,path:uploaded.path,url:uploaded.url,
           mimeType:generated.mimeType,byteSize:generated.data.length,
-        }, signal);
+        }, signal, (bucket, objectPath) =>
+          this.storageFactory(AbortSignal.timeout(10_000)).removeObject(bucket, objectPath));
         committed = true;
-        mediaCleanupWorker.kick();
         return { ...result, reused: false };
       } catch (error) {
         if (error instanceof MediaCommitUncertainError) committed = true;

@@ -6,7 +6,6 @@ import type { AdminRepository } from "../../admin/repository.js";
 import { visualService } from "../../media/visual-service.js";
 import { AppError, MediaCommitUncertainError } from "../../core/errors.js";
 import { ttsService } from "../../listening/tts-service.js";
-import { mediaCleanupWorker } from "../../media/cleanup-worker.js";
 import { SupabaseStorage } from "../../media/storage.js";
 import { requireSessionToken } from "../route-auth.js";
 
@@ -95,7 +94,6 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
       if (!(error instanceof MediaCommitUncertainError)) await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
       throw error;
     }
-    mediaCleanupWorker.kick();
     return reply.code(201).send(result);
   });
 
@@ -151,7 +149,6 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
       if (!(error instanceof MediaCommitUncertainError)) await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);
       throw error;
     }
-    mediaCleanupWorker.kick();
     return reply.code(201).send(result);
   });
 

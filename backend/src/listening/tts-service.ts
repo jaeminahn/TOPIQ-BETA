@@ -1,37 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
 import { composeExamTrack, type AudioCompositionPart } from "./audio-composer.js";
 import { config } from "../core/config.js";
 import { GoogleTtsClient, type DialogueTurn, type TtsStyle } from "./google-tts.js";
 import { EXAM_TRACK_VERSION, buildNarrationScript, type AdminNarrationScript } from "./narration.js";
-import { mediaCleanupWorker } from "../media/cleanup-worker.js";
-import { queueMediaCleanup } from "../media/cleanup-queue.js";
+import { cleanupReplacedMedia } from "../media/cleanup.js";
 import { AdminRepository } from "../admin/repository.js";
 import { AppError, MediaCommitUncertainError } from "../core/errors.js";
 import { withGeneration } from "../media/generation.js";
 import { SupabaseStorage } from "../media/storage.js";
-
-async function queueSupersededAudio(
-  client: Pick<PoolClient, "query">,
-  assetIds: string[],
-  currentAssetId: string,
-) {
-  const supersededIds = [...new Set(assetIds)].filter((assetId) => assetId !== currentAssetId);
-  if (!supersededIds.length) return false;
-  const assets = await client.query<{
-    audio_asset_id: string; storage_bucket: string; storage_path: string;
-  }>(
-    `SELECT audio_asset_id,storage_bucket,storage_path
-       FROM topik_app.tts_audio_assets WHERE audio_asset_id=ANY($1::uuid[])`,
-    [supersededIds],
-  );
-  await queueMediaCleanup(client, "audio", assets.rows.map((asset) => ({
-    assetId: asset.audio_asset_id,
-    bucket: asset.storage_bucket,
-    path: asset.storage_path,
-  })));
-  return Boolean(assets.rowCount);
-}
 
 const validTurns = (turns: DialogueTurn[]) => turns.length > 0
   && turns.every((turn) => ["남자", "여자"].includes(turn.speaker) && Boolean(turn.text));
@@ -178,11 +154,12 @@ export class TtsService {
            ON CONFLICT (set_id,position,audio_asset_id) DO UPDATE SET source_hash=EXCLUDED.source_hash,is_current=TRUE`,
           [setId,positions,audioAssetId,sourceHash],
         );
-        await queueSupersededAudio(client,replaced.rows.map((row) => row.audio_asset_id),audioAssetId);
         signal.throwIfAborted();
         commitStarted = true;
         await client.query("COMMIT"); transaction = false; committed = true;
-        mediaCleanupWorker.kick();
+        await cleanupReplacedMedia(client, "audio",
+          replaced.rows.map((row) => row.audio_asset_id).filter((id) => id !== audioAssetId),
+          (bucket, path) => this.storageFactory(AbortSignal.timeout(10_000)).removeObject(bucket, path));
         return { audioAssetId, positions, reused: Boolean(cached) };
       } catch (error) {
         if (transaction) await client.query("ROLLBACK").catch(() => undefined);

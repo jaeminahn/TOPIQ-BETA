@@ -2,7 +2,6 @@ import { buildApp } from "./app.js";
 import { config } from "./core/config.js";
 import { pool } from "./core/db.js";
 import { brevoQuotaWarningWorker } from "./email/quota-warning-worker.js";
-import { mediaCleanupWorker } from "./media/cleanup-worker.js";
 import { runMigrations } from "./migrate.js";
 
 await runMigrations();
@@ -12,7 +11,6 @@ async function shutdown(signal: string) {
   app.log.info({ signal }, "Shutting down");
   await app.close();
   brevoQuotaWarningWorker.stop();
-  mediaCleanupWorker.stop();
   await pool.end();
   process.exit(0);
 }
@@ -23,7 +21,6 @@ process.once("SIGTERM", () => void shutdown("SIGTERM"));
 try {
   await app.listen({ host: "0.0.0.0", port: config.port });
   brevoQuotaWarningWorker.start();
-  mediaCleanupWorker.start();
 } catch (error) {
   app.log.error(error);
   process.exit(1);

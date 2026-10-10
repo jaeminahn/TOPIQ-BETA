@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "../../core/db.js";
 import { MediaCommitUncertainError, notFound } from "../../core/errors.js";
-import { queueMediaCleanup } from "../../media/cleanup-queue.js";
+import { cleanupReplacedMedia, type RemoveMediaObject } from "../../media/cleanup.js";
 import { materialPromptSnapshot, normalizeReadingMaterial } from "../../media/reading-visual.js";
 import { AdminResponseRepository } from "./response-repository.js";
 
@@ -111,7 +111,7 @@ export class AdminMediaRepository extends AdminResponseRepository {
     adminUserId: string; itemId: string; itemVersion: number; optionNumber: number;
     visualRole: VisualRole;
     bucket: string; path: string; url: string; mimeType: string; byteSize: number;
-  }, signal?: AbortSignal) {
+  }, signal?: AbortSignal, removeObject?: RemoveMediaObject) {
     const client = await pool.connect();
     let commitStarted = false;
     try {
@@ -132,10 +132,10 @@ export class AdminMediaRepository extends AdminResponseRepository {
         );
         if (!allowed.rowCount) throw notFound("Reading graph material not found");
       }
-      const replaced = await client.query<{ visual_asset_id: string; storage_bucket: string; storage_path: string }>(
+      const replaced = await client.query<{ visual_asset_id: string }>(
         `UPDATE topik_app.item_visual_assets SET is_current=FALSE
           WHERE item_id=$1 AND item_version=$2 AND option_number=$3 AND visual_role=$4 AND is_current
-          RETURNING visual_asset_id,storage_bucket,storage_path`,
+          RETURNING visual_asset_id`,
         [input.itemId,input.itemVersion,input.optionNumber,input.visualRole],
       );
       const assetId = randomUUID();
@@ -147,14 +147,10 @@ export class AdminMediaRepository extends AdminResponseRepository {
         [assetId,input.itemId,input.itemVersion,input.optionNumber,input.visualRole,input.bucket,input.path,
           input.url,input.mimeType,input.byteSize,input.adminUserId],
       );
-      await queueMediaCleanup(client, "visual", replaced.rows.map((asset) => ({
-        assetId: asset.visual_asset_id,
-        bucket: asset.storage_bucket,
-        path: asset.storage_path,
-      })));
       signal?.throwIfAborted();
       commitStarted = true;
       await client.query("COMMIT");
+      await cleanupReplacedMedia(client, "visual", replaced.rows.map((asset) => asset.visual_asset_id), removeObject);
       return { visualAssetId: assetId, url: input.url };
     } catch (error) {
       await client.query("ROLLBACK").catch(() => undefined);
