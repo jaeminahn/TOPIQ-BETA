@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, getSessionToken } from "../api";
-import { I18nProvider } from "../i18n";
-import type { TestSession } from "../types";
+import { api, getSessionToken } from "../../api";
+import { I18nProvider } from "../../i18n";
+import type { TestSession } from "../../types";
 import { TestPage } from "./TestPage";
 
-vi.mock("../api", () => ({
+vi.mock("../../api", () => ({
   api: {
     session: vi.fn(),
     answer: vi.fn(),

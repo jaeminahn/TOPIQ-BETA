@@ -1,6 +1,6 @@
 import type { SavedSurvey } from "../../../survey";
 import { useCallback, useEffect, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminResponseObservation, AdminResponseSession } from "../../../types";
 
 export type DeleteDialog = null | { mode: "selected" | "all" | "abandoned" };

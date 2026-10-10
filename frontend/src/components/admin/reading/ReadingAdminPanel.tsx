@@ -1,6 +1,6 @@
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminReadingItem, AdminReadingSet } from "../../../types";
 import { AdminImageCropDialog } from "../common/AdminImageCropDialog";
 import { AdminPublishDialog } from "../common/AdminPublishDialog";

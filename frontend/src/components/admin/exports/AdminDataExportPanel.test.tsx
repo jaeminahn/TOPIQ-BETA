@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { AdminDataExportPanel } from "./AdminDataExportPanel";
 
-vi.mock("../../../api", () => ({
+vi.mock("../../../api/adminApi", () => ({
   adminApi: {
     exportOptions: vi.fn(),
     exportPreview: vi.fn(),

@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
-import { clearActiveSession, getActiveSession, positionStorageKey, saveActiveSession, type ActiveSessionEntry } from "../activeSessions";
-import { Header } from "../components/Header";
-import { ExamCatalog } from "../components/landing/ExamCatalog";
-import { FullVersionSection } from "../components/landing/FullVersionSection";
-import { LandingHero } from "../components/landing/LandingHero";
-import { LandingSectionNav } from "../components/landing/LandingSectionNav";
-import { SiteFooter } from "../components/landing/SiteFooter";
-import { TopikGuide } from "../components/landing/TopikGuide";
-import type { Exam, ExamMode } from "../types";
-import { SessionResumeDialog } from "../components/SessionResumeDialog";
-import { PreregistrationDialog } from "../components/landing/PreregistrationDialog";
-import { examParameters, trackEvent, trackEventOnce } from "../analytics";
-import { useI18n } from "../i18n";
+import { api } from "../../api";
+import { clearActiveSession, getActiveSession, positionStorageKey, saveActiveSession, type ActiveSessionEntry } from "../../activeSessions";
+import { Header } from "../../components/Header";
+import { ExamCatalog } from "../../components/landing/ExamCatalog";
+import { FullVersionSection } from "../../components/landing/FullVersionSection";
+import { LandingHero } from "../../components/landing/LandingHero";
+import { LandingSectionNav } from "../../components/landing/LandingSectionNav";
+import { SiteFooter } from "../../components/landing/SiteFooter";
+import { TopikGuide } from "../../components/landing/TopikGuide";
+import type { Exam, ExamMode } from "../../types";
+import { SessionResumeDialog } from "../../components/SessionResumeDialog";
+import { PreregistrationDialog } from "../../components/landing/PreregistrationDialog";
+import { examParameters, trackEvent, trackEventOnce } from "../../analytics";
+import { useI18n } from "../../i18n";
 
 export function LandingPage() {
   const navigate = useNavigate();

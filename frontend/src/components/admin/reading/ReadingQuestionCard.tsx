@@ -1,5 +1,5 @@
 import { History, Image, LoaderCircle, Pencil, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminReadingItem } from "../../../types";
 import { RichQuestionText } from "../../question/QuestionContent";
 import { AdminPromptCopyButton } from "../common/AdminPromptCopyButton";

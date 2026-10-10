@@ -1,6 +1,6 @@
 import { Headphones, LoaderCircle, Play, X } from "lucide-react";
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminResponseObservation } from "../../../types";
 import { QuestionCard } from "../../QuestionCard";
 

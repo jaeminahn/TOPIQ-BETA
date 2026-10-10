@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { AdminQuestionEditorDialog, type EditableAdminQuestion } from "./AdminQuestionEditorDialog";
 import { I18nProvider } from "../../../i18n";
 
-vi.mock("../../../api", () => ({ adminApi: { reviseQuestionSet: vi.fn() } }));
+vi.mock("../../../api/adminApi", () => ({ adminApi: { reviseQuestionSet: vi.fn() } }));
 
 const first: EditableAdminQuestion = {
   position: 1, itemId: "30000000-0000-4000-8000-000000000001", itemVersion: 1,

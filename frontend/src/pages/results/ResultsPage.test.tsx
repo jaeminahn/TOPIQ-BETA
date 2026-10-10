@@ -1,12 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../api";
-import { I18nProvider } from "../i18n";
-import type { Results } from "../types";
+import { api } from "../../api";
+import { I18nProvider } from "../../i18n";
+import type { Results } from "../../types";
 import { ResultsPage } from "./ResultsPage";
 
-vi.mock("../api", () => ({
+vi.mock("../../api", () => ({
   ApiError: class ApiError extends Error {
     constructor(public status: number, public code: string, message: string) { super(message); }
   },

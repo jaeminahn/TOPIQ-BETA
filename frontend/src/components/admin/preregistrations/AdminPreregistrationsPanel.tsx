@@ -1,6 +1,6 @@
 import { Download, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminPreregistration, AdminPreregistrationFilters, AdminPreregistrationList } from "../../../types";
 import { AccessibleDialog } from "../../AccessibleDialog";
 

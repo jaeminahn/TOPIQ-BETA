@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminPreregistration } from "../../../types";
 import { AdminPreregistrationsPanel } from "./AdminPreregistrationsPanel";
 
-vi.mock("../../../api", () => ({ adminApi: { preregistrations: vi.fn(), downloadPreregistrations: vi.fn(), deletePreregistration: vi.fn() } }));
+vi.mock("../../../api/adminApi", () => ({ adminApi: { preregistrations: vi.fn(), downloadPreregistrations: vi.fn(), deletePreregistration: vi.fn() } }));
 const application: AdminPreregistration = {
   registrationId: "001-00000002", email: "Test@Example.com", source: "landing", sourceCode: "001",
   consentedAt: "2026-10-01T01:00:00Z", locale: "ko", privacyConsent: true, marketingConsent: true, consentVersion: "preregistration_v1",

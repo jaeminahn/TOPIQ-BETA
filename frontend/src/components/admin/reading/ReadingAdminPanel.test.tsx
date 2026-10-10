@@ -1,11 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminReadingItem, AdminReadingSet } from "../../../types";
 import { ReadingAdminPanel } from "./ReadingAdminPanel";
 
-vi.mock("../../../api", () => ({
+vi.mock("../../../api/adminApi", () => ({
   adminApi: {
     readingItems: vi.fn(), generateReadingMaterial: vi.fn(),
     uploadReadingMaterial: vi.fn(), deleteReadingMaterial: vi.fn(), questionVersions: vi.fn(),

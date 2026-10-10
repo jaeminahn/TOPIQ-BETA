@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { adminApi, api } from "./api";
+import { api } from "./api";
+import { adminApi } from "./api/adminApi";
 
 afterEach(() => {
   vi.useRealTimers();

@@ -1,9 +1,9 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { AdminQuestionHistoryDialog } from "./AdminQuestionHistoryDialog";
 
-vi.mock("../../../api", () => ({ adminApi: { questionVersions: vi.fn() } }));
+vi.mock("../../../api/adminApi", () => ({ adminApi: { questionVersions: vi.fn() } }));
 
 describe("AdminQuestionHistoryDialog", () => {
   beforeEach(() => {

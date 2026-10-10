@@ -1,15 +1,15 @@
 import { ArrowLeft, CheckCircle2, Send } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { api } from "../api";
-import { Header } from "../components/Header";
-import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
-import { ErrorState, LoadingState } from "../components/States";
-import { useSession } from "../hooks/useSession";
-import { useI18n } from "../i18n";
-import { useExitGuard } from "../hooks/useExitGuard";
-import { positionStorageKey } from "../activeSessions";
-import { sessionParameters, trackEventOnce } from "../analytics";
+import { api } from "../../api";
+import { Header } from "../../components/Header";
+import { ExitConfirmationDialog } from "../../components/ExitConfirmationDialog";
+import { ErrorState, LoadingState } from "../../components/States";
+import { useSession } from "../../hooks/useSession";
+import { useI18n } from "../../i18n";
+import { useExitGuard } from "../../hooks/useExitGuard";
+import { positionStorageKey } from "../../activeSessions";
+import { sessionParameters, trackEventOnce } from "../../analytics";
 
 export function ReviewPage() {
   const { sessionId } = useParams();

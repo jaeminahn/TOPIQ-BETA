@@ -1,6 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { supabase } from "../../../supabase";
 
 export function AdminLogin({ onReady }: { onReady: (token: string) => void }) {

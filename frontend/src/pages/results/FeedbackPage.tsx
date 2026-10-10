@@ -1,16 +1,16 @@
-import { PostExamSurvey, emptySurvey, isSurveyComplete } from "../components/PostExamSurvey";
-import { surveyText } from "../survey";
+import { PostExamSurvey, emptySurvey, isSurveyComplete } from "../../components/PostExamSurvey";
+import { surveyText } from "../../survey";
 import { ArrowRight, Mail, MailCheck, Star } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useParams } from "react-router-dom";
-import { ApiError, api } from "../api";
-import { clearActiveSession } from "../activeSessions";
-import { Header } from "../components/Header";
-import { ErrorState, LoadingState } from "../components/States";
-import { useSession } from "../hooks/useSession";
-import { useI18n } from "../i18n";
-import { createPreregistrationConsent, type PreregistrationConsent } from "../preregistration";
-import { sessionParameters, trackEvent, trackEventOnce } from "../analytics";
+import { ApiError, api } from "../../api";
+import { clearActiveSession } from "../../activeSessions";
+import { Header } from "../../components/Header";
+import { ErrorState, LoadingState } from "../../components/States";
+import { useSession } from "../../hooks/useSession";
+import { useI18n } from "../../i18n";
+import { createPreregistrationConsent, type PreregistrationConsent } from "../../preregistration";
+import { sessionParameters, trackEvent, trackEventOnce } from "../../analytics";
 
 type DeliveryReceipt = { maskedEmail: string; expiresAt: string };
 

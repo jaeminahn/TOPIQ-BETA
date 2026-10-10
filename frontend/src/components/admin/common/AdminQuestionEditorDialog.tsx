@@ -1,6 +1,6 @@
 import { LoaderCircle, Save, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminQuestionRevision, TranscriptTurn } from "../../../types";
 import { QuestionCard } from "../../QuestionCard";
 

@@ -1,11 +1,11 @@
 import { fireEvent,render,screen,waitFor,within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach,describe,expect,it,vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminListeningGroup, AdminListeningSet } from "../../../types";
 import { ListeningAdminPanel } from "./ListeningAdminPanel";
 
-vi.mock("../../../api",()=>({adminApi:{
+vi.mock("../../../api/adminApi",()=>({adminApi:{
   listeningItems:vi.fn(),registerListeningSet:vi.fn(),audioUrl:vi.fn(),generateGroup:vi.fn(),
   uploadVisual:vi.fn(),
 }}));

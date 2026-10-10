@@ -2,12 +2,12 @@ import { AlertCircle, LoaderCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../i18n";
 
-export function LoadingState() {
+export function LoadingState({ message }: { message?: string } = {}) {
   const { t } = useI18n();
   return (
-    <div className="flex min-h-[42vh] flex-col items-center justify-center gap-3 text-gray-500">
+    <div role="status" className="flex min-h-[42vh] flex-col items-center justify-center gap-3 text-gray-500">
       <LoaderCircle className="size-7 animate-spin text-primary" />
-      <p className="text-sm font-semibold">{t("loading")}</p>
+      <p className="text-sm font-semibold">{message ?? t("loading")}</p>
     </div>
   );
 }

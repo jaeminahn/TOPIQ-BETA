@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { ApiError } from "../../../api/request";
 import type { AdminExportDataset, AdminExportFilters, AdminExportOptions, AdminExportPreview } from "../../../types";
 import { exportDatasets, initialExportFilters } from "./exportConfig";

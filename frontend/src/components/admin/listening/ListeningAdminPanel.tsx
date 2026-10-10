@@ -2,7 +2,7 @@ import {
   AudioLines, History, Image, LoaderCircle, Pencil, Play, RefreshCw, Sparkles, Trash2, Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminListeningGroup, AdminListeningSet, TtsStyle } from "../../../types";
 import { AdminListeningAudioDock, type BulkAudioProgress } from "./AdminListeningAudioDock";
 import { AdminPromptCopyButton } from "../common/AdminPromptCopyButton";

@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { ApiError, api } from "../api";
-import { Header } from "../components/Header";
-import { ExitConfirmationDialog } from "../components/ExitConfirmationDialog";
-import { IncorrectReview } from "../components/results/IncorrectReview";
-import { ResultsSummary } from "../components/results/ResultsSummary";
-import { ErrorState, LoadingState } from "../components/States";
-import { useExitGuard } from "../hooks/useExitGuard";
-import { useI18n } from "../i18n";
-import type { Results } from "../types";
-import { resultParameters, trackEventOnce } from "../analytics";
-import { predictTopikGrade } from "../topikGrade";
+import { ApiError, api } from "../../api";
+import { Header } from "../../components/Header";
+import { ExitConfirmationDialog } from "../../components/ExitConfirmationDialog";
+import { IncorrectReview } from "../../components/results/IncorrectReview";
+import { ResultsSummary } from "../../components/results/ResultsSummary";
+import { ErrorState, LoadingState } from "../../components/States";
+import { useExitGuard } from "../../hooks/useExitGuard";
+import { useI18n } from "../../i18n";
+import type { Results } from "../../types";
+import { resultParameters, trackEventOnce } from "../../analytics";
+import { predictTopikGrade } from "../../topikGrade";
 
 export function ResultsPage() {
   const location = useLocation();

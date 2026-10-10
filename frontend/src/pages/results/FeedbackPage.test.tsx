@@ -2,12 +2,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, api, getSessionToken } from "../api";
-import { I18nProvider } from "../i18n";
-import type { TestSession } from "../types";
+import { ApiError, api, getSessionToken } from "../../api";
+import { I18nProvider } from "../../i18n";
+import type { TestSession } from "../../types";
 import { FeedbackPage } from "./FeedbackPage";
 
-vi.mock("../api", () => ({
+vi.mock("../../api", () => ({
   ApiError: class ApiError extends Error {
     constructor(public status: number, public code: string, message: string) { super(message); }
   },

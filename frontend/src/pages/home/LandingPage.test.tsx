@@ -2,13 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../api";
-import { saveActiveSession } from "../activeSessions";
-import { I18nProvider } from "../i18n";
-import type { Exam } from "../types";
+import { api } from "../../api";
+import { saveActiveSession } from "../../activeSessions";
+import { I18nProvider } from "../../i18n";
+import type { Exam } from "../../types";
 import { LandingPage } from "./LandingPage";
 
-vi.mock("../api", () => ({
+vi.mock("../../api", () => ({
   api: { exams: vi.fn(), createSession: vi.fn(), session: vi.fn(), abandon: vi.fn(), preregister: vi.fn() },
 }));
 

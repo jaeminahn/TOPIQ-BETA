@@ -1,18 +1,18 @@
 import { BookOpen, Download, Headphones, Home, LayoutDashboard, LogOut, Mail, MessageSquareText, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { adminApi } from "../api";
-import { AdminLogin } from "../components/admin/common/AdminLogin";
-import { AdminOverview } from "../components/admin/common/AdminOverview";
-import { AdminDataExportPanel } from "../components/admin/exports/AdminDataExportPanel";
-import { ListeningAdminPanel } from "../components/admin/listening/ListeningAdminPanel";
-import { ReadingAdminPanel } from "../components/admin/reading/ReadingAdminPanel";
-import { AdminResponsesPanel } from "../components/admin/responses/AdminResponsesPanel";
-import { ResponseDeleteDialog } from "../components/admin/responses/ResponseDeleteDialog";
-import { useAdminResponses } from "../components/admin/responses/useAdminResponses";
-import { AdminPreregistrationsPanel } from "../components/admin/preregistrations/AdminPreregistrationsPanel";
-import { supabase } from "../supabase";
-import type { AdminListeningSet, AdminReadingSet, AdminSummary } from "../types";
+import { adminApi } from "../../api/adminApi";
+import { AdminLogin } from "../../components/admin/common/AdminLogin";
+import { AdminOverview } from "../../components/admin/common/AdminOverview";
+import { AdminDataExportPanel } from "../../components/admin/exports/AdminDataExportPanel";
+import { ListeningAdminPanel } from "../../components/admin/listening/ListeningAdminPanel";
+import { ReadingAdminPanel } from "../../components/admin/reading/ReadingAdminPanel";
+import { AdminResponsesPanel } from "../../components/admin/responses/AdminResponsesPanel";
+import { ResponseDeleteDialog } from "../../components/admin/responses/ResponseDeleteDialog";
+import { useAdminResponses } from "../../components/admin/responses/useAdminResponses";
+import { AdminPreregistrationsPanel } from "../../components/admin/preregistrations/AdminPreregistrationsPanel";
+import { supabase } from "../../supabase";
+import type { AdminListeningSet, AdminReadingSet, AdminSummary } from "../../types";
 
 type AdminTab = "overview" | "listening" | "reading" | "responses" | "exports" | "preregistrations";
 

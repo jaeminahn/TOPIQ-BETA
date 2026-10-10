@@ -1,13 +1,13 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import { I18nProvider } from "../../../i18n";
 import type { AdminResponseObservation, AdminResponseSession } from "../../../types";
 import { AdminResponsesPanel } from "./AdminResponsesPanel";
 import { SurveyDetails } from "./SurveyDetails";
 
-vi.mock("../../../api", () => ({ adminApi: { audioUrl: vi.fn() } }));
+vi.mock("../../../api/adminApi", () => ({ adminApi: { audioUrl: vi.fn() } }));
 
 const session: AdminResponseSession = {
   sessionId: "session-1", userId: "user-1", mockTestTitle: "TOPIK II 듣기 모의고사 1회",

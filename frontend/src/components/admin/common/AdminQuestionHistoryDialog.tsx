@@ -1,6 +1,6 @@
 import { History, LoaderCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { adminApi } from "../../../api";
+import { adminApi } from "../../../api/adminApi";
 import type { AdminQuestionVersion, TranscriptTurn } from "../../../types";
 
 const text = (value: unknown) => typeof value === "string" ? value : "";

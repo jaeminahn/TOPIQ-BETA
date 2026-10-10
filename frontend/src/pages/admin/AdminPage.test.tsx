@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adminApi } from "../api";
-import type { AdminSummary } from "../types";
+import { adminApi } from "../../api/adminApi";
+import type { AdminSummary } from "../../types";
 import { AdminPage } from "./AdminPage";
 
-vi.mock("../api", () => ({
+vi.mock("../../api/adminApi", () => ({
   adminApi: {
     me: vi.fn(), dashboard: vi.fn(), listeningSets: vi.fn(), setEmailEnabled: vi.fn(),
     readingSets: vi.fn(), responseSessions: vi.fn(), responseSession: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("../api", () => ({
     preregistrations: vi.fn(), downloadPreregistrations: vi.fn(), deletePreregistration: vi.fn(),
   },
 }));
-vi.mock("../supabase", () => ({ supabase: null }));
+vi.mock("../../supabase", () => ({ supabase: null }));
 
 const summary: AdminSummary = {
   totalItems: 100, totalVersions: 100, readingVersions: 50, listeningVersions: 50,
