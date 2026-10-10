@@ -149,18 +149,28 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
     const answer = {sessionId,token,itemOrder:1,clientEventId:randomUUID(),selectedOption:2};
     expect(await repo.saveAnswer(answer)).toEqual({accepted:true,submitted:false});
     expect(await repo.saveAnswer(answer)).toEqual({accepted:false,submitted:false});
+    await repo.saveAnswer({...answer,clientEventId:randomUUID(),selectedOption:3});
+    // A late retry of an earlier request must not restore its older answer.
+    expect(await repo.saveAnswer(answer)).toEqual({accepted:false,submitted:false});
+    expect((await repo.getSession(sessionId,token)).questions[0]?.selectedOption).toBe(3);
+    await repo.saveAnswer({...answer,clientEventId:randomUUID()});
+    const events = await pool.query("SELECT event_type,selected_option FROM topik_app.response_events WHERE session_id=$1",[sessionId]);
+    expect(events.rows.length).toBeGreaterThan(1);
+    expect(events.rows.every((row)=>row.event_type === "answer_selected" && row.selected_option === null)).toBe(true);
+    expect((await pool.query("SELECT selection_count FROM topik_app.answer_states WHERE session_id=$1 AND item_order=1",[sessionId])).rows[0].selection_count).toBe(1);
     await repo.submitSession(sessionId,token);
     expect((await pool.query("SELECT score FROM topik_app.sessions WHERE session_id=$1",[sessionId])).rows[0].score).toBe(2);
     const details = await admin.getResponseSession(sessionId);
     expect(details.survey).toMatchObject({nationalityCode:"VN",birthYear:2000});
-    expect(details.responses[0]).toMatchObject({isCorrect:true,answerChanged:true});
+    expect(details.responses[0]).toMatchObject({isCorrect:true});
     expect(details.responses[0]).not.toHaveProperty("policyVersion");
+    expect(details.responses[0]).not.toHaveProperty("answerChanged");
     for (const dataset of ["questions","responses","sessions"] as const) {
       const query = buildAdminExportQuery(dataset,parseAdminExportFilters({status:"submitted"}));
       const rows = (await pool.query(query.text,query.values)).rows;
       expect(rows.length).toBeGreaterThan(0);
       if (dataset === "questions") {
-        expect(rows.find((row) => row.item_id === itemId)).toMatchObject({answered_accuracy_pct:"100.00",overall_accuracy_pct:"100.00",answer_changed_count:1});
+        expect(rows.find((row) => row.item_id === itemId)).toMatchObject({answered_accuracy_pct:"100.00",overall_accuracy_pct:"100.00"});
         expect(rows.find((row) => row.item_id === listeningItem)).toMatchObject({answered_accuracy_pct:null,overall_accuracy_pct:"0.00"});
       }
       for (const row of rows) for (const field of removed) expect(row).not.toHaveProperty(field);

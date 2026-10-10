@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { sanitizeQuestion } from "../../src/exam/domain.js";
-import { buildGoogleTtsRequest } from "../../src/listening/google-tts.js";
 
 const row = {
   item_order: 1, section: "listening", test_position: 1,
@@ -26,29 +25,5 @@ describe("listening question safety", () => {
 
   it("includes the transcript only for unlocked results", () => {
     expect(sanitizeQuestion(row, { includeTranscript: true }).transcript).toEqual(row.content_json.dialogue_turns);
-  });
-});
-
-describe("Google Gemini TTS request", () => {
-  it("maps Korean male and female turns to distinct speaker voices", () => {
-    const request = buildGoogleTtsRequest(row.content_json.dialogue_turns as Array<{ speaker: "남자" | "여자"; text: string }>);
-    expect(request.input).toMatchObject({ multiSpeakerMarkup: { turns: [
-      { speaker: "MaleSpeaker", text: "안녕하세요." },
-      { speaker: "FemaleSpeaker", text: "반갑습니다." },
-    ] } });
-    expect(request.voice).toMatchObject({ multiSpeakerVoiceConfig: { speakerVoiceConfigs: [
-      { speakerAlias: "FemaleSpeaker", speakerId: "Aoede" },
-      { speakerAlias: "MaleSpeaker", speakerId: "Charon" },
-    ] } });
-  });
-
-  it("applies a configurable speaking rate and style prompt", () => {
-    const request = buildGoogleTtsRequest(
-      row.content_json.dialogue_turns as Array<{ speaker: "남자" | "여자"; text: string }>,
-      { speakingRate: 0.9, stylePrompt: "차분한 시험 방송처럼 읽어 주세요." },
-    );
-    expect(request.audioConfig).toMatchObject({ audioEncoding: "MP3", speakingRate: 0.9 });
-    expect(request.input.prompt).toContain("차분한 시험 방송처럼 읽어 주세요.");
-    expect(request.input.prompt).toContain("slower");
   });
 });

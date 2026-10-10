@@ -117,9 +117,12 @@ describe("TestPage", () => {
     expect(api.answer).toHaveBeenLastCalledWith("timed-session", "session-token", 1, 1);
     await act(async () => { fireEvent.click(screen.getAllByRole("radio")[1]); });
     expect(api.answer).toHaveBeenLastCalledWith("timed-session", "session-token", 1, 2);
-    expect(analytics).toHaveBeenCalledWith("event", "question_answer", expect.objectContaining({ answer_changed: true }));
+    expect(analytics).toHaveBeenCalledWith("event", "question_answer", expect.objectContaining({ selected_option: 2 }));
     for (const [, eventName, parameters] of analytics.mock.calls) {
-      if (eventName === "question_answer") expect(parameters).not.toHaveProperty("response_time_ms");
+      if (eventName === "question_answer") {
+        expect(parameters).not.toHaveProperty("response_time_ms");
+        expect(parameters).not.toHaveProperty("answer_changed");
+      }
     }
     fireEvent.click(screen.getByRole("button", { name: "다음" }));
     expect(screen.getByText("문제 2 / 2")).toBeInTheDocument();

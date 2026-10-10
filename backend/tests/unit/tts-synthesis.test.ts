@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../src/core/db.js", () => ({
   pool: { query: vi.fn(), connect: vi.fn() },
@@ -6,18 +6,12 @@ vi.mock("../../src/core/db.js", () => ({
 
 import { buildNarrationScript } from "../../src/listening/narration.js";
 import {
-  EXAM_TRACK_COMPOSER_VERSION,
-  EXAM_TRACK_SYNTHESIS_VERSION,
   examTrackSourceHash,
   splitLiteralUtterances,
   synthesizeExamTrackParts,
 } from "../../src/listening/tts-service.js";
-import { pool } from "../../src/core/db.js";
-
-const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn> };
 
 describe("exam-track synthesis", () => {
-  beforeEach(() => poolMock.query.mockReset());
 
   it("synthesizes the common dialogue once and reuses it for the second reading", async () => {
     const script = buildNarrationScript([13, 14].map((position) => ({
@@ -60,14 +54,4 @@ describe("exam-track synthesis", () => {
     expect(examTrackSourceHash(first, { speakingRate: .95, stylePrompt: "" })).not.toBe(baseline);
     expect(examTrackSourceHash(first, { speakingRate: 1, stylePrompt: "차분하게" })).not.toBe(baseline);
   });
-
-  it("uses the no-duration-retry synthesis cache version", () => {
-    expect(EXAM_TRACK_SYNTHESIS_VERSION).toBe("GEMINI_LITERAL_ATOMIC_V3_NO_DURATION_RETRY");
-  });
-
-  it("uses the bright-bell composer cache version", () => {
-    expect(EXAM_TRACK_COMPOSER_VERSION).toBe("LINEAR16_FFMPEG_V4_BRIGHT_BELL");
-  });
-
-
 });

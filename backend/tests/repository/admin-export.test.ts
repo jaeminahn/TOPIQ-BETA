@@ -45,7 +45,10 @@ describe("admin CSV exports", () => {
     expect(query.text).not.toContain("response_time_ms");
     expect(query.text).not.toContain("active_duration_delta_ms");
     expect(columns[dataset].some(({ key }) => key.includes("response_time_ms"))).toBe(false);
-    expect(columns[dataset].map(({ key }) => key)).toContain(dataset === "questions" ? "answer_changed_count" : "answer_changed");
+    for (const field of ["answer_changed", "answer_changed_count", "answer_changed_rate_pct", "selection_count"]) {
+      expect(query.text).not.toContain(field);
+      expect(columns[dataset].map(({ key }) => key)).not.toContain(field);
+    }
     expect(columns.sessions.map(({ key }) => key)).toContain("duration_seconds");
   });
 
@@ -75,12 +78,6 @@ describe("admin CSV exports", () => {
     expect(query.text).toContain("answered_accuracy_pct");
     expect(query.text).toContain("overall_accuracy_pct");
     expect(query.text).toContain("option_1_count");
-    for (const field of ["theta_before", "theta_after", "policy_version", "irt_difficulty", "irt_discrimination", "predicted_difficulty"]) {
-      expect(query.text).not.toContain(field);
-      expect(columns.questions.map(({key}) => key)).not.toContain(field);
-    }
-    expect(query.text).not.toContain("response_time_ms");
-    expect(query.text).not.toContain("active_duration_delta_ms");
     expect(query.text).toContain("COALESCE(st.assigned_count,0) >=");
     expect(query.text).toContain("topik_app.item_visual_assets");
     expect(query.text).toContain("COALESCE(choice_visuals.choice_1_url,qi.export_choices->>0) AS choice_1");

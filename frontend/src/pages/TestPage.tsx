@@ -83,7 +83,6 @@ export function TestPage() {
 
   const answer = async (itemOrder: number, selectedOption: number) => {
     const answeredQuestion = session.questions.find((question) => question.itemOrder === itemOrder);
-    const answerChanged = answeredQuestion?.selectedOption !== null;
     setSaveError(false);
     setSession({
       ...session,
@@ -96,7 +95,6 @@ export function TestPage() {
         ...sessionParameters(session),
         app_locale: locale,
         selected_option: selectedOption,
-        answer_changed: answerChanged,
       });
       if (result.submitted) {
         trackEventOnce(`quiz_complete.${sessionId}`, "quiz_complete", {

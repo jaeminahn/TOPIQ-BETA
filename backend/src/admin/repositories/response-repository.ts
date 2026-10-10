@@ -72,7 +72,6 @@ export class AdminResponseRepository extends AdminReadingRepository {
               iv.item_type AS "itemType", ro.selected_option AS "selectedOption",
               iv.correct_answer AS "correctAnswer", ro.is_correct AS "isCorrect",
               ro.skipped, ro.timed_out AS "timedOut",
-              ro.answer_changed AS "answerChanged",
               ro.created_at AS "createdAt", s.mode, s.score, af.rating,
               iv.stem AS "questionStem", iv.choices AS "questionChoices",
               iv.content_json AS "questionContent", iv.explanation,

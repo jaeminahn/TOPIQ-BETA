@@ -99,7 +99,6 @@ async function finalizeInTransaction(
     item_order: number;
     selected_option: number | null;
     correct_answer: number | null;
-    answer_changed: boolean;
     score_weight: number;
   }>(
     `SELECT s.user_id,
@@ -109,14 +108,6 @@ async function finalizeInTransaction(
             si.item_order,
             a.selected_option,
             iv.correct_answer,
-            COALESCE((
-              SELECT COUNT(DISTINCT e.selected_option) > 1
-              FROM topik_app.response_events e
-              WHERE e.session_id = si.session_id
-                AND e.item_order = si.item_order
-                AND e.event_type IN ('answer_selected', 'answer_changed')
-                AND e.selected_option IS NOT NULL
-            ), FALSE) AS answer_changed,
             si.score_weight
        FROM topik_app.session_items si
        JOIN topik_app.sessions s ON s.session_id = si.session_id
@@ -135,9 +126,8 @@ async function finalizeInTransaction(
     await client.query(
       `INSERT INTO topik_app.response_observations(
           observation_id, user_id, session_id, item_id, item_version, item_order,
-          selected_option, is_correct, skipped, timed_out,
-          answer_changed
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+          selected_option, is_correct, skipped, timed_out
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
        ON CONFLICT (session_id, item_order) DO NOTHING`,
       [
         randomUUID(),
@@ -150,7 +140,6 @@ async function finalizeInTransaction(
         correct,
         unanswered && !timedOutSubmission,
         unanswered && timedOutSubmission,
-        row.answer_changed,
       ],
     );
   }
@@ -396,28 +385,18 @@ export class TopikRepository {
       }
       if (session.status !== "in_progress") throw sessionClosed();
 
-      const current = await client.query<{ selected_option: number }>(
-        `SELECT selected_option FROM topik_app.answer_states
-          WHERE session_id = $1 AND item_order = $2`,
-        [input.sessionId, input.itemOrder],
-      );
-      const eventType =
-        current.rows[0] && current.rows[0].selected_option !== input.selectedOption
-          ? "answer_changed"
-          : "answer_selected";
+      // Keep request IDs for idempotency without recording answer history.
+      // The fixed event type satisfies the existing schema; it does not classify changes.
       const event = await client.query(
         `INSERT INTO topik_app.response_events(
-           event_id, client_event_id, session_id, item_order, event_type,
-           selected_option
-         ) VALUES ($1,$2,$3,$4,$5,$6)
+           event_id, client_event_id, session_id, item_order, event_type
+         ) VALUES ($1,$2,$3,$4,'answer_selected')
          ON CONFLICT (client_event_id) DO NOTHING`,
         [
           randomUUID(),
           input.clientEventId,
           input.sessionId,
           input.itemOrder,
-          eventType,
-          input.selectedOption,
         ],
       );
       if (event.rowCount === 1) {
@@ -427,8 +406,7 @@ export class TopikRepository {
            ) VALUES ($1,$2,$3)
            ON CONFLICT (session_id, item_order) DO UPDATE SET
              selected_option = EXCLUDED.selected_option,
-             final_selected_at = CURRENT_TIMESTAMP,
-             selection_count = topik_app.answer_states.selection_count + 1`,
+             final_selected_at = CURRENT_TIMESTAMP`,
           [input.sessionId, input.itemOrder, input.selectedOption],
         );
       }

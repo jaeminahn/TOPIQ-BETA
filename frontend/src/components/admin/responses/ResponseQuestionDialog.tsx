@@ -93,7 +93,6 @@ export function ResponseQuestionDialog({
           <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold">
             <span className={`rounded-full px-3 py-2 ${response.isCorrect ? "bg-green-100 text-green-700" : response.selectedOption === null ? "bg-orange-100 text-orange-700" : "bg-red-100 text-red-700"}`}>{resultLabel}</span>
             <span className="rounded-full bg-white px-3 py-2 text-gray-600">선택 {response.selectedOption ?? "미응답"} · 정답 {response.correctAnswer}</span>
-            {response.answerChanged && <span className="rounded-full bg-white px-3 py-2 text-gray-600">답안 변경</span>}
           </div>
 
           {response.section === "listening" && response.question.audioAssetId && (

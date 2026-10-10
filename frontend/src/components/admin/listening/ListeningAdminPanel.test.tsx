@@ -6,7 +6,7 @@ import type { AdminListeningGroup, AdminListeningSet } from "../../../types";
 import { ListeningAdminPanel } from "./ListeningAdminPanel";
 
 vi.mock("../../../api",()=>({adminApi:{
-  listeningItems:vi.fn(),registerListeningSet:vi.fn(),audioUrl:vi.fn(),generateGroup:vi.fn(),generateSet:vi.fn(),
+  listeningItems:vi.fn(),registerListeningSet:vi.fn(),audioUrl:vi.fn(),generateGroup:vi.fn(),
   uploadVisual:vi.fn(),
 }}));
 vi.mock("../common/AdminImageCropDialog",()=>({

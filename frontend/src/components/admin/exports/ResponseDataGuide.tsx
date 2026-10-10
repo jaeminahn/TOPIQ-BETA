@@ -20,7 +20,7 @@ const groups = [
     icon: MessageSquareText,
     title: "답안과 최종 응답",
     description: "현재 선택과 제출 시점의 최종 결과를 문항별로 기록합니다.",
-    fields: ["선택 번호와 최초·최종 선택 시각", "선택 횟수와 답안 변경 여부", "정답 여부", "건너뜀·시간 초과 미응답 여부"],
+    fields: ["선택 번호와 최초·최종 선택 시각", "정답 여부", "건너뜀·시간 초과 미응답 여부"],
   },
   {
     icon: Activity,

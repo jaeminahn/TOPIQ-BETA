@@ -31,7 +31,7 @@ export const exportDatasets: Array<{
     description: "익명 응시자가 각 문항에서 남긴 답과 행동을 분석합니다.",
     rowUnit: "한 행 = 응시 세션의 출제 문항 1개",
     icon: Rows3,
-    highlights: ["정답·오답·미응답 구분", "답안 변경과 선택 횟수", "세션·문항 버전 연결 키"],
+    highlights: ["정답·오답·미응답 구분", "최종 선택 답과 정답", "세션·문항 버전 연결 키"],
   },
   {
     id: "sessions",
@@ -52,7 +52,7 @@ export const exportFieldGuides: Record<AdminExportDataset, Array<{ title: string
   responses: [
     { title: "익명 세션", fields: "session_id와 user_id, 시험, 모드, 상태, 완료 시각과 점수" },
     { title: "문항 연결", fields: "세트 ID, 문항 ID와 문항 버전, 시험 내 위치, 문항 유형" },
-    { title: "최종 응답", fields: "선택 답, 정답, 응답 결과, 선택 횟수, 변경·건너뜀·시간 초과 여부" },
+    { title: "최종 응답", fields: "선택 답, 정답, 응답 결과, 건너뜀·시간 초과 여부" },
   ],
   sessions: [
     { title: "사후 설문", fields: "국적·출생연도, 응시 이유·기타 내용, 학습 기간, 응시 경험·현재 및 목표 급수, 설문·동의 버전과 시각" },

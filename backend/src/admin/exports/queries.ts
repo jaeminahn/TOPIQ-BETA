@@ -82,8 +82,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
     ), response_rows AS (
       SELECT fs.mock_test_id,si.section,si.set_id,si.test_position,si.item_id,si.item_version,
              COALESCE(ro.selected_option,a.selected_option) AS selected_option,
-             iv.correct_answer,
-             COALESCE(ro.answer_changed,a.selection_count>1,FALSE) AS answer_changed
+             iv.correct_answer
         FROM filtered_sessions fs
         JOIN topik_app.session_items si ON si.session_id=fs.session_id
         JOIN topik_bank.item_versions iv ON iv.item_id=si.item_id AND iv.item_version=si.item_version
@@ -100,8 +99,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
              COUNT(*) FILTER (WHERE selected_option=1)::int AS option_1_count,
              COUNT(*) FILTER (WHERE selected_option=2)::int AS option_2_count,
              COUNT(*) FILTER (WHERE selected_option=3)::int AS option_3_count,
-             COUNT(*) FILTER (WHERE selected_option=4)::int AS option_4_count,
-             COUNT(*) FILTER (WHERE selected_option IS NOT NULL AND answer_changed)::int AS answer_changed_count
+             COUNT(*) FILTER (WHERE selected_option=4)::int AS option_4_count
         FROM response_rows
        GROUP BY mock_test_id,section,set_id,test_position,item_id,item_version
     )
@@ -126,9 +124,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_1_count*100.0/st.answered_count,2) END AS option_1_pct,
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_2_count*100.0/st.answered_count,2) END AS option_2_pct,
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_3_count*100.0/st.answered_count,2) END AS option_3_pct,
-           CASE WHEN st.answered_count>0 THEN ROUND(st.option_4_count*100.0/st.answered_count,2) END AS option_4_pct,
-           COALESCE(st.answer_changed_count,0) AS answer_changed_count,
-           CASE WHEN st.answered_count>0 THEN ROUND(st.answer_changed_count*100.0/st.answered_count,2) END AS answer_changed_rate_pct
+           CASE WHEN st.answered_count>0 THEN ROUND(st.option_4_count*100.0/st.answered_count,2) END AS option_4_pct
       FROM question_inventory qi
        LEFT JOIN stats st ON st.mock_test_id=qi.mock_test_id AND st.section=qi.section
         AND st.set_id=qi.set_id AND st.test_position=qi.test_position
@@ -180,8 +176,7 @@ function responseQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
                   ELSE COALESCE(ro.selected_option,a.selected_option)=iv.correct_answer END AS is_correct,
              CASE WHEN fs.status='submitted' THEN ro.skipped END AS skipped,
              CASE WHEN fs.status='submitted' THEN ro.timed_out END AS timed_out,
-             COALESCE(ro.answer_changed,a.selection_count>1,FALSE) AS answer_changed,
-             COALESCE(a.selection_count,0) AS selection_count,a.first_selected_at,a.final_selected_at
+             a.first_selected_at,a.final_selected_at
         FROM filtered_sessions fs
         JOIN topik_app.mock_tests mt ON mt.mock_test_id=fs.mock_test_id
         JOIN topik_app.session_items si ON si.session_id=fs.session_id

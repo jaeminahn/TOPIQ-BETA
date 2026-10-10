@@ -59,7 +59,6 @@ describe("AdminRepository response details", () => {
         isCorrect: false,
         skipped: false,
         timedOut: false,
-        answerChanged: true,
 
         createdAt: new Date("2026-08-19T12:00:00Z"),
         mode: "timed",

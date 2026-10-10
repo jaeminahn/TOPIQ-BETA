@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  buildGoogleTtsRequest,
   buildLiteralGoogleTtsRequest,
   literalDeliveryStyle,
   synthesizeLiteralOnce,
@@ -18,21 +17,6 @@ const pcmFormat = {
 };
 
 describe("Google TTS request", () => {
-  it("requests a fixed-rate LINEAR16 segment for exam-track composition", () => {
-    const request = buildGoogleTtsRequest(
-      [{ speaker: "여자", text: "13번." }],
-      { speakingRate: 1.05, stylePrompt: "시험 안내처럼" },
-      { audioEncoding: "LINEAR16", sampleRateHertz: 24_000 },
-    );
-    expect(request.audioConfig).toMatchObject({
-      audioEncoding: "LINEAR16",
-      speakingRate: 1.05,
-      sampleRateHertz: 24_000,
-    });
-    expect(request.input).toMatchObject({ text: "13번." });
-    expect("prompt" in request.input ? request.input.prompt : "").toContain("exactly once");
-  });
-
   it("uses a content-neutral literal prompt and strips semantic exam directions", () => {
     const request = buildLiteralGoogleTtsRequest(
       { speaker: "여자", text: "1번. 다음을 듣고 고르십시오." },

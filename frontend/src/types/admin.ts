@@ -142,7 +142,7 @@ export interface AdminResponseObservation {
   observationId: string; userId: string; sessionId: string; itemId: string; itemVersion: number;
   itemOrder: number; section: "reading" | "listening"; testPosition: number; mockTestTitle: string; itemType: string;
   selectedOption: number | null; correctAnswer: number; isCorrect: boolean; skipped: boolean;
-  timedOut: boolean; answerChanged: boolean; createdAt: string;
+  timedOut: boolean; createdAt: string;
   mode: ExamMode; score: number | null; rating: number | null;
   question: Question; explanation: string;
 }

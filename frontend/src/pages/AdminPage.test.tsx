@@ -8,7 +8,7 @@ import { AdminPage } from "./AdminPage";
 
 vi.mock("../api", () => ({
   adminApi: {
-    me: vi.fn(), dashboard: vi.fn(), jobs: vi.fn(), listeningSets: vi.fn(), setEmailEnabled: vi.fn(),
+    me: vi.fn(), dashboard: vi.fn(), listeningSets: vi.fn(), setEmailEnabled: vi.fn(),
     readingSets: vi.fn(), responseSessions: vi.fn(), responseSession: vi.fn(),
     exportOptions: vi.fn(), exportPreview: vi.fn(), downloadExport: vi.fn(),
     preregistrations: vi.fn(), downloadPreregistrations: vi.fn(), deletePreregistration: vi.fn(),

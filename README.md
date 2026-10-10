@@ -205,7 +205,7 @@ corepack pnpm --filter @unigate/topik-web dev
 - 문항 이력: 듣기와 읽기 모두 각 문항을 펼친 뒤 우측 상단의 `이력` 버튼에서 해당 문항의 버전을 확인합니다.
 - 미디어 교체: 새 그림·그래프·음원이 현재 문항에 연결되면 이전 자산은 정리 큐로 넘어가며, 더 이상 공유되지 않는 Supabase Storage 객체와 DB 자산 행을 안전하게 삭제합니다.
 - 결과 이메일: 요약 화면에서 매월 11일 00:00(Asia/Seoul)에 갱신되는 Brevo 사용량과 ON/OFF 상태를 확인합니다. 한 시험 세션은 최근 60분 동안 최대 5회 발송할 수 있고, 4,990건째 결과 메일이 접수되면 환경변수의 두 관리자 주소로 경고 메일을 각각 보냅니다. 전체 5,000건 예약 시 신규 결과 메일은 차단합니다.
-- 사용자 응답: 세션 목록에서 최신 Brevo 접수 완료 이메일 원문을 확인하고, 제출 세션을 펼쳐 문항별 선택 답안, 정답 여부와 답 변경 여부를 확인합니다. 체크한 세션만 삭제하거나 `전체 응답 삭제` 문구를 입력해 제출 완료 세션을 모두 삭제할 수 있습니다. 진행 중 시험과 기존 마케팅 수신 동의는 보존되고, 결과 이메일 이력은 세션과 함께 삭제되며 삭제 수량과 관리자는 감사 로그에 기록됩니다.
+- 사용자 응답: 세션 목록에서 최신 Brevo 접수 완료 이메일 원문을 확인하고, 제출 세션을 펼쳐 문항별 선택 답안, 정답 여부를 확인합니다. 체크한 세션만 삭제하거나 `전체 응답 삭제` 문구를 입력해 제출 완료 세션을 모두 삭제할 수 있습니다. 진행 중 시험과 기존 마케팅 수신 동의는 보존되고, 결과 이메일 이력은 세션과 함께 삭제되며 삭제 수량과 관리자는 감사 로그에 기록됩니다.
 - 문항별 풀이 시간 수집은 중단되었습니다. `POST /v1/sessions/:sessionId/items/:itemOrder/events`는 제거되어 404를 반환하며, 답 저장 `PUT /v1/sessions/:sessionId/items/:itemOrder/answer`는 `{ clientEventId, selectedOption }`만 사용합니다. 구형 요청의 `durationMs`는 무시합니다. 과거 DB 시간 컬럼·값은 보존하고 새 INSERT는 해당 컬럼의 기본값 `0`을 사용하지만, 이를 측정값으로 집계하거나 관리자 화면·CSV에 제공하지 않습니다. 시험 제한시간·자동 제출과 세션 전체 경과시간은 유지합니다. 배포는 백엔드 다음 프론트 순서로 적용하며 DB 마이그레이션은 필요 없습니다.
 - 데이터 추출: 시험·영역·기간·응시 상태 등의 조건을 적용하고 예상 행 수를 확인한 뒤 문항 분석, 사용자 문항별 응답, 응시 세션 요약 CSV를 내려받습니다. 문항·응답 CSV에는 이메일을 넣지 않으며, 세션 요약 CSV의 `result_email` 열에는 최신 Brevo 접수 완료 이메일 원문이 포함됩니다. IP·접근 토큰·결과 토큰은 모든 CSV에서 제외됩니다.
 
@@ -451,7 +451,7 @@ API 주소와 사용자 답 저장·제출·결과 조회 계약은 유지합니
 - `GET /v1/admin/responses/sessions/:sessionId`: 문항 응답의 `policyVersion`
 - `GET /v1/admin/exports/:dataset/preview`, `GET /v1/admin/exports/:dataset.csv`: `questions`의 `predicted_difficulty`, `irt_difficulty`, `irt_discrimination` 및 `responses`의 `policy_version`. `sessions`는 변경 없음.
 
-정답률의 두 분모(응답 수/전체 출제 수), 선택지 분포, 답 변경률, 선택 횟수, 문항 버전, 목표 급수, 점수 기반 예상 급수, 사후 설문은 유지합니다. 기존 시간 컬럼의 보존 정책도 유지합니다.
+정답률의 두 분모(응답 수/전체 출제 수), 선택지 분포, 문항 버전, 목표 급수, 점수 기반 예상 급수, 사후 설문은 유지합니다. 기존 시간 컬럼의 보존 정책도 유지합니다.
 
 배포는 **DB 백업 → 요청 차단 및 기존 백엔드 중지 → `pnpm db:migrate` → 새 백엔드·프론트 배포 → 풀이·채점·관리자 확인 후 서비스 재개** 순서입니다. 구버전 서버는 삭제된 컬럼을 참조하므로 신구 서버를 동시에 운영하면 안 됩니다. 삭제 후 구버전 서버만 재배포하는 롤백은 지원하지 않으며, 데이터 복구에는 백업 복원이 필요합니다. 운영 DB 적용·배포는 로컬 코드 검증과 별도로 수행합니다.
 
@@ -510,3 +510,22 @@ API 주소와 사용자 답 저장·제출·결과 조회 계약은 유지합니
 추가 DB 검증은 비어 있는 임시 `unigate_irt_test` DB를 `IRT_TEST_DATABASE_URL`로 지정하여
 `backend/tests/integration/irt-removal.integration.test.ts`를 실행합니다. 020과 021을 순서대로 검증하며
 테스트용 스키마를 생성·삭제하므로 운영 DB에는 실행하지 않습니다.
+
+
+### 답 변경 기록 수집 중단
+
+답 선택·변경·재시도·이어 풀기는 유지하되, 변경 여부·변경률·선택 횟수는 수집하거나 표시하지 않습니다.
+`answer_states`는 최신 선택 답과 선택 시각을 저장하고 `selection_count`를 더 이상 증가시키지 않습니다.
+`response_events`는 `client_event_id` 중복 방지 용도로 유지합니다. 새 이벤트에는 선택 번호를 저장하지 않으며,
+기존 NOT NULL/선택 코드 제약을 만족하도록 `event_type='answer_selected'`를 고정 사용합니다. 답 변경을 구분하는 값이 아닙니다.
+`response_observations`는 최종 답·정오답·미응답 결과를 계속 저장하되 `answer_changed`를 계산·전달하지 않습니다.
+기존 컬럼과 과거 행은 보존합니다. 새 행의 기존 DB 기본값(`selection_count=1`, `answer_changed=false`)은 측정 결과로 취급하지 않습니다.
+SQL 마이그레이션은 필요 없습니다.
+
+답 저장 API와 제출·결과 조회 API 경로/계약은 유지합니다.
+`GET /v1/admin/responses/sessions/:sessionId`의 문항별 `answerChanged`를 제거합니다.
+CSV 및 미리보기의 `questions`에서 `answer_changed_count`, `answer_changed_rate_pct`를,
+`responses`에서 `answer_changed`, `selection_count`를 제거합니다. `sessions`는 변경하지 않습니다.
+관리자 응답 카드·상세 팝업의 답안 변경 표시와 GA `question_answer.answer_changed`도 제거합니다.
+정답률의 두 분모, 선택지 분포, 채점, 제한시간·자동 제출, 사후 설문은 유지합니다.
+백엔드 → 프론트 순서로 적용하며, 이번 변경은 운영 DB의 과거 이력을 삭제하지 않습니다.
