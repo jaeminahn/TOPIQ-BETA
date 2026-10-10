@@ -95,19 +95,20 @@ export function extractGeminiImage(body: GeminiImageResponse) {
 }
 
 export class GoogleImageClient {
-  async generate(prompt: string, kind: VisualPromptKind = "listening_choice") {
+  async generate(prompt: string, kind: VisualPromptKind = "listening_choice", signal?: AbortSignal) {
     const { projectId, location, model } = config.googleImage;
     if (!projectId) throw new AppError(503, "IMAGE_PROVIDER_NOT_CONFIGURED", "Google Vertex image generation is not configured");
     const auth = new GoogleAuth({
       projectId,
       credentials: credentials(),
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      clientOptions: { transporterOptions: { signal, retry: false } },
     });
     const client = await auth.getClient();
     const headers = await client.getRequestHeaders();
     const endpoint = buildGoogleImageEndpoint(projectId, location, model);
     const response = await fetch(endpoint, {
-      method: "POST",
+      method: "POST", signal,
       headers: { ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" },
       body: JSON.stringify(buildGeminiImageRequest(prompt, kind)),
     });

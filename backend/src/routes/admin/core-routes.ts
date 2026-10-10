@@ -35,7 +35,7 @@ export function registerAdminCoreRoutes(app: FastifyInstance, repository: AdminR
     await requireAdmin(requireSessionToken(request.headers.authorization));
     const query = z.object({
       setId: z.string().uuid().optional(),
-      status: z.enum(["ready", "missing", "failed"]).optional(),
+      status: z.enum(["ready", "missing"]).optional(),
     }).parse(request.query);
     return { items: await repository.listListeningItems(query.setId, query.status) };
   });
@@ -83,9 +83,4 @@ export function registerAdminCoreRoutes(app: FastifyInstance, repository: AdminR
     return repository.publishReadingSet(setId);
   });
 
-  app.get("/v1/admin/tts/jobs", async (request) => {
-    await requireAdmin(requireSessionToken(request.headers.authorization));
-    const query = z.object({ limit: z.coerce.number().int().min(1).max(200).default(100) }).parse(request.query);
-    return { jobs: await repository.listJobs(query.limit) };
-  });
 }

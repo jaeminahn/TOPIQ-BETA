@@ -2,7 +2,6 @@ import { fireEvent,render,screen,waitFor,within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach,describe,expect,it,vi } from "vitest";
 import { adminApi } from "../../../api";
-import { I18nProvider } from "../../../i18n";
 import type { AdminListeningGroup, AdminListeningSet } from "../../../types";
 import { ListeningAdminPanel } from "./ListeningAdminPanel";
 
@@ -26,9 +25,7 @@ const readyGroup:AdminListeningGroup={
     {kind:"speech",role:"instruction",speaker:"여자",text:"1번. 들은 내용과 같은 것을 고르십시오."},
     {kind:"silence",durationMs:1000},
     {kind:"dialogue",repeatIndex:1,turns:[{speaker:"여자",text:"안녕하세요."}]},
-  ]},generationScript:null,
-  generationJobId:null,generationStatus:null,generationTtsStyle:null,lastError:null,
-  ttsStyle:{speakingRate:.9,stylePrompt:"차분하게"},
+  ]},ttsStyle:{speakingRate:.9,stylePrompt:"차분하게"},
 };
 const missingGroup:AdminListeningGroup={
   ...readyGroup,positions:[2],leaderItemId:"item-2",audioAssetId:null,audioStorageUrl:null,audioStatus:"missing",ttsStyle:null,
@@ -40,8 +37,7 @@ describe("ListeningAdminPanel",()=>{
     vi.mocked(adminApi.listeningItems).mockReset();vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[]});
     vi.mocked(adminApi.registerListeningSet).mockReset();vi.mocked(adminApi.registerListeningSet).mockResolvedValue({mockTestId:"mock",slug:"topik-ii-listening-2",round:2,published:false,created:true});
     vi.mocked(adminApi.audioUrl).mockReset();vi.mocked(adminApi.audioUrl).mockResolvedValue({audioUrl:"https://example.com/audio-1.mp3"});
-    vi.mocked(adminApi.generateGroup).mockReset();vi.mocked(adminApi.generateGroup).mockResolvedValue({jobId:"job-1",queued:true,targetCount:1});
-    vi.mocked(adminApi.generateSet).mockReset();vi.mocked(adminApi.generateSet).mockResolvedValue({queued:1,jobIds:["job-2"]});
+    vi.mocked(adminApi.generateGroup).mockReset();vi.mocked(adminApi.generateGroup).mockResolvedValue({audioAssetId:"audio-new",positions:[1],reused:false});
     vi.mocked(adminApi.uploadVisual).mockReset();vi.mocked(adminApi.uploadVisual).mockResolvedValue({visualAssetId:"asset-1",url:"https://example.com/choice.webp"});
     vi.spyOn(window,"confirm").mockReturnValue(true);
   });
@@ -54,31 +50,12 @@ describe("ListeningAdminPanel",()=>{
     expect(screen.getByRole("heading",{name:"듣기 1회 · 문항 관리"})).toBeInTheDocument();
   });
 
-  it("pauses background polling while a question is being edited",async()=>{
-    const editableGroup:AdminListeningGroup={...readyGroup,targets:[{
-      itemId:"item-1",itemVersion:1,position:1,itemType:"listen_and_choose",
-      questionPrompt:"들은 내용과 같은 것을 고르십시오.",stem:"",choices:["하나","둘","셋","넷"],
-      correctAnswer:1,explanation:"해설",contentJson:{question_prompt:"들은 내용과 같은 것을 고르십시오.",dialogue_turns:readyGroup.dialogueTurns,repeat_count:1},
-      visualOptionCount:0,visualReadyCount:0,visualOptions:[],
-    }]};
-    vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[editableGroup]});
-    const setIntervalSpy=vi.spyOn(window,"setInterval");
-    const clearIntervalSpy=vi.spyOn(window,"clearInterval");
-    render(<I18nProvider><ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/></I18nProvider>);
+  it("does not poll while the administrator reviews questions",async()=>{
+    const interval=vi.spyOn(window,"setInterval");
+    render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
     await userEvent.click(screen.getByRole("button",{name:"문항 보기"}));
-    await screen.findByRole("heading",{name:"듣기 1회 · 문항 관리"});
-    expect(setIntervalSpy).toHaveBeenCalled();
-    const pollingCount=setIntervalSpy.mock.calls.filter((call)=>call[1]===4000).length;
-
-    await userEvent.click(screen.getByRole("button",{name:/1번 .*수정/}));
-
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    expect(setIntervalSpy.mock.calls.filter((call)=>call[1]===4000)).toHaveLength(pollingCount);
-    await userEvent.click(screen.getByRole("button",{name:"취소"}));
-    expect(setIntervalSpy.mock.calls.filter((call)=>call[1]===4000).length).toBeGreaterThan(pollingCount);
-    setIntervalSpy.mockRestore();
-    clearIntervalSpy.mockRestore();
+    expect(interval.mock.calls.filter((call)=>call[1]===4000||call[1]===1000)).toHaveLength(0);
+    interval.mockRestore();
   });
 
   it("registers a detected SQL set as a draft round",async()=>{
@@ -110,7 +87,7 @@ describe("ListeningAdminPanel",()=>{
   });
 
   it("confirms generation settings in the dock and locks playback immediately",async()=>{
-    let resolveGeneration!:(value:{jobId:string|null;queued:boolean;targetCount:number})=>void;
+    let resolveGeneration!:(value:{audioAssetId:string;positions:number[];reused:boolean})=>void;
     vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[readyGroup]});
     vi.mocked(adminApi.generateGroup).mockReturnValue(new Promise((resolve)=>{resolveGeneration=resolve;}));
     render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
@@ -130,9 +107,9 @@ describe("ListeningAdminPanel",()=>{
 
     await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",linked.setId,"item-1",true,{speakingRate:1.025,stylePrompt:"밝고 또렷하게"}));
     expect(screen.getByRole("button",{name:"재생"})).toBeDisabled();
-    expect(screen.getByText("음원 생성 대기 중")).toBeInTheDocument();
+    expect(screen.getByText("새 음원을 생성하고 적용하는 중")).toBeInTheDocument();
     expect(document.querySelector("audio")).not.toBeInTheDocument();
-    resolveGeneration({jobId:"job-1",queued:true,targetCount:1});
+    resolveGeneration({audioAssetId:"audio-new",positions:[1],reused:false});
   });
 
   it("configures bulk generation in the dock and reports active job progress",async()=>{
@@ -142,23 +119,24 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.click(await screen.findByRole("button",{name:"누락 음원 생성"}));
 
     expect(screen.getByText("1개 누락 음원 생성 설정")).toBeInTheDocument();
-    expect(adminApi.generateSet).not.toHaveBeenCalled();
+    expect(adminApi.generateGroup).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button",{name:"누락 음원 생성 시작"}));
 
-    await waitFor(()=>expect(adminApi.generateSet).toHaveBeenCalledWith("token",pending.setId,false,{speakingRate:1,stylePrompt:""}));
-    expect(await screen.findByText("1개 중 0개 완료 · 1개 진행 중")).toBeInTheDocument();
+    await waitFor(()=>expect(adminApi.generateGroup).toHaveBeenCalledWith("token",missingGroup.setId,missingGroup.leaderItemId,false,{speakingRate:1,stylePrompt:""}));
+    expect(await screen.findByText("일괄 생성 완료 · 1개 성공")).toBeInTheDocument();
   });
 
   it("keeps the previous audio playable after regeneration fails",async()=>{
+    vi.mocked(adminApi.generateGroup).mockRejectedValue(new Error("TTS provider failed"));
     const failedGroup:AdminListeningGroup={
-      ...readyGroup,generationJobId:"job-failed",generationStatus:"failed",
-      generationTtsStyle:{speakingRate:1.1,stylePrompt:"밝게"},lastError:"TTS provider failed",
-    };
+      ...readyGroup,};
     vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[failedGroup]});
     render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
     await userEvent.click(screen.getByRole("button",{name:"문항 보기"}));
     await userEvent.click(await screen.findByRole("button",{name:"음원 재생성"}));
 
+    await userEvent.click(screen.getByRole("button",{name:"음원 재생성 시작"}));
+    await screen.findByText("재생성 실패 · 기존 음원 유지");
     expect(screen.getByText("재생성 실패 · 기존 음원 유지")).toBeInTheDocument();
     expect(screen.getByRole("button",{name:"음원 재생"})).toBeEnabled();
   });
@@ -217,7 +195,7 @@ describe("ListeningAdminPanel",()=>{
     Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText}});
     const visualGroup:AdminListeningGroup={...readyGroup,targets:[{
       itemId:"item-1",itemVersion:1,position:1,itemType:"visual_chart",questionPrompt:"그래프를 고르십시오.",stem:"",choices:[],correctAnswer:1,explanation:"",contentJson:{},visualOptionCount:1,visualReadyCount:0,
-      visualOptions:[{optionNumber:1,description:"선그래프",imagePrompt:"TOPIK 흑백 선그래프",chartSpec:{chart_type:"line"},visualAssetId:null,imageUrl:null,generationStatus:null,generationError:null}],
+      visualOptions:[{optionNumber:1,description:"선그래프",imagePrompt:"TOPIK 흑백 선그래프",chartSpec:{chart_type:"line"},visualAssetId:null,imageUrl:null,}],
     }]};
     vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[visualGroup]});
     render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);
@@ -230,7 +208,7 @@ describe("ListeningAdminPanel",()=>{
   it("crops a listening visual before uploading it",async()=>{
     const visualGroup:AdminListeningGroup={...readyGroup,targets:[{
       itemId:"item-1",itemVersion:1,position:1,itemType:"visual_scene",questionPrompt:"그림을 고르십시오.",stem:"",choices:[],correctAnswer:1,explanation:"",contentJson:{},visualOptionCount:1,visualReadyCount:0,
-      visualOptions:[{optionNumber:1,description:"사무실",imagePrompt:"사무실 그림",chartSpec:null,visualAssetId:null,imageUrl:null,generationStatus:null,generationError:null}],
+      visualOptions:[{optionNumber:1,description:"사무실",imagePrompt:"사무실 그림",chartSpec:null,visualAssetId:null,imageUrl:null,}],
     }]};
     vi.mocked(adminApi.listeningItems).mockResolvedValue({items:[visualGroup]});
     render(<ListeningAdminPanel token="token" sets={[linked]} onSetsChanged={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()}/>);

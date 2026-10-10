@@ -125,19 +125,28 @@ export function createBellWave(format: WaveFormat) {
   return output;
 }
 
-function runFfmpeg(args: string[]) {
+function runFfmpeg(args: string[], signal?: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
+    signal?.throwIfAborted();
     const child = spawn(config.googleTts.ffmpegPath, args, { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
     let errorOutput = "";
     child.stderr.on("data", (chunk) => { errorOutput = `${errorOutput}${String(chunk)}`.slice(-4_000); });
-    child.once("error", reject);
-    child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`FFmpeg failed (${code ?? "unknown"}): ${errorOutput.trim()}`)));
+    const abort = () => child.kill("SIGKILL");
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+    child.once("error", (error) => { signal?.removeEventListener("abort", abort); reject(error); });
+    child.once("close", (code) => {
+      signal?.removeEventListener("abort", abort);
+      if (signal?.aborted) reject(signal.reason);
+      else if (code === 0) resolve();
+      else reject(new Error(`FFmpeg failed (${code ?? "unknown"}): ${errorOutput.trim()}`));
+    });
   });
 }
 
 const manifestPath = (path: string) => path.replaceAll("\\", "/").replaceAll("'", "'\\''");
 
-export async function composeExamTrack(parts: AudioCompositionPart[]) {
+export async function composeExamTrack(parts: AudioCompositionPart[], signal?: AbortSignal) {
   if (!parts.length || !parts.some((part) => part.kind === "audio")) throw new Error("Audio composition parts are missing");
   const firstAudio = parts.find((part): part is Extract<AudioCompositionPart, { kind: "audio" }> => part.kind === "audio")!;
   const expected = readLinear16WaveFormat(firstAudio.data);
@@ -146,6 +155,7 @@ export async function composeExamTrack(parts: AudioCompositionPart[]) {
     const files: string[] = [];
     let durationMs = 0;
     for (const [index, part] of parts.entries()) {
+      signal?.throwIfAborted();
       const data = part.kind === "audio"
         ? part.data
         : part.kind === "bell"
@@ -167,7 +177,8 @@ export async function composeExamTrack(parts: AudioCompositionPart[]) {
     await runFfmpeg([
       "-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", manifest,
       "-vn", "-codec:a", "libmp3lame", "-b:a", "64k", output,
-    ]);
+    ], signal);
+    signal?.throwIfAborted();
     return { audio: await readFile(output), durationMs: Math.round(durationMs) };
   } finally {
     await rm(directory, { recursive: true, force: true });

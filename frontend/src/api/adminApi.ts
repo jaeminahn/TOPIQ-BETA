@@ -1,3 +1,4 @@
+import type { SavedSurvey } from "../survey";
 import type {
   AdminListeningGroup,
   AdminListeningSet,
@@ -14,7 +15,6 @@ import type {
   AdminExportPreview,
   AdminQuestionRevision,
   AdminQuestionVersion,
-  TtsJob,
   TtsStyle,
 } from "../types";
 import { auth, request, requestBlob } from "./request";
@@ -117,7 +117,7 @@ export const adminApi = {
   },
 
   responseSession(token: string, sessionId: string) {
-    return request<{ responses: AdminResponseObservation[] }>(
+    return request<{ responses: AdminResponseObservation[]; survey: SavedSurvey | null }>(
       `/v1/admin/responses/sessions/${sessionId}`,
       { headers: auth(token) },
     );
@@ -147,9 +147,6 @@ export const adminApi = {
     });
   },
 
-  jobs(token: string) {
-    return request<{ jobs: TtsJob[] }>("/v1/admin/tts/jobs", { headers: auth(token) });
-  },
 
   listeningSets(token: string) {
     return request<{ sets: AdminListeningSet[] }>("/v1/admin/listening/sets", { headers: auth(token) });
@@ -166,16 +163,9 @@ export const adminApi = {
     return request<{ audioUrl: string }>(`/v1/admin/listening/audio/${audioAssetId}/url`, { headers: auth(token) });
   },
 
-  generateSet(token: string, setId: string, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
-    return request<{ queued: number; jobIds: string[] }>(`/v1/admin/listening/sets/${setId}/tts`, {
-      method: "POST",
-      headers: auth(token),
-      body: JSON.stringify({ forceRegenerate, ttsStyle }),
-    });
-  },
 
   generateGroup(token: string, setId: string, leaderItemId: string, forceRegenerate = false, ttsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" }) {
-    return request<{ jobId: string | null; queued: boolean; targetCount: number }>(
+    return request<{ audioAssetId: string; positions: number[]; reused: boolean }>(
       `/v1/admin/listening/sets/${setId}/audio-groups/${leaderItemId}/tts`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate, ttsStyle }) },
     );
@@ -198,18 +188,12 @@ export const adminApi = {
   },
 
   generateVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, forceRegenerate = false) {
-    return request<{ queued: boolean; jobId: string | null }>(
+    return request<{ visualAssetId: string; url: string; reused: boolean }>(
       `/v1/admin/listening/items/${itemId}/versions/${itemVersion}/visual-options/${optionNumber}/generate`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
     );
   },
 
-  generateSetVisuals(token: string, setId: string, forceRegenerate = false) {
-    return request<{ queued: number; jobIds: string[] }>(
-      `/v1/admin/listening/sets/${setId}/visuals/generate`,
-      { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
-    );
-  },
 
   deleteVisual(token: string, itemId: string, itemVersion: number, optionNumber: number, visualAssetId: string) {
     return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained?: boolean }>(
@@ -228,18 +212,12 @@ export const adminApi = {
   },
 
   generateReadingMaterial(token: string, itemId: string, itemVersion: number, forceRegenerate = false) {
-    return request<{ queued: boolean; jobId: string | null }>(
+    return request<{ visualAssetId: string; url: string; reused: boolean }>(
       `/v1/admin/reading/items/${itemId}/versions/${itemVersion}/visual-material/generate`,
       { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
     );
   },
 
-  generateReadingSetVisuals(token: string, setId: string, forceRegenerate = false) {
-    return request<{ queued: number; jobIds: string[] }>(
-      `/v1/admin/reading/sets/${setId}/visuals/generate`,
-      { method: "POST", headers: auth(token), body: JSON.stringify({ forceRegenerate }) },
-    );
-  },
 
   deleteReadingMaterial(token: string, itemId: string, itemVersion: number, visualAssetId: string) {
     return request<{ deleted: boolean; storageDeleted: boolean; sharedAssetRetained?: boolean }>(

@@ -2,12 +2,13 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { config } from "../core/config.js";
 import { AppError } from "../core/errors.js";
 
-function configuredClient(): SupabaseClient {
+function configuredClient(signal?: AbortSignal): SupabaseClient {
   if (!config.supabase.url || !config.supabase.serviceRoleKey) {
     throw new AppError(503, "STORAGE_NOT_CONFIGURED", "Supabase Storage is not configured");
   }
   return createClient(config.supabase.url, config.supabase.serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    ...(signal ? { global: { fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([signal, init.signal]) : signal }) } } : {}),
   });
 }
 
@@ -22,7 +23,8 @@ function objectUrl(bucket: string, objectPath: string, access: "public" | "authe
 }
 
 export class SupabaseStorage {
-  private readonly client = configuredClient();
+  private readonly client: SupabaseClient;
+  constructor(signal?: AbortSignal) { this.client = configuredClient(signal); }
 
   async ensureBuckets() {
     const buckets = await this.client.storage.listBuckets();

@@ -22,8 +22,8 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
   questions: [
     "mock_test_id", "mock_test_slug", "mock_test_title_ko", "mock_test_title_en",
     "section", "set_id", "test_position", "item_id", "item_version",
-    "item_type", "primary_skill", "target_level", "predicted_difficulty", "irt_difficulty",
-    "irt_discrimination", "question_prompt", "stem", "passage", "auxiliary_text",
+    "item_type", "primary_skill", "target_level",
+    "question_prompt", "stem", "passage", "auxiliary_text",
     "highlight_text", "choice_1", "choice_2", "choice_3", "choice_4", "correct_answer",
     "explanation", "transcript_json", "visual_options_json", "content_json",
     "assigned_count", "answered_count", "unanswered_count", "correct_count", "incorrect_count",
@@ -39,7 +39,7 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "feedback_locale", "section", "set_id", "item_order", "test_position",
     "item_id", "item_version", "item_type", "selected_option", "correct_answer",
     "response_outcome", "is_correct", "skipped", "timed_out",
-    "answer_changed", "selection_count", "first_selected_at", "final_selected_at", "policy_version",
+    "answer_changed", "selection_count", "first_selected_at", "final_selected_at",
   ].map((key) => ({ key, header: key })),
   sessions: [
     "session_id", "user_id", "mock_test_id", "mock_test_slug", "mock_test_title_ko",
@@ -47,6 +47,7 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "completed_at", "duration_seconds", "timed_out_submission", "score", "max_score",
     "score_pct", "total_items", "answered_count", "unanswered_count", "correct_count",
     "incorrect_count", "rating", "feedback_locale", "result_email", "result_email_accepted",
+    "nationality_code", "birth_year", "topik_reasons", "topik_reason_other", "korean_study_duration", "topik_experience", "current_topik_level", "target_topik_level", "survey_version", "survey_completed_at", "survey_privacy_consent", "survey_privacy_consent_version", "survey_privacy_consented_at",
   ].map((key) => ({ key, header: key })),
 };
 

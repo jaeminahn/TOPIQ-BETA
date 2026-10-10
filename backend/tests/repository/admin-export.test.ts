@@ -22,8 +22,26 @@ const poolMock = pool as unknown as {
 const filters = parseAdminExportFilters({ status: "submitted" });
 
 describe("admin CSV exports", () => {
+  it("includes survey answers only in session exports and escapes free text", () => {
+    const fields = ["nationality_code", "birth_year", "topik_reasons", "topik_reason_other", "survey_privacy_consented_at"];
+    const query = buildAdminExportQuery("sessions", filters);
+    for (const field of fields) {
+      expect(query.text).toContain(`af.${field}`);
+      expect(columns.sessions.map(({key}) => key)).toContain(field);
+      for (const dataset of ["questions", "responses"] as const) {
+        expect(columns[dataset].map(({key}) => key)).not.toContain(field);
+      }
+    }
+    expect(query.text).toContain("array_to_string(af.topik_reasons, ';')");
+    expect(query.text).toContain("af.session_id");
+    expect(encodeCsvRow(['=1+1', 'job, study\nother'])).toContain("'=1+1");
+  });
   it.each(["questions", "responses"] as const)("omits question timing from %s queries and CSV headers", (dataset) => {
     const query = buildAdminExportQuery(dataset, filters);
+    for (const field of ["theta_before", "theta_after", "policy_version", "irt_difficulty", "irt_discrimination", "predicted_difficulty"]) {
+      expect(query.text).not.toContain(field);
+      expect(columns[dataset].map(({key}) => key)).not.toContain(field);
+    }
     expect(query.text).not.toContain("response_time_ms");
     expect(query.text).not.toContain("active_duration_delta_ms");
     expect(columns[dataset].some(({ key }) => key.includes("response_time_ms"))).toBe(false);
@@ -57,6 +75,10 @@ describe("admin CSV exports", () => {
     expect(query.text).toContain("answered_accuracy_pct");
     expect(query.text).toContain("overall_accuracy_pct");
     expect(query.text).toContain("option_1_count");
+    for (const field of ["theta_before", "theta_after", "policy_version", "irt_difficulty", "irt_discrimination", "predicted_difficulty"]) {
+      expect(query.text).not.toContain(field);
+      expect(columns.questions.map(({key}) => key)).not.toContain(field);
+    }
     expect(query.text).not.toContain("response_time_ms");
     expect(query.text).not.toContain("active_duration_delta_ms");
     expect(query.text).toContain("COALESCE(st.assigned_count,0) >=");

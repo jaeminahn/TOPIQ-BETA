@@ -10,10 +10,10 @@ describe("AdminQuestionHistoryDialog", () => {
     vi.mocked(adminApi.questionVersions).mockResolvedValue({
       setId: "set-1", itemId: "item-1", position: 10, currentVersion: 2,
       versions: [
-        { itemId: "item-1", itemVersion: 2, itemType: "grammar", targetLevel: 3, predictedDifficulty: 0,
+        { itemId: "item-1", itemVersion: 2, itemType: "grammar", targetLevel: 3,
           reviewStatus: "reviewed", stem: "최신 문제", choices: ["가", "나", "다", "라"], correctAnswer: 2,
           explanation: "최신 해설", contentJson: {}, createdAt: "2026-09-10T01:00:00.000Z", isCurrent: true },
-        { itemId: "item-1", itemVersion: 1, itemType: "grammar", targetLevel: 3, predictedDifficulty: 0,
+        { itemId: "item-1", itemVersion: 1, itemType: "grammar", targetLevel: 3,
           reviewStatus: "reviewed", stem: "과거 문제", choices: ["가", "나", "다", "라"], correctAnswer: 1,
           explanation: "과거 해설", contentJson: {}, createdAt: "2026-09-09T01:00:00.000Z", isCurrent: false },
       ],

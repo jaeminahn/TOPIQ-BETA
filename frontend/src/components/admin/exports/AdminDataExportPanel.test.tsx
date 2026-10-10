@@ -84,7 +84,7 @@ describe("AdminDataExportPanel", () => {
 
     await userEvent.click(screen.getByRole("radio", { name: /응시 세션 요약 CSV/ }));
 
-    expect(screen.getByText("개인정보: 이메일 원문 포함")).toBeInTheDocument();
+    expect(screen.getByText("개인정보: 이메일·설문 응답 포함")).toBeInTheDocument();
     expect(screen.getByText("result_email").closest("p")).toHaveTextContent(/최신 Brevo 접수 완료 이메일 원문/);
     expect(screen.getByText(/다운로드한 파일은 개인정보 처리 기준/)).toBeInTheDocument();
   });

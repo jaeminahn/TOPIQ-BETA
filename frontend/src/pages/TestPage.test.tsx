@@ -24,6 +24,7 @@ const timedSession: TestSession = {
   expiresAt: "2026-08-15T00:05:00.000Z",
   submittedAt: null,
   rating: null,
+  surveyCompleted: false,
   resultEmailSent: false,
   maskedResultEmail: null,
   resultLinkExpiresAt: null,

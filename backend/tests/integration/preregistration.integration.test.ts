@@ -31,14 +31,16 @@ describe.skipIf(!process.env.PREREGISTRATION_TEST_DATABASE_URL)("preregistration
       throw new Error("Use a fresh disposable database named unigate_preregistration_test");
     }
     await pool.query(`CREATE SCHEMA topik_app;
-      CREATE TABLE topik_app.sessions(session_id UUID PRIMARY KEY, status TEXT NOT NULL, access_token_hash TEXT NOT NULL);`);
+      CREATE TABLE topik_app.sessions(session_id UUID PRIMARY KEY, status TEXT NOT NULL, access_token_hash TEXT NOT NULL);
+      CREATE TABLE topik_app.attempt_feedback(session_id UUID REFERENCES topik_app.sessions ON DELETE CASCADE, survey_completed_at TIMESTAMPTZ);`);
     ownsSchema = true;
     await pool.query(await readFile(resolve(process.cwd(), "migrations/018_preregistrations.sql"), "utf8"));
   });
   beforeEach(async () => {
-    await pool.query("TRUNCATE topik_app.preregistrations,topik_app.preregistration_deletion_audits,topik_app.sessions RESTART IDENTITY");
+    await pool.query("TRUNCATE topik_app.attempt_feedback,topik_app.preregistrations,topik_app.preregistration_deletion_audits,topik_app.sessions RESTART IDENTITY");
     await pool.query("ALTER SEQUENCE topik_app.preregistration_landing_seq RESTART; ALTER SEQUENCE topik_app.preregistration_topik_seq RESTART");
     await pool.query("INSERT INTO topik_app.sessions VALUES ($1,'submitted',$2)", [sessionId, createHash("sha256").update(token).digest("hex")]);
+    await pool.query("INSERT INTO topik_app.attempt_feedback VALUES ($1,CURRENT_TIMESTAMP)", [sessionId]);
   });
   afterAll(async () => {
     if (ownsSchema) await pool.query("DROP SCHEMA topik_app CASCADE");

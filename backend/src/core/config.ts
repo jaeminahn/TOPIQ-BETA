@@ -33,11 +33,10 @@ const envSchema = z.object({
   GOOGLE_TTS_MODEL: z.string().default("gemini-2.5-flash-tts"),
   GOOGLE_TTS_FEMALE_VOICE: z.string().default("Aoede"),
   GOOGLE_TTS_MALE_VOICE: z.string().default("Charon"),
+  MEDIA_GENERATION_TIMEOUT_MS: z.coerce.number().int().min(1000).max(900000).default(240000),
   FFMPEG_PATH: z.string().default("ffmpeg"),
-  TTS_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
   GOOGLE_IMAGE_LOCATION: z.string().default("global"),
   GOOGLE_IMAGE_MODEL: z.string().default("gemini-2.5-flash-image"),
-  VISUAL_WORKER_ENABLED: z.enum(["true", "false"]).default("true"),
   BREVO_API_KEY: z.string().min(1).optional(),
   BREVO_SENDER_EMAIL: z.string().email().optional(),
   BREVO_SENDER_NAME: z.string().trim().min(1).max(100).default("UNIGATE"),
@@ -76,6 +75,7 @@ if (parsed.NODE_ENV === "production" && alertEmails.length !== 2) {
 
 export const config = {
   nodeEnv: parsed.NODE_ENV,
+  mediaGenerationTimeoutMs: parsed.MEDIA_GENERATION_TIMEOUT_MS,
   port: parsed.PORT,
   databaseUrl: parsed.DATABASE_URL,
   databaseSsl: parsed.DATABASE_SSL === "require",
@@ -99,14 +99,12 @@ export const config = {
     femaleVoice: parsed.GOOGLE_TTS_FEMALE_VOICE,
     maleVoice: parsed.GOOGLE_TTS_MALE_VOICE,
     ffmpegPath: parsed.FFMPEG_PATH,
-    workerEnabled: parsed.TTS_WORKER_ENABLED === "true",
   },
   googleImage: {
     projectId: parsed.GOOGLE_CLOUD_PROJECT_ID,
     credentialsJson: parsed.GOOGLE_CLOUD_CREDENTIALS_JSON,
     location: parsed.GOOGLE_IMAGE_LOCATION,
     model: parsed.GOOGLE_IMAGE_MODEL,
-    workerEnabled: parsed.VISUAL_WORKER_ENABLED === "true",
   },
   brevo: {
     apiKey: parsed.BREVO_API_KEY,

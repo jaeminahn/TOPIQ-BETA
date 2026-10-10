@@ -212,9 +212,9 @@ button { cursor: pointer; }
   transition: width .32s var(--topiq-ease);
 }
 .topiq-engine-step:hover::before { width: 4.75rem; }
-.topiq-engine-step-adaptive { background: rgba(237, 242, 252, .38); }
-.topiq-engine-step-adaptive:hover { background: rgba(237, 242, 252, .7); }
-.topiq-engine-step-adaptive::before { background: var(--color-primary); }
+.topiq-engine-step-review { background: rgba(237, 242, 252, .38); }
+.topiq-engine-step-review:hover { background: rgba(237, 242, 252, .7); }
+.topiq-engine-step-review::before { background: var(--color-primary); }
 @media (min-width: 1024px) {
   .topiq-engine-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .topiq-engine-step { padding: 2.25rem; }

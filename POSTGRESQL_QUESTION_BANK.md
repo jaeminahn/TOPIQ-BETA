@@ -203,9 +203,6 @@ listening:dialogue_response:42
 | `item_type` | `TEXT` | 불가 |  | 빈칸, 내용 일치, 문장 배열 등에 대응하는 내부 유형 키 |
 | `primary_skill` | `TEXT` | 불가 | 공백 문자열 금지 | 대표 문법·어휘·추론/듣기 skill |
 | `target_level` | `SMALLINT` | 불가 | 1~6 | 예상 TOPIK 급수 |
-| `predicted_difficulty` | `DOUBLE PRECISION` | 불가 | -3.0~3.0 | 생성/검수 단계의 초기 예상 난이도 |
-| `irt_difficulty` | `DOUBLE PRECISION` | 가능 |  | 응답 데이터로 추정할 IRT 난이도. 현재 `NULL` |
-| `irt_discrimination` | `DOUBLE PRECISION` | 가능 | `NULL` 또는 0 초과 | 문항 변별도. 현재 `NULL` |
 | `stem_length` | `INTEGER` | 불가 | 0 이상 | 정규화한 표시용 지문/문제 문자열의 문자 길이 |
 | `choice_count` | `INTEGER` | 불가 | 0 이상 | 인식된 선택지 개수 |
 | `generator_provider` | `TEXT` | 불가 |  | 실제 호출 백엔드. 예: `chatkhu`, `deepseek` |
@@ -263,7 +260,7 @@ listening:dialogue_response:42
 #### `content_hash`에 포함되는 의미 정보
 
 - 영역, 유형
-- 대표 skill, 목표 급수, 예상 난이도
+- 대표 skill, 목표 급수
 - 모델 backend/key/version
 - 프롬프트 버전
 - 검수 상태
@@ -296,7 +293,6 @@ listening:dialogue_response:42
 | `generator_version` | `TEXT` | 불가 |  | 정확한 모델 버전 |
 | `review_status` | `TEXT` | 불가 | 기본 `reviewed`; 허용 상태 4종 | 세트 생명주기 상태 |
 | `default_target_level` | `SMALLINT` | 불가 | 1~6 | 기본 목표 급수 |
-| `default_predicted_difficulty` | `DOUBLE PRECISION` | 불가 | -3.0~3.0 | 기본 예상 난이도 |
 | `set_fingerprint` | `CHAR(64)` | 불가 |  | 현재 50개 `(position, item_id, item_version)`의 SHA-256 |
 | `published_at` | `TIMESTAMPTZ` | 불가 | `CURRENT_TIMESTAMP` | 세트 발행 시각 |
 | `created_at` | `TIMESTAMPTZ` | 불가 | `CURRENT_TIMESTAMP` | 논리 세트 최초 생성 시각 |
@@ -349,9 +345,9 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 
 - 세트: `set_id`, `set_section`
 - 모델: `set_generator_provider`, `set_generator_model`, `set_generator_version`
-- 상태/기본값: `set_review_status`, `default_target_level`, `default_predicted_difficulty`, `published_at`
+- 상태/기본값: `set_review_status`, `default_target_level`, `published_at`
 - 연결: `position`, `source_key`, `item_id`, `item_version`
-- 문항: `type_slot`, `item_type`, skill, 난이도/IRT/상태, `stem`, `choices`, 정답, 해설, 전체 JSON, 원본 추적 정보
+- 문항: `type_slot`, `item_type`, skill, 목표 급수/상태, `stem`, `choices`, 정답, 해설, 전체 JSON, 원본 추적 정보
 
 중요: 이 뷰는 `current_items`의 최신 버전을 임의로 붙이지 않고 `question_set_items.item_version`이 가리키는 현재 문항 버전을 정확히 반환한다. 과거 응시 내용은 `session_items.item_id + item_version`으로 재현한다.
 
@@ -411,8 +407,8 @@ DB의 `position BETWEEN 1 AND 50`만으로는 “정확히 50행”을 강제하
 
 - 승인 및 유효성 조건을 통과한 문항을 모델·영역별로 선택한다.
 - 50문항 세트가 완성되지 않아도 개별 문항을 저장한다.
-- `target_level`, `predicted_difficulty`, `primary_skill`을 확인/편집한다.
-- 처음 기본값은 목표 급수 4, 예상 난이도 0.0이다.
+- `target_level`, `primary_skill`을 확인/편집한다.
+- 처음 기본값은 목표 급수 4이다.
 - `primary_skill`은 읽기의 `target_grammar` 또는 듣기의 `target_skill`에서 기본 추출한다.
 
 ### 9.3 `50문항 세트`
@@ -563,15 +559,9 @@ HAVING COUNT(*) <> 50
 
 정상이면 결과가 0행이어야 한다.
 
-### 10.10 IRT 보정이 없는 문항
+### 10.10 문항별 정답률
 
-```sql
-SELECT section, generator_version, COUNT(*) AS uncalibrated_count
-FROM topik_bank.current_items
-WHERE irt_difficulty IS NULL OR irt_discrimination IS NULL
-GROUP BY section, generator_version
-ORDER BY section, generator_version;
-```
+관리자 문항 분석 CSV는 문항 ID·버전과 시험 내 배치별로 집계한다. 응답자 기준 정답률은 정답 수 / 응답 수, 전체 기준 정답률은 정답 수 / 출제 수이다. 분모가 0이면 빈값으로 표시한다. 선택지 분포와 답 변경 통계도 유지한다.
 
 ### 10.11 적용된 마이그레이션
 
@@ -629,7 +619,7 @@ ORDER BY position;
 
 현재 발행 코드는 새 문항 버전과 세트를 `reviewed`로 만든다. `pilot → active → retired`를 관리하는 별도 UI/API는 아직 없다.
 
-문항 내용/메타데이터 변경은 로컬 원본을 수정한 뒤 동기화하여 새 버전을 만드는 것이 기본 정책이다. 상태 전환과 IRT 값 갱신을 어떤 감사 이력으로 남길지는 다음 단계에서 설계해야 한다.
+문항 내용/메타데이터 변경은 로컬 원본을 수정한 뒤 동기화하여 새 버전을 만드는 것이 기본 정책이다. 상태 전환을 어떤 감사 이력으로 남길지는 다음 단계에서 설계해야 한다.
 
 ## 13. 삭제 및 원본 변경 정책
 
@@ -788,18 +778,11 @@ with connection.cursor() as cursor:
 - PostgreSQL에는 immutable asset ID, object key/URL, checksum, MIME type, duration 저장
 - 문항 버전이 정확한 asset version을 고정하고 세트 위치 음원은 현재 연결로 관리
 
-### 20.2 IRT 응답 데이터
+### 20.2 응답 데이터와 IRT 제거
 
-`irt_difficulty`, `irt_discrimination`은 준비되었지만 응답 로그 수집, 능력 추정, 캘리브레이션 배치, 추정 이력은 없다. 현재 값은 `NULL`이다.
+`020_remove_irt_metadata.sql` 적용 후 IRT 능력값·난이도·변별도·추정 이력, 예상 난이도와 고정 출제 정책값은 저장하지 않는다. 과거 값도 해당 컬럼과 함께 삭제한다. `current_items`, `current_set_contents` 뷰는 남은 컬럼과 기존 접근 권한을 유지한다.
 
-다음 테이블 후보:
-
-- `response_events`
-- `item_calibration_runs`
-- `item_parameter_estimates`
-- 시험 세션/능력 추정 테이블
-
-어떤 `item_version`에 어떤 데이터셋/알고리즘으로 추정했는지 남겨야 한다.
+`session_items`는 출제 당시 문항 버전을 고정하고, `answer_states`는 현재 답, `response_events`는 답 변경과 요청 중복 방지, `response_observations`는 제출 결과를 보관한다. 기존 정답률·선택지 분포·답 변경 통계와 사후 설문은 유지한다. 문항별 시간 컬럼은 이전 정책에 따라 보존하지만 측정이나 집계에 사용하지 않는다.
 
 ### 20.3 생명주기 전환 UI/API
 
@@ -886,3 +869,26 @@ DB 제약은 `writing`을 허용하지만 후보 수집은 현재 읽기와 듣�
 - **프로덕션은 SQLite가 아니라 PostgreSQL 뷰를 읽는다.**
 - **스키마 변경은 순차 마이그레이션으로만 진행한다.**
 - **비밀번호와 실제 접속 문자열은 문서·로그·커밋에 남기지 않는다.**
+
+
+## 미디어 생성 작업 큐 제거 (021)
+
+`backend/migrations/021_remove_generation_jobs.sql`은 `topik_app.tts_generation_job_targets`,
+`topik_app.tts_generation_jobs`, `topik_app.visual_generation_jobs`를 순서대로 삭제한다.
+해당 테이블의 과거 작업 대본·프롬프트·상태·오류·시도 횟수와 인덱스·제약조건도 제거한다.
+기존 마이그레이션과 Supabase 초기 스키마는 변경하지 않으며, 예상하지 못한 외부 의존성이 있으면
+트랜잭션 전체를 롤백한다. `CASCADE`는 사용하지 않는다.
+
+`tts_audio_assets`, `item_visual_assets`, 음원 연결 테이블, 재생 이력과 Storage 파일은 유지한다.
+새 영구 작업 테이블이나 상태 컬럼은 없다. 자산의 대본·스타일은 유지한다.
+새 음원은 강제 재생성에도 기존 Storage 경로를 덮어쓰지 않도록 고유 경로와 자산 ID를 사용한다.
+`script_snapshot.generationSourceHash`는 동일 대본·설정의 재사용 키이며 기존 source_hash 기반 음원도 재사용한다.
+메일 발송 및 미디어 정리 큐는 유지하되 정리 코드에서 생성 작업 테이블 참조를 제거한다.
+
+생성 API는 전용 PostgreSQL 연결에서 `media-generation:tts`, `media-generation:visual`별 세션 advisory lock을
+취득하고 작업 완료 후 해제한다. Direct/Session pooler만 지원한다. 외부 API 호출 동안 트랜잭션은 열지 않는다.
+최종 연결 트랜잭션에서 문항 버전을 다시 검사하고 기존 파일은 성공 전까지 유지한다.
+
+운영 적용은 백업 → 관리자 생성 차단 → 기존 생성 종료 및 서버 중지 → 마이그레이션 → 새 서버·프론트 배포 →
+생성·재생 확인 순서다. 실제 요청 경로의 제한시간과 대표 TTS 생성 시간을 배포 전에 확인한다.
+세부 API 계약·환경변수·재시도 정책은 README의 'TTS·이미지 직접 생성 API (021)'를 참고한다.

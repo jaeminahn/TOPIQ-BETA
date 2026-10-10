@@ -100,7 +100,7 @@ describe("listening set administration",()=>{
     });
     poolMock.connect.mockResolvedValue({query,release:vi.fn()});
 
-    await expect(new AdminRepository().enqueueVisualOption("admin-1","item-1",1,1,false))
+    await expect(new AdminRepository().visualGenerationTarget({query} as never,{adminUserId:"admin-1",itemId:"item-1",itemVersion:1,optionNumber:1,visualRole:"choice",forceRegenerate:false}))
       .rejects.toMatchObject({statusCode:404});
     expect(query.mock.calls.some(([sql])=>String(sql).includes("INSERT INTO topik_app.visual_generation_jobs"))).toBe(false);
 

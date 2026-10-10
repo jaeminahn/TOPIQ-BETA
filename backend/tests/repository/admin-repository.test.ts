@@ -60,7 +60,7 @@ describe("AdminRepository response details", () => {
         skipped: false,
         timedOut: false,
         answerChanged: true,
-        policyVersion: "STATIC_MOCK_V1",
+
         createdAt: new Date("2026-08-19T12:00:00Z"),
         mode: "timed",
         score: 80,
@@ -109,22 +109,22 @@ describe("AdminRepository reading graph materials", () => {
     poolMock.connect.mockReset();
   });
 
-  it("normalizes the position 10 prompt and returns the current material asset and latest job", async () => {
+  it("normalizes the position 10 prompt and returns the current material asset", async () => {
     poolMock.query.mockResolvedValue({ rowCount: 1, rows: [{
       setId: "set-1", position: 10, mockTestTitle: "읽기 1회",
       itemId: "item-10", itemVersion: 2, itemType: "content_match_short",
-      targetLevel: 3, predictedDifficulty: 0.5, reviewStatus: "reviewed",
+      targetLevel: 3, reviewStatus: "reviewed",
       stem: "그래프의 내용과 같은 것을 고르십시오.", choices: ["1", "2", "3", "4"],
       correctAnswer: 2, explanation: "해설", contentJson: { passage: "독서 34%, 운동 28%" },
       materialVisualAssetId: "asset-10", materialImageUrl: "https://example.com/graph.png",
-      materialGenerationStatus: "succeeded", materialGenerationError: null, visualOptions: [],
+      visualOptions: [],
     }] });
 
     const [item] = await new AdminRepository().listReadingItems("set-1");
     const [sql, values] = poolMock.query.mock.calls[0] as [string, unknown[]];
 
     expect(sql).toContain("iva.visual_role='material'");
-    expect(sql).toContain("vgj.visual_role='material'");
+    expect(sql).not.toContain("visual_generation_jobs");
     expect(sql).not.toContain("set_version");
     expect(values).toEqual(["set-1"]);
     expect(item!.materialVisual).toMatchObject({
@@ -132,29 +132,9 @@ describe("AdminRepository reading graph materials", () => {
       imagePrompt: expect.stringContaining("독서 34%, 운동 28%"),
       visualAssetId: "asset-10",
       imageUrl: "https://example.com/graph.png",
-      generationStatus: "succeeded",
     });
   });
 
-  it("queues a Gemini material job with a deterministic prompt snapshot", async () => {
-    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
-      if (sql.includes("SELECT iv.item_type,iv.stem,iv.content_json")) return { rowCount: 1, rows: [{
-        item_type: "content_match_short", stem: "그래프 문제",
-        content_json: { passage: "버스 34%, 지하철 28%" }, has_asset: false,
-      }] };
-      if (sql.includes("status IN ('queued','processing')")) return { rowCount: 0, rows: [] };
-      return { rowCount: 1, rows: [] };
-    });
-    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
-
-    await expect(new AdminRepository().enqueueReadingMaterial("admin-1", "item-10", 2, false))
-      .resolves.toMatchObject({ queued: true });
-    const insert = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.visual_generation_jobs"));
-    expect(insert?.[1]).toEqual(expect.arrayContaining([
-      "item-10", 2, 1, "material", "admin-1", false,
-      expect.objectContaining({ visualRole: "material", sourceText: "버스 34%, 지하철 28%" }),
-    ]));
-  });
 });
 
 describe("AdminRepository abandoned response deletion", () => {
@@ -182,39 +162,14 @@ describe("AdminRepository abandoned response deletion", () => {
 describe("AdminRepository listening generation state", () => {
   beforeEach(() => poolMock.query.mockReset());
 
-  it("returns the latest job status and requested style separately from the applied audio style", async () => {
-    poolMock.query.mockResolvedValue({ rowCount: 1, rows: [{
-      leaderItemId: "item-1",
-      ttsStyle: { speakingRate: 1, stylePrompt: "applied" },
-      generationJobId: "job-1",
-      generationStatus: "processing",
-      generationTtsStyle: { speakingRate: .9, stylePrompt: "requested" },
-      generationScript: { version: "exam_track_v4" },
-      narrationVersion: "exam_track_v4",
-      appliedScript: { version: "exam_track_v4" },
-    }] });
-
-    const result = await new AdminRepository().listListeningItems("set-1");
-    const [sql, values] = poolMock.query.mock.calls[0] as [string, unknown[]];
-
-    expect(sql).toContain('recent.job_id AS "generationJobId"');
-    expect(sql).toContain('recent.status AS "generationStatus"');
-    expect(sql).toContain('recent.tts_style AS "generationTtsStyle"');
-    expect(sql).toContain('recent.script_snapshot AS "generationScript"');
-    expect(sql).toContain('g.narration_version END AS "narrationVersion"');
-    expect(sql).toContain("question_set_item_audio_bindings");
-    expect(sql).toContain("set_asset.narration_version='exam_track_v4'");
-    expect(sql).not.toContain("set_version");
-    expect(values).toEqual(["set-1", null]);
-    expect(result[0]).toMatchObject({
-      ttsStyle: { speakingRate: 1, stylePrompt: "applied" },
-      generationJobId: "job-1",
-      generationStatus: "processing",
-      generationTtsStyle: { speakingRate: .9, stylePrompt: "requested" },
-      narrationVersion: "exam_track_v4",
-    });
+  it("returns applied audio data without job state", async () => {
+    poolMock.query.mockResolvedValue({rows: [],rowCount:0});
+    await new AdminRepository().listListeningItems("set-1");
+    const sql = poolMock.query.mock.calls[0]![0] as string;
+    expect(sql).toContain('AS "ttsStyle"');
+    expect(sql).not.toContain("tts_generation_jobs");
+    expect(sql).not.toContain("generationStatus");
   });
-
   it("queries the set's current item pointers directly", async () => {
     poolMock.query.mockResolvedValue({ rowCount: 0, rows: [] });
 
@@ -226,36 +181,6 @@ describe("AdminRepository listening generation state", () => {
     expect(values).toEqual(["set-1", null]);
   });
 
-  it("snapshots a set-specific complete narration script when a group is queued", async () => {
-    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
-      if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
-      if (sql.includes("WITH leader AS")) return { rowCount: 2, rows: [
-        { item_id: "10000000-0000-4000-8000-000000000001", item_version: 1, position: 13, question_prompt: "첫 문제", dialogue_turns: [{ speaker: "남자", text: "안녕하세요." }] },
-        { item_id: "10000000-0000-4000-8000-000000000002", item_version: 1, position: 14, question_prompt: "둘째 문제", dialogue_turns: [{ speaker: "남자", text: "안녕하세요." }] },
-      ] };
-      if (sql.includes("status IN ('queued','processing')")) return { rowCount: 0, rows: [] };
-      if (sql.includes("COUNT(*)::int count")) return { rowCount: 1, rows: [{ count: 0 }] };
-      return { rowCount: 1, rows: [] };
-    });
-    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
-
-    const result = await new AdminRepository().enqueueGroup(
-      "20000000-0000-4000-8000-000000000001",
-      "30000000-0000-4000-8000-000000000001",
-      "10000000-0000-4000-8000-000000000001",
-      false,
-      { speakingRate: 1, stylePrompt: "" },
-    );
-
-    expect(result).toMatchObject({ queued: true, targetCount: 2 });
-    const jobInsert = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.tts_generation_jobs"));
-    expect(jobInsert?.[1]).toEqual(expect.arrayContaining([
-      "30000000-0000-4000-8000-000000000001", 1, 13,
-      expect.objectContaining({ version: "exam_track_v4", positions: [13, 14] }),
-    ]));
-    const targetInsert = query.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO topik_app.tts_generation_job_targets"));
-    expect(targetInsert?.[1]).toEqual(expect.arrayContaining([[13, 14]]));
-  });
 });
 
 describe("AdminRepository question revisions", () => {
@@ -270,7 +195,7 @@ describe("AdminRepository question revisions", () => {
   ) => ({
     position, item_id: itemId, item_version: 1,
     section: "listening", item_type: itemType, type_slot: position, primary_skill: "listening",
-    target_level: 3, predicted_difficulty: 0, irt_difficulty: null, irt_discrimination: null,
+    target_level: 3,
     generator_provider: "test", generator_model: "test", generator_version: "v1", prompt_version: "a".repeat(64),
     review_status: "reviewed", stem: "", choices: ["1", "2", "3", "4"], correct_answer: 1,
     explanation: "old explanation",
@@ -285,7 +210,7 @@ describe("AdminRepository question revisions", () => {
     if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
     if (sql.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
     if (sql.includes("FROM topik_bank.question_sets") && sql.includes("FOR UPDATE")) {
-      return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, default_predicted_difficulty: 0, published_at: new Date() }] };
+      return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, published_at: new Date() }] };
     }
     if (sql.includes("SELECT qsi.position,iv.*")) return { rowCount: members.length, rows: members };
     if (sql.includes("MAX(item_version)")) return { rowCount: 1, rows: [{ version: 2 }] };
@@ -299,11 +224,11 @@ describe("AdminRepository question revisions", () => {
     const query = vi.fn(async (sql: string, _params?: unknown[]) => {
       if (sql === "BEGIN" || sql === "COMMIT" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
       if (sql.includes("pg_advisory_xact_lock")) return { rowCount: 1, rows: [{}] };
-      if (sql.includes("FROM topik_bank.question_sets") && sql.includes("FOR UPDATE")) return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, default_predicted_difficulty: 0, published_at: new Date() }] };
+      if (sql.includes("FROM topik_bank.question_sets") && sql.includes("FOR UPDATE")) return { rowCount: 1, rows: [{ review_status: "reviewed", default_target_level: 3, published_at: new Date() }] };
       if (sql.includes("SELECT qsi.position,iv.*")) return { rowCount: 1, rows: [{
         position: 1, item_id: "30000000-0000-4000-8000-000000000001", item_version: 1,
         section: "reading", item_type: "grammar_blank", type_slot: 1, primary_skill: "grammar",
-        target_level: 3, predicted_difficulty: 0, irt_difficulty: null, irt_discrimination: null,
+        target_level: 3,
         generator_provider: "test", generator_model: "test", generator_version: "v1", prompt_version: "a".repeat(64),
         review_status: "reviewed", stem: "old", choices: ["1", "2", "3", "4"], correct_answer: 1,
         explanation: "old explanation", content_json: { stem: "old", choices: ["1", "2", "3", "4"] }, source_provenance: {},

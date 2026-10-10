@@ -19,9 +19,9 @@ export function FullVersionSection({ onPreregister }: { onPreregister: () => voi
               <h3 className="text-xl font-semibold tracking-[-.025em] text-gray-900 sm:text-2xl">{t("fullVersionGenerationTitle")}</h3>
               <p className="mt-3 text-sm leading-6 text-gray-600">{t("fullVersionGenerationBody")}</p>
             </article>
-            <article className="topiq-engine-step topiq-engine-step-adaptive">
-              <h3 className="text-xl font-semibold tracking-[-.025em] text-gray-900 sm:text-2xl">{t("fullVersionAdaptiveTitle")}</h3>
-              <p className="mt-3 text-sm leading-6 text-gray-600">{t("fullVersionAdaptiveBody")}</p>
+            <article className="topiq-engine-step topiq-engine-step-review">
+              <h3 className="text-xl font-semibold tracking-[-.025em] text-gray-900 sm:text-2xl">{t("fullVersionReviewTitle")}</h3>
+              <p className="mt-3 text-sm leading-6 text-gray-600">{t("fullVersionReviewBody")}</p>
             </article>
           </div>
         </Reveal>

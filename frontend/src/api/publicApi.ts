@@ -1,3 +1,4 @@
+import type { SurveyInput } from "../survey";
 import type { Exam, ExamMode, Results, TestSession } from "../types";
 import { auth, request, requestWithRetry } from "./request";
 import type { PreregistrationConsent } from "../preregistration";
@@ -75,7 +76,7 @@ export const api = {
   resultEmail(
     sessionId: string,
     token: string,
-    input: { rating: number; locale: "ko" | "en"; email: string; preregistration?: PreregistrationConsent },
+    input: { rating: number; locale: "ko" | "en"; email: string; survey?: SurveyInput; preregistration?: PreregistrationConsent },
   ) {
     return request<{ emailAccepted: true; maskedEmail: string; expiresAt: string }>(
       `/v1/sessions/${sessionId}/result-email`,

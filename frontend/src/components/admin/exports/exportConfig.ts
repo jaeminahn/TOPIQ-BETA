@@ -20,7 +20,7 @@ export const exportDatasets: Array<{
   {
     id: "questions",
     title: "문항 분석 CSV",
-    description: "문제 내용과 난이도 정보에 정답률·선택지 분포·답안 변경 정보를 결합합니다.",
+    description: "문제 내용에 정답률·선택지 분포·답안 변경 정보를 결합합니다.",
     rowUnit: "한 행 = 시험에 배치된 문항 버전 1개",
     icon: FileQuestion,
     highlights: ["문제 본문·선지·정답·해설", "응답자/전체 기준 정답률", "선택지별 선택률과 답안 변경률"],
@@ -39,7 +39,7 @@ export const exportDatasets: Array<{
     description: "한 번의 시험 응시 결과를 세션 단위로 간단하게 비교합니다.",
     rowUnit: "한 행 = 제출 또는 폐기된 응시 1회",
     icon: Users,
-    highlights: ["점수·득점률·완료 시간", "응답·미응답·정답·오답 수", "별점과 최신 결과 수신 이메일 원문"],
+    highlights: ["점수·득점률·완료 시간", "응답·미응답·정답·오답 수", "사후 설문·별점·결과 수신 이메일 원문"],
   },
 ];
 
@@ -55,6 +55,7 @@ export const exportFieldGuides: Record<AdminExportDataset, Array<{ title: string
     { title: "최종 응답", fields: "선택 답, 정답, 응답 결과, 선택 횟수, 변경·건너뜀·시간 초과 여부" },
   ],
   sessions: [
+    { title: "사후 설문", fields: "국적·출생연도, 응시 이유·기타 내용, 학습 기간, 응시 경험·현재 및 목표 급수, 설문·동의 버전과 시각" },
     { title: "응시 흐름", fields: "시험, 실전/연습, 제출/폐기, 시작·완료·소요 시각" },
     { title: "성과 요약", fields: "점수·득점률, 전체·응답·미응답·정답·오답 수" },
     { title: "후속 과정", fields: "별점·선택 언어, 최신 Brevo 접수 완료 이메일 원문과 접수 여부" },

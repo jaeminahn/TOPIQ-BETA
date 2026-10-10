@@ -191,14 +191,12 @@ export class AdminReadingRepository extends AdminListeningRepository {
       `SELECT qsi.set_id AS "setId",qsi.position,
               mt.title_ko AS "mockTestTitle", iv.item_id AS "itemId",
               iv.item_version AS "itemVersion", iv.item_type AS "itemType",
-              iv.target_level AS "targetLevel", iv.predicted_difficulty AS "predictedDifficulty",
+              iv.target_level AS "targetLevel",
               iv.review_status AS "reviewStatus", iv.stem, iv.choices,
               iv.correct_answer AS "correctAnswer", iv.explanation,
               iv.content_json AS "contentJson",
               material_asset.visual_asset_id AS "materialVisualAssetId",
               material_asset.storage_url AS "materialImageUrl",
-              recent_material.status AS "materialGenerationStatus",
-              CASE WHEN recent_material.status='failed' THEN recent_material.error_message END AS "materialGenerationError",
               COALESCE((
                 SELECT jsonb_agg(jsonb_build_object(
                   'optionNumber',visual.ordinality,
@@ -224,13 +222,6 @@ export class AdminReadingRepository extends AdminListeningRepository {
               AND iva.visual_role='material' AND iva.option_number=1 AND iva.is_current
             LIMIT 1
          ) material_asset ON TRUE
-         LEFT JOIN LATERAL (
-           SELECT vgj.status,vgj.error_message
-             FROM topik_app.visual_generation_jobs vgj
-            WHERE vgj.item_id=iv.item_id AND vgj.item_version=iv.item_version
-              AND vgj.visual_role='material' AND vgj.option_number=1
-            ORDER BY vgj.created_at DESC LIMIT 1
-         ) recent_material ON TRUE
         WHERE ${filters.join(" AND ")}
         ORDER BY qsi.set_id, qsi.position`,
       values,
@@ -243,7 +234,7 @@ export class AdminReadingRepository extends AdminListeningRepository {
         String(record.stem ?? ""),
       );
       const {
-        materialVisualAssetId, materialImageUrl, materialGenerationStatus, materialGenerationError,
+        materialVisualAssetId, materialImageUrl,
         ...item
       } = record;
       return {
@@ -252,8 +243,6 @@ export class AdminReadingRepository extends AdminListeningRepository {
           ...material,
           visualAssetId: materialVisualAssetId ?? null,
           imageUrl: materialImageUrl ?? null,
-          generationStatus: materialGenerationStatus ?? null,
-          generationError: materialGenerationError ?? null,
         } : null,
       };
     });

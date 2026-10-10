@@ -46,7 +46,7 @@ describe("TopikRepository answers without timing", () => {
     const item = {
       user_id: "user-1", session_id: "session-1", item_id: "item-1", item_version: 1,
       item_order: 1, selected_option: 2, correct_answer: 2, answer_changed: true,
-      theta_before: null, theta_after: null, policy_version: "STATIC_MOCK_V1", score_weight: 2,
+      score_weight: 2,
     };
     const query = vi.fn(async (sql: string, _params?: unknown[]) => {
       if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [{
@@ -61,10 +61,10 @@ describe("TopikRepository answers without timing", () => {
     else await repository.submitSession("session-1", token);
     const observations = query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.response_observations"));
     expect(observations).toHaveLength(2);
-    expect(observations[0]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-1", 1, 1, 2, true, false, false, true, null, null, "STATIC_MOCK_V1"]);
-    expect(observations[1]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-2", 1, 2, null, false, !expired, expired, false, null, null, "STATIC_MOCK_V1"]);
+    expect(observations[0]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-1", 1, 1, 2, true, false, false, true]);
+    expect(observations[1]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-2", 1, 2, null, false, !expired, expired, false]);
     expect(query).toHaveBeenCalledWith(expect.stringContaining("score = $2"), ["session-1", 2, expired]);
-    expect(query.mock.calls.some(([sql]) => /response_time_ms|active_duration_delta_ms/.test(sql))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => /response_time_ms|active_duration_delta_ms|theta_before|theta_after|policy_version/.test(sql))).toBe(false);
     expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO topik_app.answer_states"))).toBe(false);
   });
 });
@@ -175,6 +175,7 @@ describe("TopikRepository result email delivery", () => {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     const query = vi.fn(async (sql: string, _params?: unknown[]) => {
       if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [submittedSession] };
+      if (sql.includes("SELECT survey_completed_at")) return { rowCount: 1, rows: [{ survey_completed_at: new Date() }] };
       if (sql.includes("COUNT(*)::int count")) return { rowCount: 1, rows: [{ count: 0 }] };
       if (sql.includes("INSERT INTO topik_app.result_email_deliveries")) return { rowCount: 1, rows: [{ expires_at: expiresAt }] };
       if (sql.includes("SELECT title_en, title_ko")) return { rowCount: 1, rows: [{ title_en: "Reading 1", title_ko: "읽기 1회" }] };

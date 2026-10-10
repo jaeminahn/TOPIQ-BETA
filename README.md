@@ -15,7 +15,7 @@ Unigate-Web/
 ├─ frontend/                    # 사용자·관리자 React SPA
 ├─ backend/
 │  ├─ migrations/              # topik_app 마이그레이션
-│  └─ src/                     # API, TTS worker, Supabase 연결
+│  └─ src/                     # API, 미디어 생성 서비스, Supabase 연결
 ├─ POSTGRESQL_QUESTION_BANK.md
 └─ render.yaml
 ```
@@ -23,7 +23,7 @@ Unigate-Web/
 PostgreSQL은 두 스키마를 사용합니다.
 
 - `topik_bank`: 변경하지 않는 문제은행과 문항 버전
-- `topik_app`: 모의고사, 응답, 관리자, TTS 작업, 오디오·이미지 연결
+- `topik_app`: 모의고사, 응답, 관리자, 오디오·이미지 자산과 연결
 
 고정 세트:
 
@@ -99,7 +99,7 @@ GOOGLE_TTS_MODEL=gemini-2.5-flash-tts
 GOOGLE_TTS_FEMALE_VOICE=Aoede
 GOOGLE_TTS_MALE_VOICE=Charon
 FFMPEG_PATH=ffmpeg
-TTS_WORKER_ENABLED=true
+MEDIA_GENERATION_TIMEOUT_MS=240000
 
 ADMIN_EMAIL=admin@unigate.kr
 ADMIN_PASSWORD=12자-이상의-강한-임시-비밀번호
@@ -189,19 +189,19 @@ corepack pnpm --filter @unigate/topik-web dev
 
 1. `/admin`에서 `ADMIN_EMAIL` 계정으로 로그인합니다.
 2. 듣기 회차의 `누락 음원 일괄 생성`을 누릅니다.
-3. DB 작업 큐가 Google Cloud TTS를 순차 호출합니다. 한 회차는 1~20번 단일 음원 20개와 21~50번 공통 음원 15개, 총 35개 그룹 작업입니다.
+3. 브라우저가 누락된 그룹별 생성 API를 한 건씩 호출하고 완료를 기다립니다. 한 회차는 1~20번 단일 음원 20개와 21~50번 공통 음원 15개, 총 35개 그룹입니다.
 4. 여자 `Aoede`, 남자 `Charon` 음성이 적용되고 MP3가 Supabase에 저장됩니다.
 5. 음원 `50/50`, 이미지 준비 수가 요구 수와 같으면 `시험 공개`를 누릅니다.
 
-작업은 DB에 남으므로 서버가 재시작되어도 재개됩니다. 동일 대화·모델·음성 해시는 재사용하며 21~50번 묶음 문제는 같은 음원을 공유합니다.
+화면 이동·새로고침·닫기는 남은 요청을 중단합니다. 이미 서버가 받은 요청은 제한시간 내에서 완료될 수 있습니다. 다시 열면 저장된 자산으로 누락 대상을 계산합니다. 동일 대본·모델·음성·스타일은 재사용하며 21~50번 묶음 문제는 같은 음원을 공유합니다. 실패해도 다음 항목으로 진행하고, 완료 후 실패 항목만 수동으로 재시도합니다. 생성 자동 재시도와 작업 이력은 없습니다.
 
 관리자 페이지는 `요약`, `듣기 문항`, `읽기 문항`, `사용자 응답`, `데이터 추출`, `사전등록` 탭으로 나뉩니다.
 
-- 듣기: 생성 전 말하기 속도(0.75~1.25배)와 추가 스타일 지시를 설정할 수 있습니다. 재생성하면 새 설정이 작업과 음원에 함께 기록됩니다.
+- 듣기: 생성 전 말하기 속도(0.80~1.20배)와 추가 스타일 지시를 설정할 수 있습니다. 재생성하면 새 설정이 음원 자산에 기록됩니다.
 - 문항 수정: 수정한 문항만 새 `item_version`으로 저장하고 회차 연결 스냅샷을 갱신합니다. 실제 낭독 내용이 같은 그룹은 기존 음원을 재사용하며, 단일 문제 문장이나 공통 대본이 바뀐 그룹만 다시 생성합니다.
 - 음원 삭제: 공통 대본 그룹의 모든 문항 연결을 함께 해제하며, 다른 문항이 공유하지 않는 파일은 Supabase Storage에서도 삭제합니다. 재생 이력이 있는 SQL 행은 분석 참조를 위해 삭제 표시만 남깁니다.
-- TTS 오류: 실패 작업이 있을 때만 요약 화면과 해당 문항의 접힌 상세 영역에 표시됩니다. 이후 생성이 성공하면 문항에서는 이전 오류를 표시하지 않습니다.
-- 읽기: 세트·검색 필터로 본문, 보기, 정답, 해설, 목표 급수와 난이도를 검수할 수 있습니다.
+- 생성 오류: 현재 관리자 화면의 해당 음원·이미지에 표시합니다. 전체·완료·실패 건수와 실패 항목 재시도 버튼을 제공합니다. 요약 화면의 작업 대기·진행·실패 집계와 주기적 폴링은 제거했습니다.
+- 읽기: 세트·검색 필터로 본문, 보기, 정답, 해설, 목표 급수를 검수할 수 있습니다.
 - 문항 이력: 듣기와 읽기 모두 각 문항을 펼친 뒤 우측 상단의 `이력` 버튼에서 해당 문항의 버전을 확인합니다.
 - 미디어 교체: 새 그림·그래프·음원이 현재 문항에 연결되면 이전 자산은 정리 큐로 넘어가며, 더 이상 공유되지 않는 Supabase Storage 객체와 DB 자산 행을 안전하게 삭제합니다.
 - 결과 이메일: 요약 화면에서 매월 11일 00:00(Asia/Seoul)에 갱신되는 Brevo 사용량과 ON/OFF 상태를 확인합니다. 한 시험 세션은 최근 60분 동안 최대 5회 발송할 수 있고, 4,990건째 결과 메일이 접수되면 환경변수의 두 관리자 주소로 경고 메일을 각각 보냅니다. 전체 5,000건 예약 시 신규 결과 메일은 차단합니다.
@@ -223,12 +223,41 @@ CSV는 페이지와 관계없이 적용된 조건의 전체 행을 추출합니�
 삭제는 시험 응답·결과 메일에 영향을 주지 않으며, 관리자·신청 ID·삭제 시각만 감사 기록에 남깁니다.
 
 배포 순서는 DB 마이그레이션 → 백엔드 → 프론트엔드입니다. 이전 프론트엔드의 결과 이메일
-요청에는 동의 버전이 없으므로 이메일 발송만 처리하며, 새 화면의 동의 정보가 포함된 요청부터
-사전등록을 저장합니다.
+요청에 사전등록 동의 버전이 없으면 사전등록은 생성하지 않습니다. 다만 사후 설문이 미완료된
+세션의 결과 메일 요청은 설문이 필수이므로 구형 화면은 새로고침해야 합니다.
 
 ```powershell
 corepack pnpm db:migrate
 ```
+
+## TOPIK II 사후 설문 (019)
+
+`019_post_exam_survey.sql`을 적용한 뒤 백엔드, 프론트엔드 순서로 배포합니다.
+기존 마이그레이션과 기존 응답은 수정하지 않습니다. `attempt_feedback`의 추가 컬럼:
+
+- 설문: `nationality_code`, `birth_year`, `topik_reasons` (TEXT[]), `topik_reason_other`,
+  `korean_study_duration`, `topik_experience`, `current_topik_level`, `target_topik_level`.
+- 최초 제출 기록: `survey_version`, `survey_completed_at`, `survey_privacy_consent`,
+  `survey_privacy_consent_version`, `survey_privacy_consented_at`.
+
+`POST /v1/sessions/:sessionId/result-email`은 최초 제출 시 별점·이메일과 함께 `survey`를 받습니다.
+입력 키는 `nationalityCode`, `birthYear`, `topikReasons`, `topikReasonOther`,
+`koreanStudyDuration`, `topikExperience`, `currentTopikLevel`, `targetTopikLevel`,
+`privacyConsentVersion`입니다. 선택 코드와 한영 표시는 `backend/src/survey/catalog.json`을
+프론트와 백엔드가 공유합니다. 출생연도는 1950년부터 KST 기준 올해까지입니다.
+
+`GET /v1/sessions/:sessionId`의 `surveyCompleted`가 참이면 이후 별점·이메일만 받습니다.
+서버는 세션 잠금 안에서 완료 상태를 판단하고 최초 설문과 동의 시각을 보존합니다.
+설문은 메일 예약과 함께 커밋되므로 발송업체 실패 후에도 완료 상태가 유지됩니다.
+미수집 세션의 누락 요청은 `SURVEY_REQUIRED`, 잘못된 답변은 `INVALID_SURVEY` (400)이며,
+검증 전 메일 예약이나 사전등록을 생성하지 않습니다. 유효한 출시 알림 신청은 기존처럼 메일 한도·발송 실패와 독립적으로 보존됩니다.
+
+관리자 `GET /v1/admin/responses/sessions/:sessionId`에 `survey`가 추가되며,
+세션 상세와 세션 요약 CSV에서 설문과 동의 기록을 확인할 수 있습니다.
+과거 데이터는 미수집(NULL)으로 남습니다. 문항 CSV와 GA 이벤트에는 설문 응답을 추가하지 않습니다.
+
+SQL·동시 제출 테스트는 운영 DB가 아닌 빈 `unigate_survey_test` 데이터베이스를 가리키는
+`SURVEY_TEST_DATABASE_URL`이 설정된 경우에만 실행됩니다. 테스트가 생성한 스키마만 정리합니다.
 
 ## 검사와 로컬 프로덕션 실행
 
@@ -400,3 +429,84 @@ Invoke-RestMethod https://topiq-api.unigate.kr/v1/exams
 9. 메일 링크를 새 브라우저에서 열어 점수·오답·듣기 대본 확인, 만료·폐기 링크 접근 거부
 
 Google Cloud 요청 형식은 [Gemini TTS 공식 문서](https://docs.cloud.google.com/text-to-speech/docs/gemini-tts)를 기준으로 합니다.
+
+
+## IRT 메타데이터 제거 (020)
+
+`backend/migrations/020_remove_irt_metadata.sql`은 다음 컬럼과 과거 값을 삭제합니다.
+
+| 테이블 | 삭제 컬럼 |
+| --- | --- |
+| `topik_app.session_items` | `theta_before`, `theta_after`, `policy_version` |
+| `topik_app.response_observations` | `theta_before`, `theta_after`, `policy_version`, `estimation_run_id`, `estimator_version` |
+| `topik_bank.item_versions` | `irt_difficulty`, `irt_discrimination`, `predicted_difficulty` |
+| `topik_bank.question_sets` | `default_predicted_difficulty` |
+
+`topik_app.theta_estimation_runs` 테이블도 삭제합니다. 관련 외래키·인덱스·제약조건은 해당 컬럼과 함께 제거됩니다. 두 문항 뷰 `current_items`, `current_set_contents`는 남은 컬럼 및 소유권·테이블/컬럼 접근 권한을 보존하여 재생성합니다. 예상하지 못한 의존성이 있으면 CASCADE로 지우지 않고 트랜잭션 전체가 실패합니다. 과거 마이그레이션 및 Supabase 초기 스키마는 변경하지 않습니다.
+
+API 주소와 사용자 답 저장·제출·결과 조회 계약은 유지합니다. 관리자 응답에서 다음 필드만 제거합니다.
+
+- `GET /v1/admin/reading/items`: `items[].predictedDifficulty`
+- `GET /v1/admin/question-sets/:setId/items/:itemId/versions`: `versions[].predictedDifficulty`
+- `GET /v1/admin/responses/sessions/:sessionId`: 문항 응답의 `policyVersion`
+- `GET /v1/admin/exports/:dataset/preview`, `GET /v1/admin/exports/:dataset.csv`: `questions`의 `predicted_difficulty`, `irt_difficulty`, `irt_discrimination` 및 `responses`의 `policy_version`. `sessions`는 변경 없음.
+
+정답률의 두 분모(응답 수/전체 출제 수), 선택지 분포, 답 변경률, 선택 횟수, 문항 버전, 목표 급수, 점수 기반 예상 급수, 사후 설문은 유지합니다. 기존 시간 컬럼의 보존 정책도 유지합니다.
+
+배포는 **DB 백업 → 요청 차단 및 기존 백엔드 중지 → `pnpm db:migrate` → 새 백엔드·프론트 배포 → 풀이·채점·관리자 확인 후 서비스 재개** 순서입니다. 구버전 서버는 삭제된 컬럼을 참조하므로 신구 서버를 동시에 운영하면 안 됩니다. 삭제 후 구버전 서버만 재배포하는 롤백은 지원하지 않으며, 데이터 복구에는 백업 복원이 필요합니다. 운영 DB 적용·배포는 로컬 코드 검증과 별도로 수행합니다.
+
+임시 PostgreSQL 검증: 비어 있는 전용 DB `unigate_irt_test`를 만들고 `IRT_TEST_DATABASE_URL`을 해당 DB로 지정한 뒤 `pnpm --filter @unigate/topik-api test`를 실행합니다. 테스트는 운영 연결 설정을 사용하지 않고 DB 이름과 빈 스키마를 검사합니다.
+
+
+### TTS·이미지 직접 생성 API (021)
+
+생성 요청 안에서 생성 → Storage 저장 → 짧은 DB 트랜잭션으로 문항 연결 → 결과 반환까지 처리합니다.
+`tts-worker.ts`, `visual-worker.ts`의 작업 조회·상태 기록·주기 실행은 삭제하고, 생성 로직은
+`backend/src/listening/tts-service.ts`와 `backend/src/media/visual-service.ts`로 옮겼습니다.
+메일 워커와 오래된 미디어 정리 워커는 유지합니다.
+
+| API | 응답 및 변경 |
+| --- | --- |
+| `POST /v1/admin/listening/sets/:setId/audio-groups/:leaderItemId/tts` | `200 { audioAssetId, positions, reused }` |
+| `POST /v1/admin/listening/items/:itemId/versions/:itemVersion/visual-options/:optionNumber/generate` | `200 { visualAssetId, url, reused }` |
+| `POST /v1/admin/reading/items/:itemId/versions/:itemVersion/visual-material/generate` | 같은 이미지 응답 |
+| `POST /v1/admin/listening/sets/:setId/tts` | 삭제, 404 |
+| `POST /v1/admin/listening/sets/:setId/visuals/generate` | 삭제, 404 |
+| `POST /v1/admin/reading/sets/:setId/visuals/generate` | 삭제, 404 |
+| `GET /v1/admin/tts/jobs` | 삭제, 404 |
+
+생성 경로의 `/versions/:setVersion/` 호환 별칭도 삭제했습니다. 업로드·삭제·미리듣기·공개 경로는 유지합니다.
+`forceRegenerate`와 TTS의 `ttsStyle` 입력은 유지하지만 `202`, `jobId`, `jobIds`, `queued` 응답은 없습니다.
+목록 응답의 `generationJobId`, `generationStatus`, `generationError`, `generationTtsStyle`, `lastError`는 삭제했습니다.
+자산의 실제 `ttsStyle`·대본·파일 정보는 유지합니다. 듣기 목록 `status` 필터는 `ready`, `missing`만 허용하고 `failed`는 400입니다.
+대시보드의 `jobsQueued`, `jobsProcessing`, `jobsFailed`도 삭제했습니다.
+
+`021_remove_generation_jobs.sql`은 아래 테이블을 순서대로 삭제합니다. 과거 작업 이력도 함께 삭제되므로 백업이 필요합니다.
+
+1. `topik_app.tts_generation_job_targets`
+2. `topik_app.tts_generation_jobs`
+3. `topik_app.visual_generation_jobs`
+
+새 테이블이나 자산 컬럼 변경은 없습니다. 음원·이미지 자산, 문항 연결, 재생 이력, Storage 파일은 보존합니다.
+과거 마이그레이션과 Supabase 초기 스키마는 수정하지 않습니다. 마이그레이션 실행기가 트랜잭션으로 감싸며,
+예상하지 못한 외부 의존성은 `CASCADE`로 삭제하지 않고 전체 롤백합니다.
+
+생성은 TTS·이미지 각각 한 요청만 허용합니다. 전용 PostgreSQL 연결의 세션 advisory lock을 사용하므로
+**Direct 연결 또는 Session pooler**가 필요하며 Transaction pooler는 지원하지 않습니다.
+중복 요청은 `409 GENERATION_BUSY`, 제한시간 초과는 `504 GENERATION_TIMEOUT`, 생성업체 오류는 502입니다.
+기본 제한시간은 `MEDIA_GENERATION_TIMEOUT_MS=240000`이며 Google 요청·Storage 업로드·FFmpeg에 취소 신호가 전달됩니다.
+`TTS_WORKER_ENABLED`, `VISUAL_WORKER_ENABLED`는 삭제했습니다.
+외부 생성 중 DB 트랜잭션을 유지하지 않으며, 연결 직전에 현재 문항 버전을 다시 검사합니다.
+기존 파일은 새 자산 연결 성공 전까지 유지합니다. 연결 실패 시 새 파일만 정리하며, COMMIT 응답 유실로 저장 결과가 불명확하면
+파일을 보존하고 목록 조회로 확인합니다. 응답 유실 후에도 먼저 목록을 다시 조회하여 저장 여부를 확인하고 수동 재시도합니다.
+구형 음원은 계속 조회·재생할 수 있지만 신규 생성은 현재 시험 음원 형식만 사용합니다.
+
+적용 순서: **DB 백업 → 관리자 생성 차단 → 기존 생성 작업 종료 확인 및 기존 서버 중지 → 021 마이그레이션 → 새 백엔드·프론트 배포 → 생성·재생 확인**.
+컬럼/테이블을 삭제한 상태에서 구버전 서버만 재배포하지 않습니다. 복구하려면 백업 복원과 호환 서버를 함께 준비해야 합니다.
+배포 전 실제 프록시·호스팅 경로의 요청 제한이 설정된 생성 제한시간보다 긴지 확인하고, 대표 TTS 그룹의 실제 소요시간을 측정합니다.
+로컬 검증은 Google·Storage를 대체하며 유료 생성 API를 호출하지 않습니다.
+
+회귀 검증: `pnpm test`, `pnpm typecheck`, `pnpm build`.
+추가 DB 검증은 비어 있는 임시 `unigate_irt_test` DB를 `IRT_TEST_DATABASE_URL`로 지정하여
+`backend/tests/integration/irt-removal.integration.test.ts`를 실행합니다. 020과 021을 순서대로 검증하며
+테스트용 스키마를 생성·삭제하므로 운영 DB에는 실행하지 않습니다.

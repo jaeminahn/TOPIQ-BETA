@@ -7,7 +7,7 @@ import { ReadingAdminPanel } from "./ReadingAdminPanel";
 
 vi.mock("../../../api", () => ({
   adminApi: {
-    readingItems: vi.fn(), generateReadingMaterial: vi.fn(), generateReadingSetVisuals: vi.fn(),
+    readingItems: vi.fn(), generateReadingMaterial: vi.fn(),
     uploadReadingMaterial: vi.fn(), deleteReadingMaterial: vi.fn(), questionVersions: vi.fn(),
   },
 }));
@@ -32,7 +32,7 @@ const pendingSet: AdminReadingSet = {
 const item: AdminReadingItem = {
   setId: linkedSet.setId, position: 1, mockTestTitle: linkedSet.titleKo,
   itemId: "30000000-0000-4000-8000-000000000001", itemVersion: 1, itemType: "grammar_blank",
-  targetLevel: 3, predictedDifficulty: 0.5, reviewStatus: "reviewed", stem: "첫 번째 읽기 문제",
+  targetLevel: 3, reviewStatus: "reviewed", stem: "첫 번째 읽기 문제",
   choices: ["하나", "둘", "셋", "넷"], correctAnswer: 1, explanation: "해설", contentJson: {}, visualOptions: [],
   materialVisual: null,
 };
@@ -42,9 +42,7 @@ describe("ReadingAdminPanel", () => {
     vi.mocked(adminApi.readingItems).mockReset();
     vi.mocked(adminApi.readingItems).mockResolvedValue({ items: [item] });
     vi.mocked(adminApi.generateReadingMaterial).mockReset();
-    vi.mocked(adminApi.generateReadingMaterial).mockResolvedValue({ queued: true, jobId: "job-1" });
-    vi.mocked(adminApi.generateReadingSetVisuals).mockReset();
-    vi.mocked(adminApi.generateReadingSetVisuals).mockResolvedValue({ queued: 1, jobIds: ["job-1"] });
+    vi.mocked(adminApi.generateReadingMaterial).mockResolvedValue({ visualAssetId: "new", url: "https://example.com/new.png", reused: false });
     vi.mocked(adminApi.uploadReadingMaterial).mockReset();
     vi.mocked(adminApi.uploadReadingMaterial).mockResolvedValue({ visualAssetId: "asset-2", url: "https://example.com/new.png" });
     vi.mocked(adminApi.deleteReadingMaterial).mockReset();
@@ -153,8 +151,6 @@ describe("ReadingAdminPanel", () => {
         sourceText: "버스 34%, 지하철 28%",
         visualAssetId: "asset-1",
         imageUrl: "https://example.com/graph.png",
-        generationStatus: "succeeded",
-        generationError: null,
       },
     };
     vi.mocked(adminApi.readingItems).mockResolvedValue({ items: [graphItem] });
@@ -190,9 +186,10 @@ describe("ReadingAdminPanel", () => {
 
   it("queues only missing graphs from the set action", async () => {
     const missingSet = { ...linkedSet, visualReady: 0 };
+    vi.mocked(adminApi.readingItems).mockResolvedValue({items:[{...item,position:10,materialVisual:{description:"graph",imagePrompt:"graph",sourceText:"data",visualAssetId:null,imageUrl:null}}]});
     render(<ReadingAdminPanel token="admin-token" sets={[missingSet]} busy="" onPublish={vi.fn()} onError={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "문항 보기" }));
     await userEvent.click(await screen.findByRole("button", { name: /누락 그래프 생성/ }));
-    await waitFor(() => expect(adminApi.generateReadingSetVisuals).toHaveBeenCalledWith("admin-token", missingSet.setId));
+    await waitFor(() => expect(adminApi.generateReadingMaterial).toHaveBeenCalledWith("admin-token", item.itemId, item.itemVersion, false));
   });
 });

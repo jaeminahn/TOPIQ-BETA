@@ -1,3 +1,5 @@
+import { PostExamSurvey, emptySurvey, isSurveyComplete } from "../components/PostExamSurvey";
+import { surveyText } from "../survey";
 import { ArrowRight, Mail, MailCheck, Star } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useParams } from "react-router-dom";
@@ -15,7 +17,9 @@ type DeliveryReceipt = { maskedEmail: string; expiresAt: string };
 export function FeedbackPage() {
   const { sessionId } = useParams();
   const { locale, t } = useI18n();
-  const { token, session, error, loading, reload } = useSession(sessionId);
+  const { token, session, setSession, error, loading, reload } = useSession(sessionId);
+  const [survey, setSurvey] = useState(emptySurvey);
+  const [surveyCompleted, setSurveyCompleted] = useState(false);
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [email, setEmail] = useState("");
@@ -27,11 +31,22 @@ export function FeedbackPage() {
   const preregistrationRequest = useRef<{ key: string; consent: PreregistrationConsent } | null>(null);
 
   useEffect(() => {
+    setSurvey(emptySurvey());
+    setSurveyCompleted(false);
+    setDelivery(null);
+    setEditing(false);
+    setEmail("");
+    setRating(0);
+    preregistrationRequest.current = null;
+  }, [sessionId]);
+
+  useEffect(() => {
     if (session?.status === "submitted") {
       clearActiveSession(session.exam.id ?? session.exam.slug, session.sessionId);
       trackEventOnce(`feedback_view.${session.sessionId}`, "feedback_view", sessionParameters(session));
     }
     if (session?.rating) setRating(session.rating);
+    if (session?.surveyCompleted) setSurveyCompleted(true);
   }, [session]);
 
   if (!sessionId || !token) return <><Header compact /><ErrorState message={t("sessionMissing")} /></>;
@@ -48,6 +63,7 @@ export function FeedbackPage() {
     if (submitting.current) return;
     if (!rating) return setFormError(t("ratingRequired"));
     if (!email.trim()) return setFormError(t("emailRequired"));
+    if (!surveyCompleted && !isSurveyComplete(survey)) return setFormError(surveyText[locale].invalid);
     submitting.current = true;
     setSaving(true);
     setFormError(null);
@@ -58,8 +74,10 @@ export function FeedbackPage() {
       }
       const result = await api.resultEmail(sessionId, token, {
         rating, locale, email: email.trim(), preregistration: preregistrationRequest.current.consent,
+        ...(!surveyCompleted ? { survey } : {}),
       });
       preregistrationRequest.current = null;
+      setSurveyCompleted(true);
       setDelivery({ maskedEmail: result.maskedEmail, expiresAt: result.expiresAt });
       trackEvent("result_email_signup", {
         ...sessionParameters(session),
@@ -70,7 +88,17 @@ export function FeedbackPage() {
       trackEventOnce(`waitlist_signup.${sessionId}`, "waitlist_signup", { signup_location: "feedback_page", locale });
       setEditing(false);
     } catch (cause) {
-      if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_HOURLY_LIMIT_REACHED") {
+      // A committed survey survives a delivery failure. Refresh completion without discarding form state.
+      try {
+        const latest = await api.session(sessionId, token);
+        setSession(latest);
+        if (latest.surveyCompleted) setSurveyCompleted(true);
+      } catch { /* Keep the original delivery error and entered answers for retry. */ }
+      if (cause instanceof ApiError && cause.code === "SURVEY_REQUIRED") {
+        setFormError(surveyText[locale].refresh);
+      } else if (cause instanceof ApiError && cause.code === "INVALID_SURVEY") {
+        setFormError(surveyText[locale].invalid);
+      } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_HOURLY_LIMIT_REACHED") {
         setFormError(t("emailHourlyLimit"));
       } else if (cause instanceof ApiError && cause.code === "RESULT_EMAIL_DISABLED") {
         setFormError(t("emailDisabled"));
@@ -117,8 +145,8 @@ export function FeedbackPage() {
       <main className="mx-auto max-w-2xl px-4 py-6 sm:px-8 sm:py-8">
         <form className="rounded-2xl border border-gray-300 bg-white p-6 sm:p-8" onSubmit={(event) => { event.preventDefault(); void save(); }}>
           <div className="text-center">
-            <h1 className="text-2xl font-semibold text-gray-900">{t("feedbackTitle")}</h1>
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-600">{t("feedbackBody")}</p>
+            <h1 className="text-2xl font-semibold text-gray-900">{surveyCompleted ? t("feedbackTitle") : surveyText[locale].title}</h1>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-600">{surveyCompleted ? t("feedbackBody") : surveyText[locale].body}</p>
           </div>
           <div className="mt-5 flex justify-center gap-2" role="radiogroup" aria-label="Rating" aria-required="true" onMouseLeave={() => setHoveredRating(0)}>
             {[1, 2, 3, 4, 5].map((value) => (
@@ -135,8 +163,10 @@ export function FeedbackPage() {
             </label>
             <p id="result-email-notice" className="mt-2 text-xs font-medium leading-5 text-gray-500">{t("emailPrivacyNotice")}</p>
           </div>
+          {!surveyCompleted && <PostExamSurvey value={survey} onChange={setSurvey} locale={locale} disabled={saving} />}
+          {!surveyCompleted && <p id="survey-consent" className="mt-6 text-xs leading-5 text-gray-600">{surveyText[locale].consent}</p>}
           {formError && <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</p>}
-          <button type="submit" disabled={saving} className="focus-ring mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">{saving ? t("sendingResultEmail") : t("sendResultEmail")} <ArrowRight className="size-4" /></button>
+          <button type="submit" aria-describedby={!surveyCompleted ? "survey-consent" : undefined} disabled={saving} className="focus-ring mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">{saving ? t("sendingResultEmail") : t("sendResultEmail")} <ArrowRight className="size-4" /></button>
         </form>
       </main>
     </div>

@@ -4,7 +4,7 @@ import { AppError } from "../core/errors.js";
 
 export type DialogueTurn = { speaker: "남자" | "여자"; text: string };
 export type TtsStyle = { speakingRate: number; stylePrompt: string };
-export type TtsAudioOptions = { audioEncoding?: "MP3" | "LINEAR16"; sampleRateHertz?: number };
+export type TtsAudioOptions = { audioEncoding?: "MP3" | "LINEAR16"; sampleRateHertz?: number; signal?: AbortSignal };
 
 export const defaultTtsStyle: TtsStyle = { speakingRate: 1, stylePrompt: "" };
 
@@ -131,7 +131,7 @@ function credentials() {
 }
 
 export class GoogleTtsClient {
-  private async request(synthesisRequest: ReturnType<typeof buildGoogleTtsRequest> | ReturnType<typeof buildLiteralGoogleTtsRequest>) {
+  private async request(synthesisRequest: ReturnType<typeof buildGoogleTtsRequest> | ReturnType<typeof buildLiteralGoogleTtsRequest>, signal?: AbortSignal) {
     if (!config.googleTts.projectId) {
       throw new AppError(503, "TTS_NOT_CONFIGURED", "Google Cloud TTS is not configured");
     }
@@ -139,11 +139,12 @@ export class GoogleTtsClient {
       projectId: config.googleTts.projectId,
       credentials: credentials(),
       scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+      clientOptions: { transporterOptions: { signal, retry: false } },
     });
     const client = await auth.getClient();
     const headers = await client.getRequestHeaders();
     const response = await fetch("https://texttospeech.googleapis.com/v1/text:synthesize", {
-      method: "POST",
+      method: "POST", signal,
       headers: { ...Object.fromEntries(headers.entries()), "x-goog-user-project": config.googleTts.projectId, "Content-Type": "application/json" },
       body: JSON.stringify(synthesisRequest),
     });
@@ -155,11 +156,11 @@ export class GoogleTtsClient {
   }
 
   async synthesize(turns: DialogueTurn[], style: TtsStyle = defaultTtsStyle, audio: TtsAudioOptions = {}) {
-    return this.request(buildGoogleTtsRequest(turns, style, audio));
+    return this.request(buildGoogleTtsRequest(turns, style, audio), audio.signal);
   }
 
   async synthesizeLiteral(turn: DialogueTurn, style: TtsStyle = defaultTtsStyle, audio: TtsAudioOptions = {}) {
     const request = buildLiteralGoogleTtsRequest(turn, style, audio);
-    return synthesizeLiteralOnce(() => this.request(request));
+    return synthesizeLiteralOnce(() => this.request(request, audio.signal));
   }
 }

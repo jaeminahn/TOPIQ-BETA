@@ -157,7 +157,6 @@ export class MediaCleanupWorker {
       if (!sharedPath.rowCount) {
         await this.storageFactory().removeObject(job.storage_bucket, job.storage_path);
       }
-      await client.query("UPDATE topik_app.tts_generation_jobs SET audio_asset_id=NULL WHERE audio_asset_id=$1", [job.asset_id]);
       await client.query("DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1", [job.asset_id]);
       await client.query("DELETE FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1", [job.asset_id]);
       const playback = await client.query(

@@ -23,7 +23,7 @@ export function AdminDataExportPanel({ token }: { token: string }) {
             <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-gray-500">CSV마다 한 행의 의미가 다릅니다. 아래 설명을 확인하고 조건을 적용한 뒤, 예상 행 수를 확인해야 다운로드할 수 있습니다.</p>
           </div>
           {dataset === "sessions" ? (
-            <span className="flex w-fit items-center gap-2 rounded-full bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"><TriangleAlert className="size-4" />개인정보: 이메일 원문 포함</span>
+            <span className="flex w-fit items-center gap-2 rounded-full bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"><TriangleAlert className="size-4" />개인정보: 이메일·설문 응답 포함</span>
           ) : (
             <span className="flex w-fit items-center gap-2 rounded-full bg-green-50 px-3 py-2 text-xs font-semibold text-green-700"><ShieldCheck className="size-4" />이메일·접근 토큰 제외</span>
           )}

@@ -47,6 +47,7 @@ export interface TestSession {
   expiresAt: string | null;
   submittedAt: string | null;
   rating: number | null;
+  surveyCompleted: boolean;
   resultEmailSent: boolean;
   maskedResultEmail: string | null;
   resultLinkExpiresAt: string | null;

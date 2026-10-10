@@ -19,8 +19,7 @@ vi.mock("../supabase", () => ({ supabase: null }));
 const summary: AdminSummary = {
   totalItems: 100, totalVersions: 100, readingVersions: 50, listeningVersions: 50,
   setCount: 2, mockTestCount: 2, publishedMockTests: 2, audioReady: 50,
-  audioMissing: 0, visualReady: 4, jobsQueued: 0, jobsProcessing: 0,
-  jobsFailed: 0, sessionsToday: 3, responseCount: 80,
+  audioMissing: 0, visualReady: 4, sessionsToday: 3, responseCount: 80,
   answeredResponseCount: 75, unansweredResponseCount: 5,
   emailUsage: {
     enabled: true, configured: true, cycleStart: "2026-09-11", cycleEnd: "2026-10-11",
@@ -35,7 +34,6 @@ describe("AdminPage", () => {
     sessionStorage.setItem("unigate.topik.admin.token", "admin-token");
     vi.mocked(adminApi.me).mockResolvedValue({ admin: { id: "admin-1", email: "admin@example.com" } });
     vi.mocked(adminApi.dashboard).mockResolvedValue({ summary });
-    vi.mocked(adminApi.jobs).mockResolvedValue({ jobs: [] });
     vi.mocked(adminApi.listeningSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.readingSets).mockResolvedValue({ sets: [] });
     vi.mocked(adminApi.responseSessions).mockResolvedValue({ sessions: [], total: 0 });
@@ -102,7 +100,8 @@ describe("AdminPage", () => {
     expect(screen.getByText("사용자 응답 CSV")).toBeInTheDocument();
     expect(screen.getByText("응시 세션 요약 CSV")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "응답 데이터 저장 안내" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "문항 행동 이벤트" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "답안 이벤트" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "결과 피드백과 사후 설문" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "듣기 음원 재생" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "결과 이메일 전달" })).toBeInTheDocument();
     expect(screen.getByText(/이메일 결과 링크의 원본 토큰은 데이터베이스에 저장하지 않고/)).toBeInTheDocument();

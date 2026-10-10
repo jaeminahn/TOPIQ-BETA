@@ -81,12 +81,14 @@ export function registerPublicRoutes(
         locale: z.enum(["ko", "en"]),
         email: z.string().trim().email().max(320),
         preregistration: preregistrationConsentSchema.optional(),
+        survey: z.unknown().optional(),
       })
       .parse(request.body);
     const token = requireSessionToken(request.headers.authorization);
     if (body.preregistration) {
       await repository.registerResultPreregistration({
-        sessionId, token, email: body.email, locale: body.locale, ...body.preregistration,
+        sessionId, token, email: body.email, locale: body.locale,
+        ...body.preregistration, survey: body.survey,
       });
     }
     const { preregistration: _preregistration, ...emailInput } = body;

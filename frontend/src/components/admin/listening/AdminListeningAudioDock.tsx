@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { AdminListeningGroup, AdminNarrationScript, TtsStyle } from "../../../types";
 
 export type BulkAudioProgress = {
-  phase: "configure" | "submitting" | "running";
+  phase: "configure" | "running";
   targetCount: number;
   total: number;
   completed: number;
@@ -11,8 +11,6 @@ export type BulkAudioProgress = {
   active: number;
 };
 
-const isGenerating = (group: AdminListeningGroup | null) =>
-  group?.generationStatus === "queued" || group?.generationStatus === "processing";
 
 const MIN_SPEAKING_RATE = 0.8;
 const MAX_SPEAKING_RATE = 1.2;
@@ -24,9 +22,7 @@ const styleSummary = (style: TtsStyle | null) => style
   : "적용된 음원 없음";
 
 function timeline(group: AdminListeningGroup) {
-  const script: AdminNarrationScript | null = isGenerating(group) && group.generationScript
-    ? group.generationScript
-    : group.audioStatus === "ready"
+  const script: AdminNarrationScript | null = group.audioStatus === "ready"
       ? group.appliedScript
       : null;
   if (script) return script.segments.map((segment) => {
@@ -54,6 +50,7 @@ export function AdminListeningAudioDock({
   audioLoading,
   audioError,
   busy,
+  generating: requestGenerating = false,
   onDraftStyleChange,
   onPlay,
   onGenerate,
@@ -66,6 +63,7 @@ export function AdminListeningAudioDock({
   audioLoading: boolean;
   audioError: string;
   busy: boolean;
+  generating?: boolean;
   onDraftStyleChange: (style: TtsStyle) => void;
   onPlay: () => void;
   onGenerate: () => void;
@@ -75,31 +73,27 @@ export function AdminListeningAudioDock({
   const identity = group?.leaderItemId ?? (bulk ? "bulk" : "");
   useEffect(() => setExpanded(true), [identity]);
 
-  const generating = isGenerating(group) || bulk?.phase === "submitting" || Boolean(bulk?.active);
+  const generating = requestGenerating || Boolean(bulk?.active);
   const bulkFinished = Boolean(bulk?.phase === "running" && bulk.total > 0 && bulk.active === 0);
   const canPlay = Boolean(group?.audioAssetId) && !generating && !audioLoading;
-  const canGenerate = !busy && !generating && (group !== null || bulk?.phase === "configure")
+  const canGenerate = !busy && !generating && (group !== null || bulk?.phase === "configure" || (bulkFinished && Boolean(bulk?.failed)))
     && (group !== null || Boolean(bulk?.targetCount));
   const progress = bulk?.total ? Math.round(((bulk.completed + bulk.failed) / bulk.total) * 100) : 0;
 
   let status = "음원 설정";
-  if (group?.generationStatus === "queued") status = "음원 생성 대기 중";
-  else if (group?.generationStatus === "processing") status = "새 음원을 생성하고 적용하는 중";
-  else if (group?.generationStatus === "failed") status = group.audioAssetId
-    ? "재생성 실패 · 기존 음원 유지"
-    : "음원 생성 실패";
+  if (requestGenerating) status = "새 음원을 생성하고 적용하는 중";
+  else if (audioError) status = group?.audioAssetId ? "재생성 실패 · 기존 음원 유지" : "음원 생성 실패";
   else if (audioLoading) status = "음원 불러오는 중";
   else if (audioUrl) status = "재생 준비";
   else if (group?.audioStatus === "legacy") status = "구형 음원 · 재생성 필요";
   else if (group?.audioAssetId) status = "음원 준비";
   else if (group) status = "음원 없음";
   else if (bulk?.phase === "configure") status = `${bulk.targetCount}개 누락 음원 생성 설정`;
-  else if (bulk?.phase === "submitting") status = "생성 요청 등록 중";
   else if (bulk?.total === 0) status = "생성할 누락 음원이 없습니다";
   else if (bulkFinished && bulk) status = bulk.failed
     ? `일괄 생성 완료 · 성공 ${bulk.completed} · 실패 ${bulk.failed}`
     : `일괄 생성 완료 · ${bulk.completed}개 성공`;
-  else if (bulk) status = `${bulk.total}개 중 ${bulk.completed}개 완료 · ${bulk.active}개 진행 중`;
+  else if (bulk) status = `${bulk.total}개 중 ${bulk.completed}개 완료 · ${bulk.active}개 남음`;
 
   return (
     <aside
@@ -118,7 +112,7 @@ export function AdminListeningAudioDock({
             <p className="truncate text-sm font-semibold text-gray-900">
               {group ? `${group.positions.length > 1 ? `${group.positions[0]}~${group.positions.at(-1)}` : group.positions[0]}번 음원` : "누락 음원 일괄 생성"}
             </p>
-            <p aria-live="polite" className={`mt-0.5 text-xs font-semibold ${group?.generationStatus === "failed" || bulk?.failed ? "text-red-600" : generating ? "text-primary" : "text-gray-500"}`}>{status}</p>
+            <p aria-live="polite" className={`mt-0.5 text-xs font-semibold ${Boolean(audioError) || bulk?.failed ? "text-red-600" : generating ? "text-primary" : "text-gray-500"}`}>{status}</p>
           </div>
           <button type="button" onClick={() => setExpanded((current) => !current)} className="focus-ring grid size-10 place-items-center rounded-lg text-gray-500 lg:hidden" aria-label={expanded ? "재생바 접기" : "재생바 펼치기"}>
             {expanded ? <ChevronDown className="size-5" /> : <ChevronUp className="size-5" />}
@@ -155,15 +149,13 @@ export function AdminListeningAudioDock({
                   : <button type="button" disabled={!canPlay} onClick={onPlay} className="focus-ring flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 text-sm font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40">
                     {audioLoading ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : <Play className="size-4" />}{audioLoading ? "불러오는 중" : generating ? "적용 후 재생 가능" : "음원 재생"}
                   </button>}
-                {(audioError || group.lastError) && <p role="alert" className="mt-2 max-h-24 overflow-auto break-words text-xs font-semibold text-red-600">{audioError || group.lastError}</p>}
+                {audioError && <p role="alert" className="mt-2 max-h-24 overflow-auto break-words text-xs font-semibold text-red-600">{audioError}</p>}
               </>
             ) : (
               <div className="rounded-xl bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
                 {bulk?.phase === "configure"
                   ? `준비된 음원을 제외한 ${bulk.targetCount}개 그룹을 생성합니다.`
-                  : bulk?.phase === "submitting"
-                    ? "작업을 등록한 뒤 자동으로 진행률을 갱신합니다."
-                    : bulk?.total
+                  : bulk?.total
                       ? `완료 ${bulk.completed} · 진행 ${bulk.active} · 실패 ${bulk.failed}`
                       : "현재 생성 대상이 없습니다."}
               </div>
@@ -185,7 +177,7 @@ export function AdminListeningAudioDock({
 
           <button type="button" disabled={!canGenerate} onClick={onGenerate} className="focus-ring flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">
             {generating || busy ? <LoaderCircle className="size-4 motion-safe:animate-spin" /> : <Sparkles className="size-4" />}
-            {group ? (group.audioAssetId ? "음원 재생성 시작" : "음원 생성 시작") : bulk?.phase === "configure" ? "누락 음원 생성 시작" : bulkFinished ? "생성 완료" : "생성 중"}
+            {group ? (group.audioAssetId ? "음원 재생성 시작" : "음원 생성 시작") : bulk?.phase === "configure" ? "누락 음원 생성 시작" : bulkFinished ? (bulk?.failed ? "실패 항목 재시도" : "생성 완료") : "생성 중"}
           </button>
         </div>
       </div>

@@ -9,6 +9,18 @@ afterEach(async () => {
 });
 
 describe("public API", () => {
+  it("forwards first survey answers and returns survey errors before sending email", async () => {
+    const survey = {nationalityCode: "VN", birthYear: 2000};
+    const prepareResultEmail = vi.fn().mockRejectedValue(Object.assign(new Error("Check survey"), {statusCode: 400, code: "INVALID_SURVEY"}));
+    const send = vi.fn();
+    const app = await buildApp({prepareResultEmail} as unknown as TopikRepository, undefined, {send});
+    repositories.push(app);
+    const response = await app.inject({method: "POST", url: "/v1/sessions/10000000-0000-4000-8000-000000000001/result-email",
+      headers: {authorization: "Bearer session-token"}, payload: {rating: 5, locale: "ko", email: "user@example.com", survey}});
+    expect(response.statusCode).toBe(400);
+    expect(prepareResultEmail).toHaveBeenCalledWith(expect.objectContaining({survey}));
+    expect(send).not.toHaveBeenCalled();
+  });
   it.each([{}, { durationMs: 15_000 }])("saves answers while ignoring legacy timing fields %j", async (legacyFields) => {
     const saveAnswer = vi.fn().mockResolvedValue({ accepted: true, submitted: false });
     const app = await buildApp({ saveAnswer } as unknown as TopikRepository);

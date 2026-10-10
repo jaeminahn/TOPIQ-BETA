@@ -11,8 +11,8 @@ type VisualRole = "choice" | "material";
 
 type QuestionSetMember = {
   position: number; item_id: string; item_version: number; section: string; item_type: string;
-  type_slot: number; primary_skill: string; target_level: number; predicted_difficulty: number;
-  irt_difficulty: number | null; irt_discrimination: number | null; generator_provider: string;
+  type_slot: number; primary_skill: string; target_level: number;
+  generator_provider: string;
   generator_model: string; generator_version: string; prompt_version: string; review_status: string;
   stem: string; choices: unknown; correct_answer: number | null; explanation: string;
   content_json: Record<string, unknown>; source_provenance: Record<string, unknown>;
@@ -74,7 +74,7 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
     const versions = await pool.query(
       `SELECT item_id AS "itemId",item_version AS "itemVersion",
               item_type AS "itemType",target_level AS "targetLevel",
-              predicted_difficulty AS "predictedDifficulty",review_status AS "reviewStatus",
+              review_status AS "reviewStatus",
               stem,choices,correct_answer AS "correctAnswer",explanation,
               content_json AS "contentJson",created_at AS "createdAt",
               item_version=$2 AS "isCurrent"
@@ -102,10 +102,10 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`question-set:${setId}`]);
       const set = await client.query<{
-        review_status: string; default_target_level: number; default_predicted_difficulty: number;
+        review_status: string; default_target_level: number;
         published_at: Date | null;
       }>(
-        `SELECT review_status,default_target_level,default_predicted_difficulty,published_at
+        `SELECT review_status,default_target_level,published_at
            FROM topik_bank.question_sets WHERE set_id=$1 FOR UPDATE`,
         [setId],
       );
@@ -173,12 +173,12 @@ export class AdminQuestionVersionRepository extends AdminMediaRepository {
         await client.query(
           `INSERT INTO topik_bank.item_versions(
              item_id,item_version,section,item_type,type_slot,primary_skill,target_level,
-             predicted_difficulty,irt_difficulty,irt_discrimination,stem_length,choice_count,
+             stem_length,choice_count,
              generator_provider,generator_model,generator_version,prompt_version,review_status,
              stem,choices,correct_answer,explanation,content_json,source_provenance,content_hash
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
           [current.item_id,nextVersion,current.section,current.item_type,current.type_slot,current.primary_skill,
-            current.target_level,current.predicted_difficulty,current.irt_difficulty,current.irt_discrimination,
+            current.target_level,
             revision.stem.length,revision.choices.length,current.generator_provider,current.generator_model,
             current.generator_version,current.prompt_version,current.review_status,revision.stem,
             JSON.stringify(revision.choices),revision.correctAnswer,revision.explanation,JSON.stringify(contentJson),

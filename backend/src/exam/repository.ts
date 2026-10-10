@@ -1,3 +1,5 @@
+import { parseInitialSurvey } from "../survey/validation.js";
+import surveyCatalog from "../survey/catalog.json" with { type: "json" };
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "../core/db.js";
@@ -98,9 +100,6 @@ async function finalizeInTransaction(
     selected_option: number | null;
     correct_answer: number | null;
     answer_changed: boolean;
-    theta_before: number | null;
-    theta_after: number | null;
-    policy_version: string;
     score_weight: number;
   }>(
     `SELECT s.user_id,
@@ -118,9 +117,6 @@ async function finalizeInTransaction(
                 AND e.event_type IN ('answer_selected', 'answer_changed')
                 AND e.selected_option IS NOT NULL
             ), FALSE) AS answer_changed,
-            si.theta_before,
-            si.theta_after,
-            si.policy_version,
             si.score_weight
        FROM topik_app.session_items si
        JOIN topik_app.sessions s ON s.session_id = si.session_id
@@ -140,8 +136,8 @@ async function finalizeInTransaction(
       `INSERT INTO topik_app.response_observations(
           observation_id, user_id, session_id, item_id, item_version, item_order,
           selected_option, is_correct, skipped, timed_out,
-          answer_changed, theta_before, theta_after, policy_version
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          answer_changed
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
        ON CONFLICT (session_id, item_order) DO NOTHING`,
       [
         randomUUID(),
@@ -155,9 +151,6 @@ async function finalizeInTransaction(
         unanswered && !timedOutSubmission,
         unanswered && timedOutSubmission,
         row.answer_changed,
-        row.theta_before,
-        row.theta_after,
-        row.policy_version,
       ],
     );
   }
@@ -256,7 +249,7 @@ export class TopikRepository {
       const inserted = await client.query(
          `INSERT INTO topik_app.session_items(
            session_id, item_order, section, test_position,
-           set_id, item_id, item_version, score_weight, policy_version
+           set_id, item_id, item_version, score_weight
          )
          SELECT $1,
                 ROW_NUMBER() OVER (ORDER BY mts.section_order, qsi.position),
@@ -265,8 +258,7 @@ export class TopikRepository {
                 mts.set_id,
                 qsi.item_id,
                 qsi.item_version,
-                2,
-                'STATIC_MOCK_V1'
+                2
            FROM topik_app.mock_test_sections mts
            JOIN topik_bank.question_set_items qsi
              ON qsi.set_id = mts.set_id
@@ -296,10 +288,12 @@ export class TopikRepository {
       title_en: string;
       title_ko: string;
       rating: number | null;
+      survey_completed: boolean;
       result_email: string | null;
       result_link_expires_at: Date | null;
     }>(
       `SELECT s.*, m.slug, m.title_en, m.title_ko, af.rating,
+              (af.survey_completed_at IS NOT NULL) AS survey_completed,
               delivery.email_original AS result_email,
               delivery.expires_at AS result_link_expires_at
          FROM topik_app.sessions s
@@ -374,6 +368,7 @@ export class TopikRepository {
       expiresAt: session.expires_at?.toISOString() ?? null,
       submittedAt: session.submitted_at?.toISOString() ?? null,
       rating: session.rating,
+      surveyCompleted: session.survey_completed === true,
       resultEmailSent: session.result_email !== null,
       maskedResultEmail: session.result_email ? maskEmail(session.result_email) : null,
       resultLinkExpiresAt: session.result_link_expires_at?.toISOString() ?? null,
@@ -588,7 +583,7 @@ export class TopikRepository {
     }
   }
 
-  async registerResultPreregistration(input: PreregistrationInput & { sessionId: string; token: string }) {
+  async registerResultPreregistration(input: PreregistrationInput & { sessionId: string; token: string; survey?: unknown }) {
     const client = await begin();
     try {
       const session = await loadSession(client, input.sessionId, true);
@@ -596,6 +591,10 @@ export class TopikRepository {
       if (session.status !== "submitted") {
         throw new AppError(409, "SESSION_NOT_SUBMITTED", "Submit the session first");
       }
+      const feedback = await client.query<{ survey_completed_at: Date | null }>(
+        "SELECT survey_completed_at FROM topik_app.attempt_feedback WHERE session_id=$1", [input.sessionId],
+      );
+      if (!feedback.rows[0]?.survey_completed_at) parseInitialSurvey(input.survey);
       const result = await insertPreregistration(client, { ...input, source: "topik_result" });
       await client.query("COMMIT");
       return result;
@@ -613,6 +612,7 @@ export class TopikRepository {
     rating: number;
     locale: Locale;
     email: string;
+    survey?: unknown;
   }) {
     const client = await begin();
     try {
@@ -621,6 +621,11 @@ export class TopikRepository {
       if (session.status !== "submitted") {
         throw new AppError(409, "SESSION_NOT_SUBMITTED", "Submit the session first");
       }
+      // The session row is locked above, serializing first submissions and retries.
+      const feedback = await client.query<{ survey_completed_at: Date | null }>(
+        "SELECT survey_completed_at FROM topik_app.attempt_feedback WHERE session_id=$1", [input.sessionId],
+      );
+      const survey = feedback.rows[0]?.survey_completed_at ? null : parseInitialSurvey(input.survey);
       const emailReservation = await emailUsageRepository.authorizeResultReservation(client, input.sessionId);
       await client.query(
         `INSERT INTO topik_app.attempt_feedback(session_id, rating, locale)
@@ -632,6 +637,19 @@ export class TopikRepository {
         [input.sessionId, input.rating, input.locale],
       );
 
+      if (survey) {
+        await client.query(
+          `UPDATE topik_app.attempt_feedback SET
+             nationality_code=$2,birth_year=$3,topik_reasons=$4,topik_reason_other=$5,
+             korean_study_duration=$6,topik_experience=$7,current_topik_level=$8,target_topik_level=$9,
+             survey_version=$10,survey_completed_at=CURRENT_TIMESTAMP,survey_privacy_consent=TRUE,
+             survey_privacy_consent_version=$11,survey_privacy_consented_at=CURRENT_TIMESTAMP
+           WHERE session_id=$1 AND survey_completed_at IS NULL`,
+          [input.sessionId, survey.nationalityCode, survey.birthYear, survey.topikReasons,
+            survey.topikReasonOther, survey.koreanStudyDuration, survey.topikExperience,
+            survey.currentTopikLevel, survey.targetTopikLevel, surveyCatalog.version, survey.privacyConsentVersion],
+        );
+      }
       const deliveryId = randomUUID();
       const resultToken = randomBytes(32).toString("base64url");
       const recipient = input.email.trim();

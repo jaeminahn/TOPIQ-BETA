@@ -1,3 +1,4 @@
+import type { SavedSurvey } from "../../../survey";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../../api";
 import type { AdminResponseObservation, AdminResponseSession } from "../../../types";
@@ -10,7 +11,7 @@ export function useAdminResponses(
   onDeleted: () => Promise<unknown>,
 ) {
   const [sessions, setSessions] = useState<AdminResponseSession[]>([]);
-  const [details, setDetails] = useState<Record<string, AdminResponseObservation[]>>({});
+  const [details, setDetails] = useState<Record<string, { responses: AdminResponseObservation[]; survey: SavedSurvey | null }>>({});
   const [total, setTotal] = useState(0);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
   const [expandedSession, setExpandedSession] = useState("");
@@ -50,7 +51,7 @@ export function useAdminResponses(
     if (!details[sessionId] && token) {
       try {
         const detail = await adminApi.responseSession(token, sessionId);
-        setDetails((current) => ({ ...current, [sessionId]: detail.responses }));
+        setDetails((current) => ({ ...current, [sessionId]: detail }));
       } catch (cause) {
         onError(cause instanceof Error ? cause.message : "응답 상세를 불러오지 못했습니다.");
       }

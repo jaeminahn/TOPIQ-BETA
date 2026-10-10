@@ -5,6 +5,7 @@ import { adminApi } from "../../../api";
 import { I18nProvider } from "../../../i18n";
 import type { AdminResponseObservation, AdminResponseSession } from "../../../types";
 import { AdminResponsesPanel } from "./AdminResponsesPanel";
+import { SurveyDetails } from "./SurveyDetails";
 
 vi.mock("../../../api", () => ({ adminApi: { audioUrl: vi.fn() } }));
 
@@ -22,7 +23,7 @@ const response: AdminResponseObservation = {
   itemId: "item-1", itemVersion: 2, itemOrder: 7, section: "listening", testPosition: 7,
   mockTestTitle: session.mockTestTitle, itemType: "listen_and_choose", selectedOption: 2,
   correctAnswer: 3, isCorrect: false, skipped: false, timedOut: false,
-  answerChanged: true, policyVersion: "STATIC_MOCK_V1", createdAt: "2026-08-19T11:00:00Z",
+  answerChanged: true, createdAt: "2026-08-19T11:00:00Z",
   mode: "timed", score: 80, rating: 4, explanation: "정답은 셋입니다.",
   question: {
     itemOrder: 7, section: "listening", testPosition: 7, itemId: "item-1", itemVersion: 2,
@@ -35,7 +36,7 @@ const response: AdminResponseObservation = {
 
 function renderPanel() {
   return render(<I18nProvider locale="ko"><AdminResponsesPanel
-      token="admin-token" sessions={[session]} total={1} details={{ [session.sessionId]: [response] }}
+      token="admin-token" sessions={[session]} total={1} details={{ [session.sessionId]: { responses: [response], survey: null } }}
       selectedSessions={new Set()} setSelectedSessions={vi.fn()} expandedSession={session.sessionId}
       onToggleDetails={vi.fn()} status="" onStatusChange={vi.fn()} section="" onSectionChange={vi.fn()} correctness=""
       onCorrectnessChange={vi.fn()} page={1} onPageChange={vi.fn()} onDeleteRequest={vi.fn()}
@@ -43,6 +44,18 @@ function renderPanel() {
 }
 
 describe("AdminResponsesPanel", () => {
+  it("shows survey answers and first consent in the session detail", () => {
+    render(<SurveyDetails survey={{
+      nationalityCode: "VN", birthYear: 2000, topikReasons: ["employment", "other"], topikReasonOther: "Research",
+      koreanStudyDuration: "1_to_2_years", topikExperience: "none", currentTopikLevel: null, targetTopikLevel: 4,
+      surveyVersion: "post_exam_survey_v1", privacyConsent: true, privacyConsentVersion: "post_exam_survey_v1",
+      completedAt: "2026-10-10T00:00:00Z", privacyConsentedAt: "2026-10-10T00:00:00Z",
+    }} />);
+    expect(screen.getByText("베트남")).toBeInTheDocument();
+    expect(screen.getByText("Research")).toBeInTheDocument();
+    expect(screen.getByText("해당 없음")).toBeInTheDocument();
+    expect(screen.getByText(/동의 · post_exam_survey_v1/)).toBeInTheDocument();
+  });
   beforeEach(() => vi.mocked(adminApi.audioUrl).mockReset());
 
   it("shows the latest accepted result email in the session row", () => {

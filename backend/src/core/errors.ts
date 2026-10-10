@@ -22,3 +22,8 @@ export const invalidResultToken = () =>
 
 export const resultLinkExpired = () =>
   new AppError(410, "RESULT_LINK_EXPIRED", "This result link has expired");
+
+// A lost COMMIT acknowledgement must never trigger deletion of a possibly bound file.
+export class MediaCommitUncertainError extends AppError {
+  constructor() { super(502, "MEDIA_COMMIT_UNCERTAIN", "Storage outcome is uncertain. Reload the item before retrying."); }
+}

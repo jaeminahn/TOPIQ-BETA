@@ -48,8 +48,8 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
       SELECT mt.mock_test_id,mt.slug AS mock_test_slug,mt.title_ko AS mock_test_title_ko,
              mt.title_en AS mock_test_title_en,mts.section,qsi.set_id,
              qsi.position AS test_position,iv.item_id,iv.item_version,iv.item_type,
-             iv.primary_skill,iv.target_level,iv.predicted_difficulty,iv.irt_difficulty,
-             iv.irt_discrimination,COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
+             iv.primary_skill,iv.target_level,
+             COALESCE(iv.content_json->>'question_prompt','') AS question_prompt,
              COALESCE(NULLIF(iv.content_json->>'stem',''),iv.stem,'') AS stem,
              COALESCE(iv.content_json->>'passage','') AS passage,
              COALESCE(iv.content_json->>'auxiliary_text','') AS auxiliary_text,
@@ -66,7 +66,7 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
       UNION
       SELECT mt.mock_test_id,mt.slug,mt.title_ko,mt.title_en,si.section,si.set_id,
              si.test_position,iv.item_id,iv.item_version,iv.item_type,iv.primary_skill,
-             iv.target_level,iv.predicted_difficulty,iv.irt_difficulty,iv.irt_discrimination,
+             iv.target_level,
              COALESCE(iv.content_json->>'question_prompt',''),
              COALESCE(NULLIF(iv.content_json->>'stem',''),iv.stem,''),
              COALESCE(iv.content_json->>'passage',''),COALESCE(iv.content_json->>'auxiliary_text',''),
@@ -107,8 +107,8 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
     )
     SELECT qi.mock_test_id,qi.mock_test_slug,qi.mock_test_title_ko,qi.mock_test_title_en,
            qi.section,qi.set_id,qi.test_position,qi.item_id,qi.item_version,
-           qi.item_type,qi.primary_skill,qi.target_level,qi.predicted_difficulty,qi.irt_difficulty,
-           qi.irt_discrimination,qi.question_prompt,qi.stem,qi.passage,qi.auxiliary_text,
+           qi.item_type,qi.primary_skill,qi.target_level,
+           qi.question_prompt,qi.stem,qi.passage,qi.auxiliary_text,
            qi.highlight_text,
            COALESCE(choice_visuals.choice_1_url,qi.export_choices->>0) AS choice_1,
            COALESCE(choice_visuals.choice_2_url,qi.export_choices->>1) AS choice_2,
@@ -181,8 +181,7 @@ function responseQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
              CASE WHEN fs.status='submitted' THEN ro.skipped END AS skipped,
              CASE WHEN fs.status='submitted' THEN ro.timed_out END AS timed_out,
              COALESCE(ro.answer_changed,a.selection_count>1,FALSE) AS answer_changed,
-             COALESCE(a.selection_count,0) AS selection_count,a.first_selected_at,a.final_selected_at,
-             si.policy_version
+             COALESCE(a.selection_count,0) AS selection_count,a.first_selected_at,a.final_selected_at
         FROM filtered_sessions fs
         JOIN topik_app.mock_tests mt ON mt.mock_test_id=fs.mock_test_id
         JOIN topik_app.session_items si ON si.session_id=fs.session_id
@@ -223,6 +222,7 @@ function sessionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery {
            COUNT(*) FILTER (WHERE COALESCE(ro.selected_option,a.selected_option)=iv.correct_answer)::int AS correct_count,
            COUNT(*) FILTER (WHERE COALESCE(ro.selected_option,a.selected_option) IS NOT NULL
              AND COALESCE(ro.selected_option,a.selected_option)<>iv.correct_answer)::int AS incorrect_count,
+           af.nationality_code,af.birth_year,array_to_string(af.topik_reasons, ';') AS topik_reasons,af.topik_reason_other,af.korean_study_duration,af.topik_experience,af.current_topik_level,af.target_topik_level,af.survey_version,af.survey_completed_at,af.survey_privacy_consent,af.survey_privacy_consent_version,af.survey_privacy_consented_at,
            af.rating,af.locale AS feedback_locale,email_state.result_email,
            (email_state.result_email IS NOT NULL) AS result_email_accepted
       FROM topik_app.sessions s
@@ -242,7 +242,7 @@ function sessionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery {
          LIMIT 1
       ) email_state ON TRUE
      WHERE ${sessionFilters.join(" AND ")}
-     GROUP BY s.session_id,mt.slug,mt.title_ko,mt.title_en,af.rating,af.locale,email_state.result_email
+     GROUP BY s.session_id,mt.slug,mt.title_ko,mt.title_en,af.session_id,af.rating,af.locale,email_state.result_email
      ${having.length ? `HAVING ${having.join(" AND ")}` : ""}
      ${ordered ? "ORDER BY completed_at,session_id" : ""}`;
   return { text, values };

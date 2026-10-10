@@ -2,12 +2,10 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "../../core/db.js";
 import { AppError, notFound } from "../../core/errors.js";
-import type { DialogueTurn, TtsStyle } from "../../listening/google-tts.js";
-import { buildNarrationScript, EXAM_TRACK_VERSION } from "../../listening/narration.js";
 import { AdminOverviewRepository } from "./overview-repository.js";
 
 export class AdminListeningRepository extends AdminOverviewRepository {
-  async listListeningItems(setId?: string, status?: "ready" | "missing" | "failed") {
+  async listListeningItems(setId?: string, status?: "ready" | "missing") {
     const values: unknown[] = [];
     const filters = ["iv.section = 'listening'"];
     if (setId) { values.push(setId); filters.push(`qsi.set_id = $${values.length}`); }
@@ -33,9 +31,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
                     'imagePrompt', COALESCE(visual.value->>'image_prompt',''),
                     'chartSpec', visual.value->'chart_spec',
                     'visualAssetId', asset.visual_asset_id,
-                    'imageUrl', asset.storage_url,
-                    'generationStatus', recent_visual.status,
-                    'generationError', CASE WHEN recent_visual.status='failed' THEN recent_visual.error_message END
+                    'imageUrl', asset.storage_url
                   ) ORDER BY visual.ordinality)
                   FROM jsonb_array_elements(CASE
                     WHEN jsonb_typeof(iv.content_json->'visual_options')='array'
@@ -48,13 +44,6 @@ export class AdminListeningRepository extends AdminOverviewRepository {
                        AND iva.visual_role='choice' AND iva.option_number=visual.ordinality AND iva.is_current
                      LIMIT 1
                   ) asset ON TRUE
-                  LEFT JOIN LATERAL (
-                    SELECT vgj.status,vgj.error_message
-                     FROM topik_app.visual_generation_jobs vgj
-                     WHERE vgj.item_id=iv.item_id AND vgj.item_version=iv.item_version
-                       AND vgj.visual_role='choice' AND vgj.option_number=visual.ordinality
-                     ORDER BY vgj.created_at DESC LIMIT 1
-                  ) recent_visual ON TRUE
                 ),'[]'::jsonb) AS visual_options,
                 COALESCE(set_asset.audio_asset_id,legacy_asset.audio_asset_id) AS audio_asset_id,
                 COALESCE(set_asset.storage_url,legacy_asset.storage_url) AS storage_url,
@@ -115,27 +104,11 @@ export class AdminListeningRepository extends AdminOverviewRepository {
                CASE WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 AND g.exam_track_count=g.target_count THEN 'ready'
                     WHEN g.bound_count=g.target_count AND g.distinct_audio_count=1 THEN 'legacy'
                     WHEN g.bound_count=0 THEN 'missing' ELSE 'partial' END AS "audioStatus",
-               g.targets,
-               recent.job_id AS "generationJobId",
-               recent.status AS "generationStatus",
-               recent.tts_style AS "generationTtsStyle",
-               recent.script_snapshot AS "generationScript",
-               CASE WHEN recent.status='failed' THEN recent.error_message END AS "lastError"
+               g.targets
           FROM grouped g
-          LEFT JOIN LATERAL (
-            SELECT j.job_id,j.status,j.error_message,j.tts_style,j.script_snapshot
-              FROM topik_app.tts_generation_jobs j
-            WHERE (j.set_id=g.set_id AND j.group_start_position=g.positions[1])
-               OR (j.set_id IS NULL AND EXISTS (
-                 SELECT 1 FROM topik_app.tts_generation_job_targets tgt
-                  WHERE tgt.job_id=j.job_id AND tgt.item_id=ANY(g.item_ids)
-               ))
-            ORDER BY j.created_at DESC LIMIT 1
-         ) recent ON TRUE
         WHERE ($${values.length + 1}::text IS NULL)
            OR ($${values.length + 1}='ready' AND g.bound_count=g.target_count AND g.distinct_audio_count=1 AND g.exam_track_count=g.target_count)
-           OR ($${values.length + 1}='missing' AND (g.bound_count<g.target_count OR g.exam_track_count<g.target_count))
-           OR ($${values.length + 1}='failed' AND recent.status='failed')
+           OR ($${values.length + 1}='missing' AND (g.bound_count<g.target_count OR g.exam_track_count<g.target_count OR g.distinct_audio_count<>1))
         ORDER BY g.set_id,g.positions[1]`,
       [...values, status ?? null],
     );
@@ -290,7 +263,7 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     return result.rows[0].storage_path;
   }
 
-  private async resolveAudioGroup(client: PoolClient, setId: string, leaderItemId: string) {
+  async resolveAudioGroup(client: PoolClient, setId: string, leaderItemId: string) {
     const result = await client.query<{
       item_id: string; item_version: number; position: number;
       question_prompt: string; dialogue_turns: unknown;
@@ -316,101 +289,6 @@ export class AdminListeningRepository extends AdminOverviewRepository {
     );
     if (!result.rowCount) throw notFound("Listening audio group not found");
     return result.rows;
-  }
-
-  private async createGroupJob(client: PoolClient, input: {
-    adminUserId: string; setId: string; leaderItemId: string;
-    forceRegenerate: boolean; ttsStyle: TtsStyle;
-  }) {
-    const targets = await this.resolveAudioGroup(client, input.setId, input.leaderItemId);
-    const itemIds = targets.map((target) => target.item_id);
-    const itemVersions = targets.map((target) => target.item_version);
-    const positions = targets.map((target) => target.position);
-    const script = buildNarrationScript(targets.map((target) => ({
-      position: target.position,
-      questionPrompt: target.question_prompt,
-      dialogueTurns: target.dialogue_turns as DialogueTurn[],
-    })));
-    const leader = targets[0]!;
-    const active = await client.query<{ job_id: string }>(
-      `SELECT job_id FROM topik_app.tts_generation_jobs
-        WHERE set_id=$1 AND group_start_position=$2
-          AND status IN ('queued','processing') LIMIT 1`,
-      [input.setId, leader.position],
-    );
-    if (active.rows[0]) return { jobId: active.rows[0].job_id, queued: false, targetCount: targets.length };
-    if (!input.forceRegenerate) {
-      const ready = await client.query<{ count: number }>(
-        `SELECT COUNT(*)::int count
-           FROM topik_app.question_set_item_audio_bindings binding
-           JOIN topik_app.tts_audio_assets asset ON asset.audio_asset_id=binding.audio_asset_id
-          WHERE binding.set_id=$1 AND binding.position=ANY($2::smallint[])
-            AND binding.is_current AND asset.narration_version=$3 AND asset.deleted_at IS NULL`,
-        [input.setId, positions, EXAM_TRACK_VERSION],
-      );
-      if (ready.rows[0]?.count === targets.length) return { jobId: null, queued: false, targetCount: targets.length };
-    }
-    const jobId = randomUUID();
-    await client.query(
-      `INSERT INTO topik_app.tts_generation_jobs(
-         job_id,item_id,item_version,requested_by,force_regenerate,tts_style,
-         set_id,group_start_position,script_snapshot
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [jobId, leader.item_id, leader.item_version, input.adminUserId, input.forceRegenerate, input.ttsStyle,
-        input.setId, leader.position, script],
-    );
-    await client.query(
-      `INSERT INTO topik_app.tts_generation_job_targets(
-         job_id,item_id,item_version,set_id,position
-       ) SELECT $1,target.item_id,target.item_version,$4,target.position
-         FROM unnest($2::uuid[],$3::integer[],$5::smallint[]) AS target(item_id,item_version,position)`,
-      [jobId, itemIds, itemVersions, input.setId, positions],
-    );
-    return { jobId, queued: true, targetCount: targets.length };
-  }
-
-  async enqueueGroup(adminUserId: string, setId: string, leaderItemId: string, forceRegenerate: boolean, ttsStyle: TtsStyle) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await this.createGroupJob(client, { adminUserId, setId, leaderItemId, forceRegenerate, ttsStyle });
-      await client.query("COMMIT");
-      return result;
-    } catch (error) {
-      await client.query("ROLLBACK"); throw error;
-    } finally { client.release(); }
-  }
-
-  async enqueueSet(adminUserId: string, setId: string, forceRegenerate: boolean, ttsStyle: TtsStyle) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const leaders = await client.query<{ item_id: string }>(
-        `SELECT DISTINCT ON (
-             CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
-                  ELSE 'position:' || qsi.position::text END
-           ) qsi.item_id
-           FROM topik_bank.question_set_items qsi
-           JOIN topik_bank.item_versions iv ON iv.item_id=qsi.item_id AND iv.item_version=qsi.item_version
-          WHERE qsi.set_id=$1 AND iv.section='listening'
-          ORDER BY CASE WHEN LEFT(iv.item_type,7)='paired_' THEN iv.item_type
-                        ELSE 'position:' || qsi.position::text END,
-                   qsi.position`,
-        [setId],
-      );
-      if (!leaders.rowCount) throw notFound("Listening set not found");
-      const jobIds: string[] = [];
-      for (const leader of leaders.rows) {
-        const result = await this.createGroupJob(client, {
-          adminUserId, setId, leaderItemId: leader.item_id, forceRegenerate, ttsStyle,
-        });
-        if (result.queued && result.jobId) jobIds.push(result.jobId);
-      }
-      await client.query("COMMIT");
-      return { queued: jobIds.length, jobIds };
-    } catch (error) {
-      await client.query("ROLLBACK"); throw error;
-    } finally { client.release(); }
   }
 
   async deleteAudioGroup(
@@ -471,7 +349,6 @@ export class AdminListeningRepository extends AdminOverviewRepository {
       let storageDeleted = false;
       if (!shared.rowCount) {
         await removeObject(row.storage_bucket, row.storage_path);
-        await client.query("UPDATE topik_app.tts_generation_jobs SET audio_asset_id=NULL WHERE audio_asset_id=$1", [audioAssetId]);
         await client.query("DELETE FROM topik_app.item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
         await client.query("DELETE FROM topik_app.question_set_item_audio_bindings WHERE audio_asset_id=$1", [audioAssetId]);
         const playbackHistory = await client.query("SELECT 1 FROM topik_app.audio_playback_events WHERE audio_asset_id=$1 LIMIT 1", [audioAssetId]);
