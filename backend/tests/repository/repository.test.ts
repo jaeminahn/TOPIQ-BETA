@@ -62,12 +62,90 @@ describe("TopikRepository answers without timing", () => {
     if (expired) await expect(repository.saveAnswer(input)).resolves.toEqual({ accepted: false, submitted: true });
     else await repository.submitSession("session-1", token);
     const observations = query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.response_observations"));
-    expect(observations).toHaveLength(2);
-    expect(observations[0]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-1", 1, 1, 2, true, false, false]);
-    expect(observations[1]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-2", 1, 2, null, false, !expired, expired]);
+    expect(observations).toHaveLength(1);
+    expect(observations[0]?.[1]).toEqual([
+      expect.any(String), "user-1", "session-1", "item-1", 1, 1, 2, true, false, false,
+      expect.any(String), "user-1", "session-1", "item-2", 1, 2, null, false, !expired, expired,
+    ]);
     expect(query).toHaveBeenCalledWith(expect.stringContaining("score = $2"), ["session-1", 2, expired]);
     expect(query.mock.calls.some(([sql]) => /response_time_ms|active_duration_delta_ms|theta_before|theta_after|policy_version|answer_changed|selection_count|response_events/.test(sql))).toBe(false);
     expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO topik_app.answer_states"))).toBe(false);
+  });
+});
+
+describe("TopikRepository batch submission", () => {
+  const token = "session-token";
+
+  function setup(itemCount: number, insertError?: Error) {
+    const session = {
+      session_id: "session-1", user_id: "user-1", mode: "practice", status: "in_progress",
+      access_token_hash: createHash("sha256").update(token).digest("hex"), expires_at: null,
+    };
+    const items = Array.from({ length: itemCount }, (_, index) => ({
+      user_id: "user-1", session_id: "session-1", item_id: `item-${index + 1}`,
+      item_version: 1, item_order: index + 1, selected_option: index % 2 === 0 ? 2 : 1,
+      correct_answer: 2, score_weight: 2,
+    }));
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [{ ...session }] };
+      if (sql.includes("SELECT s.user_id")) return { rowCount: items.length, rows: items };
+      if (sql.includes("INSERT INTO topik_app.response_observations") && insertError) throw insertError;
+      if (sql.includes("SET status = 'submitted'")) session.status = "submitted";
+      return { rowCount: 1, rows: [] };
+    });
+    const release = vi.fn();
+    poolMock.connect.mockResolvedValue({ query, release });
+    return { query, release };
+  }
+
+  beforeEach(() => poolMock.connect.mockReset());
+
+  it("submits 50 answers in one parameterized INSERT and skips a repeated submission", async () => {
+    const { query, release } = setup(50);
+    const repository = new TopikRepository();
+    await repository.submitSession("session-1", token);
+    await repository.submitSession("session-1", token);
+
+    const inserts = query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.response_observations"));
+    expect(inserts).toHaveLength(1);
+    const [sql, params] = inserts[0]!;
+    expect(sql.match(/\$\d+/g)).toEqual(Array.from({ length: 500 }, (_, index) => `$${index + 1}`));
+    expect(sql).toContain("ON CONFLICT (session_id, item_order) DO NOTHING");
+    expect(sql).not.toContain("item-1");
+    expect(params).toHaveLength(500);
+    const ids = new Set();
+    for (let index = 0; index < 50; index++) {
+      const values = params!.slice(index * 10, (index + 1) * 10);
+      expect(values).toEqual([
+        expect.any(String), "user-1", "session-1", `item-${index + 1}`, 1, index + 1,
+        index % 2 === 0 ? 2 : 1, index % 2 === 0, false, false,
+      ]);
+      ids.add(values[0]);
+    }
+    expect(ids.size).toBe(50);
+    const updates = query.mock.calls.filter(([statement]) => statement.includes("SET status = 'submitted'"));
+    expect(updates).toHaveLength(1);
+    expect(updates[0]?.[1]).toEqual(["session-1", 50, false]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("FOR UPDATE"), ["session-1"]);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
+
+  it("rolls back without marking the session submitted if the batch INSERT fails", async () => {
+    const error = new Error("insert failed");
+    const { query, release } = setup(50, error);
+    await expect(new TopikRepository().submitSession("session-1", token)).rejects.toBe(error);
+    expect(query).toHaveBeenCalledWith("ROLLBACK");
+    expect(query).not.toHaveBeenCalledWith("COMMIT");
+    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'submitted'"))).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("does not issue an empty INSERT when there are no session items", async () => {
+    const { query } = setup(0);
+    await new TopikRepository().submitSession("session-1", token);
+    expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO topik_app.response_observations"))).toBe(false);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("score = $2"), ["session-1", 0, false]);
+    expect(query).toHaveBeenCalledWith("COMMIT");
   });
 });
 

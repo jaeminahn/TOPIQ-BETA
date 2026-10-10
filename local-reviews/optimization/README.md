@@ -3,15 +3,15 @@
 이 문서는 계속 갱신하는 최적화 기록입니다. 현재 `local-reviews/optimization/README.md`와 보안 검토 문서는 Git에서 추적 중이며, 과거 기록의 `.gitignore` 제외 안내는 더 이상 적용되지 않습니다.
 보안 취약점과 보안 강화는 [보안 README](../security/README.md)에서 관리합니다.
 
-최종 검토: **2026-10-11 (Asia/Seoul)**, Git revision `921d3bf38507f01f700057b000d32ad7673e7530` + OPT-003 작업 트리 변경.
-2026-10-03 기록의 최적화 8건과 운영 문서 2건을 재검토한 뒤, OPT-003의 네 화면 묶음 분리를 구현했습니다.
+최종 검토: **2026-10-11 (Asia/Seoul)**, Git revision `51bc2fa` + OPT-005·006 작업 트리 변경.
+2026-10-03 기록을 재검토한 뒤 OPT-003의 네 화면 묶음 분리, OPT-006의 시험 음원 URL 서명 전 DB 연결 반환, OPT-005의 제출 결과 일괄 INSERT를 구현했습니다.
 새 프론트엔드 production build와 로컬 테스트를 실행했습니다. 운영 API·DB·Google 생성 API 호출, 배포 및 마이그레이션 적용은 하지 않았습니다. 번들 크기 전후 비교는 아래에 기록하며 운영 p95·LCP·동시성별 DB 대기시간은 아직 측정하지 않았습니다.
 
 ## 현재 판단
 
-- **이미 구현·로컬 검증됨:** 관리자 주기 폴링 제거(OPT-002), 네 화면 묶음 코드 분리(OPT-003), 이미지·TTS 생성 제한시간과 취소(OPT-007), 미디어 정리 큐·worker 제거 및 직접 삭제(OPT-010).
+- **이미 구현·로컬 검증됨:** 관리자 주기 폴링 제거(OPT-002), 네 화면 묶음 코드 분리(OPT-003), 제출 결과 일괄 INSERT(OPT-005), 시험 음원 URL 서명 전 DB 연결 반환(OPT-006), 이미지·TTS 생성 제한시간과 취소(OPT-007), 미디어 정리 큐·worker 제거 및 직접 삭제(OPT-010).
 - **대상 소멸로 종료:** 마라톤 후보 전체 조회(OPT-001). 성능 개선이 아니라 현재 런타임에서 기능이 제거된 상태입니다.
-- **추가 최적화 필요:** 로고 경량화(OPT-004), 제출 INSERT 배치화(OPT-005), 시험 음원 URL 서명 전 DB 연결 반환(OPT-006), 접힌 오답 상세 지연 마운트(OPT-008).
+- **추가 최적화 필요:** 로고 경량화(OPT-004), 접힌 오답 상세 지연 마운트(OPT-008).
 - **후순위 신규 후보:** 관리자 비활성 탭의 초기 조회와 생성 건별 전체 목록 재조회 축소(OPT-009). 제거된 주기 폴링과는 별개입니다.
 - **문서 정합성은 미완료:** `topik_bank` 불변 설명(OPS-001), TTS 전용 IAM 설명(OPS-002)이 아직 실제 코드와 맞지 않습니다.
 
@@ -25,8 +25,8 @@
 | OPT-002 | 관리자 중복·유휴 주기 폴링 | 구현·로컬 검증됨 | 운영 Network에서 유휴 요청 확인. 남은 초기·생성 후 조회는 OPT-009로 분리 |
 | OPT-003 | 화면별 코드 분리 | 구현·로컬 검증됨 | 초기 JS gzip 합계 160.04 → 약 111.34 kB. 운영 첫 방문 LCP는 미측정 |
 | OPT-004 | 헤더 로고 크기 | 미수정 | 표시 크기에 맞는 이미지·포맷, width/height. 실제 전송량과 선명도 확인 |
-| OPT-005 | 시험 제출 순차 INSERT | 미수정 | 배치 INSERT 또는 INSERT…SELECT. 쿼리 수·트랜잭션 시간·제출 p95 비교 |
-| OPT-006 | Storage 서명 대기 중 DB 연결 점유 | 미수정: 시험 경로 잔존 | 서명 전에 연결 반환. 느린 Storage에서 pool 점유·대기시간 확인 |
+| OPT-005 | 시험 제출 순차 INSERT | 구현·로컬 검증됨 | 50문항 결과 INSERT 50회 → 1회. 운영 트랜잭션 시간·제출 p95는 미측정 |
+| OPT-006 | Storage 서명 대기 중 DB 연결 점유 | 구현·로컬 검증됨 | COMMIT → release → 서명 순서 검증. 운영 pool 대기시간은 미측정 |
 | OPT-007 | 생성 요청·FFmpeg 작업 시간 상한 | 구현·로컬 검증됨 | 실제 프록시 제한시간과 대표 TTS 생성 소요시간 확인 |
 | OPT-008 | 접힌 오답 상세 렌더링 | 미수정 | 최초 펼침 시 상세 마운트. 마운트 수·이미지 요청·접근성 확인 |
 | OPT-009 | 관리자 비활성 탭 및 생성 건별 전체 조회 | 신규·미수정 / 후순위 | 탭별 조회와 목록 갱신 범위 축소. 진입·N건 생성 시 요청·집계 수 비교 |
@@ -43,24 +43,7 @@
 - 권장: 실제 표시 크기의 2x/3x 자산과 WebP/AVIF, 또는 이용 가능한 원본 SVG를 사용합니다. 이미지 비율과 명시적 크기를 유지합니다.
 - 판단: 작은 변경 범위로 첫 방문 이미지 전송량을 줄일 수 있어 먼저 처리하기 좋습니다. 로고가 실제 LCP 요소인지는 측정 전입니다.
 
-### 2. OPT-005 — 제출 시 문항 수만큼 순차 INSERT
-
-- 근거: `backend/src/exam/repository.ts:123`의 `finalizeInTransaction()`은 각 문항마다 `await client.query(INSERT …)`를 실행합니다. 50문항이면 관측치 저장에만 50회 순차 INSERT입니다.
-- IRT·풀이 시간 수집 제거로 저장 필드는 줄었지만 이 반복 쿼리는 남아 있습니다.
-- 권장: 배치 INSERT 또는 INSERT…SELECT로 통합합니다. 점수 계산까지 변경 범위를 넓힐 필요는 없습니다.
-- 보존 기준: `ON CONFLICT (session_id,item_order) DO NOTHING`, 수동·만료 제출, 미응답의 `skipped`/`timed_out`, 점수와 동시 제출의 멱등성.
-- 검증: 격리 DB에서 50문항 제출 쿼리 수와 트랜잭션 시간, 동일 동시성에서 제출 p95를 비교합니다.
-
-### 3. OPT-006 — 시험 음원 URL 서명 중 연결을 반환하지 않음
-
-- 근거: `backend/src/exam/repository.ts:473`에서 COMMIT한 뒤 `:474`에서 `signedAudioUrl()`을 기다리고, `:516`의 finally에서 연결을 반환합니다. **트랜잭션 잠금은 이미 해제되지만 pool 연결은 계속 점유합니다.**
-- `backend/src/core/db.ts:8`의 pool 최대값은 production 10, 그 외 4입니다. DB의 15초 statement timeout은 외부 Storage 응답 대기를 제한하지 않습니다.
-- 권장: DB 검증·경로 조회·COMMIT 후 연결을 반환하고, 그 다음 제한시간을 둔 Storage URL 서명을 수행합니다. COMMIT 이후 외부 오류를 DB ROLLBACK 경로로 보내지 않도록 경계를 나눕니다.
-- 보존 기준: 세션 소유권, 세션 상태, timed 모드 재생 횟수, 자산 삭제 경쟁 조건과 URL 수명. 느린 서명 응답 대역으로 연결이 먼저 반환되는지 확인합니다.
-- 기존 마라톤 URL 발급 경로는 기능 제거로 사라졌습니다. 시험 경로가 남아 있으므로 이 항목 전체를 완료 처리하지 않습니다.
-- 별도 관찰: `backend/src/media/generation.ts:13`은 생성 중 세션 advisory lock을 유지하려고 연결을 점유합니다. 이미지 생성의 바인딩에는 추가 연결도 필요합니다. 이는 현재 중복 생성 방지 설계에 따른 점유이므로 잠금 연결을 임의로 반환하면 안 됩니다. TTS·이미지 각 1건 제한을 유지한 채 실제 pool 경합이 나타날 때만 후속 검토합니다.
-
-### 4. OPT-008 — 접힌 오답도 QuestionCard를 모두 마운트
+### 2. OPT-008 — 접힌 오답도 QuestionCard를 모두 마운트
 
 - 근거: `frontend/src/components/results/IncorrectReview.tsx:35`는 모든 오답의 `QuestionCard`와 해설을 렌더링하며 `aria-hidden`과 CSS로 접습니다. 상세 내용의 조건부 마운트는 없습니다.
 - `frontend/src/components/question/QuestionContent.tsx:67`, `QuestionChoices.tsx:41`의 이미지에도 `loading="lazy"`가 없습니다.
@@ -68,7 +51,7 @@
 - 보존 기준: `aria-expanded`/`aria-controls`, 키보드 조작, 유형 요약에서 문항으로 이동, 펼침 애니메이션과 해설 열람 이벤트.
 - 검증: 오답 50개 기준 초기 상세 마운트·이미지 요청 수, 처음 펼침 지연을 비교합니다.
 
-### 5. OPT-009 — 관리자 최초 조회와 생성 후 갱신 범위
+### 3. OPT-009 — 관리자 최초 조회와 생성 후 갱신 범위
 
 - 근거: `frontend/src/pages/admin/AdminPage.tsx:53`은 로그인 후 선택 탭과 무관하게 dashboard·듣기 세트·읽기 세트를 가져옵니다. `:69`의 `useAdminResponses()`도 `frontend/src/components/admin/responses/useAdminResponses.ts:43`에서 응답 목록을 즉시 조회합니다.
 - `frontend/src/components/admin/common/useSequentialGeneration.ts:39`는 생성 1건마다 refresh를 기다립니다. 듣기는 `ListeningAdminPanel.tsx:153`, 읽기는 `ReadingAdminPanel.tsx:93` 등에서 문항 목록과 세트 목록을 다시 조회합니다. 정상적인 N건 배치에서는 이 두 조회가 건별로 반복됩니다.
@@ -130,6 +113,21 @@ const TestPage = lazy(() =>
 
 동일한 Vite gzip 출력 기준으로 전후를 비교했습니다. 각 지연 화면은 위 진입 청크 외에 QuestionCard·survey 등 필요한 공유 청크도 추가 로드합니다. 실제 JS 파일은 9개이며 기능 묶음 수를 파일 수와 혼동하지 않습니다. 관리자 탭 추가 분리나 사전 다운로드는 적용하지 않았습니다. 이 수치는 JS 전송량 기준이며 CSS·로고·API 응답과 실제 CDN 전송/LCP 개선율을 포함하지 않습니다.
 
+### OPT-005 — 제출 결과를 하나의 INSERT로 저장
+
+- `backend/src/exam/repository.ts`의 `finalizeInTransaction()`에서 문항별 순차 INSERT를 매개변수 기반 다중 VALUES INSERT로 변경했습니다. 50문항의 결과 저장 요청은 50회에서 1회로 줄고, 저장 행 수는 50개로 유지됩니다. 문항이 없으면 INSERT를 생략합니다.
+- 기존 문항 조회와 점수 계산, 세션 제출 UPDATE, 트랜잭션과 세션 행 잠금, `ON CONFLICT (session_id, item_order) DO NOTHING`을 유지합니다. 풀이 중 `answer_states` 저장과 중도 이탈 정책에는 변경이 없습니다. API·DB 구조 변경도 없습니다.
+- `backend/tests/repository/repository.test.ts`에서 수동·만료 제출의 점수/미응답 플래그, 50문항의 값·매개변수 대응 및 단일 INSERT, 재제출 시 저장 생략, INSERT 실패 시 ROLLBACK과 제출 상태 미갱신, 빈 문항 처리를 확인했습니다.
+- 백엔드 타입 검사와 관련 3개 파일·39개 테스트 통과. DB 대역 기반 검증이며 실제 PostgreSQL 동시 제출·트랜잭션 시간·제출 p95는 미측정입니다.
+
+### OPT-006 — 시험 음원 URL 서명 전에 DB 연결 반환
+
+- `backend/src/exam/repository.ts`의 `recordAudioPlayback()`에서 prepared 요청은 세션·자산·재생 횟수 검증 후 COMMIT하고, 필요한 경로와 재생 정보를 보관한 뒤 finally에서 연결을 반환합니다. 이후 `signedAudioUrl()`을 호출합니다.
+- 기존에는 COMMIT 이후에도 서명이 끝날 때까지 pool 연결을 점유했습니다. 이제 **COMMIT → release → URL 서명** 순서이며 서명 실패가 이미 끝난 트랜잭션의 ROLLBACK으로 이어지지 않습니다.
+- 토큰·세션 상태·만료 제출·timed 모드 재생 제한·practice 모드 무제한 정책, 재생 이벤트 저장과 응답 형식, 서명 URL 수명은 유지합니다. 별도 서명 timeout은 이번 변경에 추가하지 않았습니다.
+- `backend/tests/repository/audio-playback.test.ts`의 12개 테스트에서 지연 서명 중 연결 반환, 서명 실패 시 ROLLBACK 미실행, 검증/COMMIT 실패, 만료 제출 및 재생 이벤트를 검증합니다. 관련 repository/API 테스트를 합쳐 3개 파일·36개 테스트와 백엔드 타입 검사가 통과했습니다. Storage와 DB는 대역을 사용했으며 운영 pool 대기시간은 미측정입니다.
+- 이미지는 `backend/src/media/storage.ts`의 공개 URL을 브라우저가 직접 사용하므로 같은 URL 서명 단계가 없습니다. 이미지 삭제의 실패 시 DB 변경 취소와 생성의 세션 advisory lock은 별도 목적이므로 변경하지 않았습니다. 생성 중 잠금 연결 점유는 실제 경합이 나타날 때 후속 검토합니다.
+
 ### OPT-007 — 이미지·TTS 생성 제한시간 및 취소 구현
 
 - `backend/src/core/config.ts:36`의 `MEDIA_GENERATION_TIMEOUT_MS` 기본값은 **240,000ms**, 허용 범위는 1,000–900,000ms입니다.
@@ -156,6 +154,8 @@ const TestPage = lazy(() =>
 | CSS / HTML | CSS 58.59 kB / gzip 11.89 kB, HTML 2.79 kB / gzip 1.13 kB | 같은 빌드 산출물 기준, kB는 Vite 표기 |
 | 헤더 로고 | 591,274바이트, 1945×808 PNG | 로컬 원본 크기. 최초 HTTP 전송량과 캐시 적중은 미확인 |
 | 백엔드 관련 테스트 | 5개 파일, 40개 통과 | media-generation, audio-cancellation, media-cleanup, google-tts, google-image. provider/Storage 및 자식 프로세스 등 대역 사용 |
+| 백엔드 타입 검사·시험/API 테스트 (OPT-006 구현 후) | 타입 검사 성공, 3개 파일·36개 통과 | audio-playback, repository, app. DB 연결 반환 순서와 서명 실패 경계 포함. DB/Storage 대역 사용 |
+| 백엔드 타입 검사·시험/API 테스트 (OPT-005 구현 후) | 타입 검사 성공, 3개 파일·39개 통과 | 같은 테스트 파일에 일괄 INSERT·재제출·실패·빈 문항 검증 추가. DB/Storage 대역 사용 |
 | 프론트엔드 전체 테스트 (OPT-003 구현 후) | 33개 파일, 149개 통과 | 페이지 이동·지연 로딩 테스트와 기존 시험·결과·관리자·이탈 방지 테스트 포함. Vitest/jsdom이며 브라우저 성능 실측 아님. 기존 canvas 대역 미지원 경고는 있으나 실패 없음 |
 | 운영 DB / API / IAM | 실행·조회하지 않음 | SQL 실행계획, pool 대기, 제출 p95, 배포·마이그레이션 상태 확인 전 |
 
@@ -165,6 +165,8 @@ const TestPage = lazy(() =>
 pnpm --filter @unigate/topik-web build
 pnpm --filter @unigate/topik-api exec vitest run tests/unit/media-generation.test.ts tests/unit/audio-cancellation.test.ts tests/unit/media-cleanup.test.ts tests/unit/google-tts.test.ts tests/unit/google-image.test.ts --pool=threads --maxWorkers=1
 pnpm --filter @unigate/topik-web test
+pnpm --filter @unigate/topik-api typecheck
+pnpm --filter @unigate/topik-api exec vitest run tests/repository/audio-playback.test.ts tests/repository/repository.test.ts tests/api/app.test.ts --pool=threads --maxWorkers=1
 ```
 
 다음 성능 비교는 같은 환경·데이터량·동시성에서 실시합니다. OPT-003/004는 첫 방문 Network·청크 크기, OPT-005/006은 격리 DB와 지연 Storage 대역, OPT-008/009는 마운트 수·요청 수를 먼저 측정합니다. 현재 기록에는 측정하지 않은 개선율을 기재하지 않습니다.
@@ -194,6 +196,8 @@ pnpm --filter @unigate/topik-web test
 | 2026-10-11 | OPT-001~008, OPS-001~002 재검토 | 마라톤 대상 소멸, 폴링 제거·생성 취소 구현 확인. 나머지 5개 최적화와 문서 불일치는 잔존. 근거 위치와 우선순위 갱신 | `921d3bf38507f01f700057b000d32ad7673e7530` / 새 frontend build, 관련 backend 40·frontend 27 테스트 통과 |
 | 2026-10-11 | OPT-009~010 추가 | 관리자 초기·건별 재조회 후보 분리, 미디어 큐·worker 제거와 실패 시 보존 정책 기록 | 직접 생성 `2f35e6e`, 직접 삭제 `921d3bf` / 운영 적용 여부·실측 지연 미확인 |
 | 2026-10-11 | OPT-003 구현 | 페이지·테스트를 네 폴더로 이동, lazy/Suspense·오류 경계 적용, 관리자 API 의존성 분리. 초기 JS gzip 약 30.4% 감소 | `921d3bf` 위 작업 트리 / 타입 검사·production build·전체 프론트엔드 149개 테스트 통과, manifest 및 Supabase 활성 빌드 소스 목록 확인 |
+| 2026-10-11 | OPT-006 구현 | 시험 음원 서명 전 DB 연결 반환, 서명 실패를 DB ROLLBACK 경로에서 분리. 이미지 공개 URL에는 동일 변경 불필요 | `51bc2fa` 위 작업 트리 / 백엔드 타입 검사·관련 36개 테스트 통과 |
+| 2026-10-11 | OPT-005 구현 | 제출 결과를 매개변수 기반 일괄 INSERT로 저장. 기존 채점·미응답·중복 방지·트랜잭션 유지 | `51bc2fa` 위 작업 트리 / 백엔드 타입 검사·관련 39개 테스트 통과 |
 
 추가 기록 양식:
 

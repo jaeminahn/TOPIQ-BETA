@@ -120,27 +120,34 @@ async function finalizeInTransaction(
     [session.session_id],
   );
 
-  for (const row of rows.rows) {
+  const records = rows.rows.map((row) => {
     const unanswered = row.selected_option === null;
     const correct = !unanswered && row.correct_answer === row.selected_option;
+    return [
+      randomUUID(),
+      row.user_id,
+      row.session_id,
+      row.item_id,
+      row.item_version,
+      row.item_order,
+      row.selected_option,
+      correct,
+      unanswered && !timedOutSubmission,
+      unanswered && timedOutSubmission,
+    ];
+  });
+  if (records.length > 0) {
+    const placeholders = records.map((record, rowIndex) => {
+      const offset = rowIndex * record.length;
+      return `(${record.map((_, index) => `$${offset + index + 1}`).join(",")})`;
+    });
     await client.query(
       `INSERT INTO topik_app.response_observations(
           observation_id, user_id, session_id, item_id, item_version, item_order,
           selected_option, is_correct, skipped, timed_out
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       ) VALUES ${placeholders.join(",")}
        ON CONFLICT (session_id, item_order) DO NOTHING`,
-      [
-        randomUUID(),
-        row.user_id,
-        row.session_id,
-        row.item_id,
-        row.item_version,
-        row.item_order,
-        row.selected_option,
-        correct,
-        unanswered && !timedOutSubmission,
-        unanswered && timedOutSubmission,
-      ],
+      records.flat(),
     );
   }
 
@@ -428,6 +435,7 @@ export class TopikRepository {
     eventType: "prepared" | "started" | "completed" | "interrupted";
   }) {
     const client = await begin();
+    let prepared: { storagePath: string; playNumber: number; maxPlays: number | null };
     try {
       const session = await loadSession(client, input.sessionId, true);
       assertToken(session, input.token);
@@ -471,49 +479,51 @@ export class TopikRepository {
           throw new AppError(409, "AUDIO_REPLAY_LIMIT", "The listening replay limit has been reached");
         }
         await client.query("COMMIT");
-        const audioUrl = await new SupabaseStorage().signedAudioUrl(audio.storage_path);
-        return {
-          submitted: false,
+        prepared = {
+          storagePath: audio.storage_path,
           playNumber: nextPlayNumber,
           maxPlays: session.mode === "timed" ? audio.repeat_count : null,
-          audioUrl,
         };
-      }
-
-      let playNumber: number;
-      const started = await client.query<{ play_number: number }>(
-        `SELECT play_number FROM topik_app.audio_playback_events
-          WHERE session_id=$1 AND audio_asset_id=$2 AND client_play_id=$3 AND event_type='started'`,
-        [input.sessionId, input.audioAssetId, input.clientPlayId],
-      );
-      if (started.rows[0]) {
-        playNumber = started.rows[0].play_number;
-      } else if (input.eventType === "started") {
-        const count = await client.query<{ count: string }>(
-          `SELECT COUNT(DISTINCT client_play_id)::text count FROM topik_app.audio_playback_events
-            WHERE session_id=$1 AND audio_asset_id=$2 AND event_type='started'`,
-          [input.sessionId, input.audioAssetId],
-        );
-        playNumber = Number(count.rows[0]?.count ?? 0) + 1;
-        if (session.mode === "timed" && playNumber > audio.repeat_count) {
-          throw new AppError(409, "AUDIO_REPLAY_LIMIT", "The listening replay limit has been reached");
-        }
       } else {
-        throw new AppError(409, "AUDIO_NOT_STARTED", "Start the audio before completing it");
+        let playNumber: number;
+        const started = await client.query<{ play_number: number }>(
+          `SELECT play_number FROM topik_app.audio_playback_events
+            WHERE session_id=$1 AND audio_asset_id=$2 AND client_play_id=$3 AND event_type='started'`,
+          [input.sessionId, input.audioAssetId, input.clientPlayId],
+        );
+        if (started.rows[0]) {
+          playNumber = started.rows[0].play_number;
+        } else if (input.eventType === "started") {
+          const count = await client.query<{ count: string }>(
+            `SELECT COUNT(DISTINCT client_play_id)::text count FROM topik_app.audio_playback_events
+              WHERE session_id=$1 AND audio_asset_id=$2 AND event_type='started'`,
+            [input.sessionId, input.audioAssetId],
+          );
+          playNumber = Number(count.rows[0]?.count ?? 0) + 1;
+          if (session.mode === "timed" && playNumber > audio.repeat_count) {
+            throw new AppError(409, "AUDIO_REPLAY_LIMIT", "The listening replay limit has been reached");
+          }
+        } else {
+          throw new AppError(409, "AUDIO_NOT_STARTED", "Start the audio before completing it");
+        }
+        await client.query(
+          `INSERT INTO topik_app.audio_playback_events(
+             playback_event_id,client_play_id,session_id,audio_asset_id,event_type,play_number
+           ) VALUES ($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (client_play_id,event_type) DO NOTHING`,
+          [randomUUID(),input.clientPlayId,input.sessionId,input.audioAssetId,input.eventType,playNumber],
+        );
+        await client.query("COMMIT");
+        return { submitted: false, playNumber, maxPlays: session.mode === "timed" ? audio.repeat_count : null };
       }
-      await client.query(
-        `INSERT INTO topik_app.audio_playback_events(
-           playback_event_id,client_play_id,session_id,audio_asset_id,event_type,play_number
-         ) VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (client_play_id,event_type) DO NOTHING`,
-        [randomUUID(),input.clientPlayId,input.sessionId,input.audioAssetId,input.eventType,playNumber],
-      );
-      await client.query("COMMIT");
-      return { submitted: false, playNumber, maxPlays: session.mode === "timed" ? audio.repeat_count : null };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally { client.release(); }
+
+    // Storage signing does not need a DB connection and must not roll back a committed transaction.
+    const audioUrl = await new SupabaseStorage().signedAudioUrl(prepared.storagePath);
+    return { submitted: false, playNumber: prepared.playNumber, maxPlays: prepared.maxPlays, audioUrl };
   }
 
   async submitSession(sessionId: string, token: string) {
