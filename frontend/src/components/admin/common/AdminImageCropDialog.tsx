@@ -1,13 +1,14 @@
 import { Image as ImageIcon, LoaderCircle, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cropGeometry, cropImageToWebp, type CropOffset, type CropSize } from "./imageCrop";
+import { cropGeometry, cropImage, type CropOffset, type CropOutput, type CropSize } from "./imageCrop";
 
 const EMPTY_SIZE: CropSize = { width: 0, height: 0 };
 const EMPTY_OFFSET: CropOffset = { x: 0, y: 0 };
 
-export function AdminImageCropDialog({ file, title, onCancel, onConfirm }: {
+export function AdminImageCropDialog({ file, title, output = "reading", onCancel, onConfirm }: {
   file: File;
   title: string;
+  output?: CropOutput;
   onCancel: () => void;
   onConfirm: (file: File) => void;
 }) {
@@ -85,7 +86,7 @@ export function AdminImageCropDialog({ file, title, onCancel, onConfirm }: {
     setProcessing(true);
     setError("");
     try {
-      onConfirm(await cropImageToWebp(file, imageRef.current, viewport, zoom, offset));
+      onConfirm(await cropImage(file, imageRef.current, viewport, zoom, offset, output));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "이미지 크롭에 실패했습니다.");
       setProcessing(false);

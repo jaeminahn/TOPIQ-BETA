@@ -11,6 +11,8 @@
     "test": "vitest run --pool=threads --maxWorkers=1 --exclude dist/**",
     "db:migrate": "tsx src/migrate.ts",
     "db:copy-to-supabase": "node scripts/copy-postgres-to-supabase.mjs",
+    "images:compress": "tsx scripts/compress-listening-images.ts",
+    "images:compress:production": "tsx scripts/compress-listening-images.ts --env-file .env.production",
     "admin:bootstrap": "tsx src/bootstrap-admin.ts"
   },
   "dependencies": {
@@ -23,6 +25,7 @@
     "fastify": "latest",
     "google-auth-library": "latest",
     "pg": "latest",
+    "sharp": "^0.35.5",
     "zod": "latest"
   },
   "devDependencies": {

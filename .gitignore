@@ -45,6 +45,7 @@ firebase-adminsdk*.json
 supabase-service-role*.json
 
 # Local databases, dumps, and runtime state
+.image-compression-backups/
 *.db
 *.db-journal
 *.db-shm

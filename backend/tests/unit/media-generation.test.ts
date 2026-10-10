@@ -1,12 +1,14 @@
 import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../src/core/db.js", () => ({pool:{connect:vi.fn()}}));
+vi.mock("../../src/media/listening-image.js", () => ({compressListeningImage:vi.fn()}));
 vi.mock("../../src/core/config.js", async (original) => ({config:{...(await original<typeof import("../../src/core/config.js")>()).config,mediaGenerationTimeoutMs:50}}));
 import { pool } from "../../src/core/db.js";
 import { TtsService } from "../../src/listening/tts-service.js";
 import { VisualService } from "../../src/media/visual-service.js";
 import { withGeneration } from "../../src/media/generation.js";
 import { MediaCommitUncertainError } from "../../src/core/errors.js";
+import { compressListeningImage } from "../../src/media/listening-image.js";
 
 const targets = [{item_id:"item-1",item_version:1,position:1,question_prompt:"질문",dialogue_turns:[{speaker:"남자",text:"안녕하세요."}]}];
 const style = {speakingRate:1,stylePrompt:""};
@@ -41,6 +43,7 @@ beforeEach(() => {
   uploadMedia.mockReset().mockResolvedValue({bucket:"media",path:"new-image",url:"url"});
   removeObject.mockReset().mockResolvedValue(undefined);
   generate.mockReset().mockResolvedValue({data:Buffer.from("image"),mimeType:"image/png",extension:"png"});
+  vi.mocked(compressListeningImage).mockReset().mockResolvedValue({data:Buffer.from("compressed"),mimeType:"image/webp",extension:"webp"});
   visualGenerationTarget.mockReset().mockResolvedValue({promptSnapshot:{imagePrompt:"draw"},asset:null});
   bindVisualAsset.mockReset().mockResolvedValue({visualAssetId:"image-new",url:"url"});
 });
@@ -116,12 +119,41 @@ describe("direct media generation", () => {
     visualGenerationTarget.mockResolvedValue({promptSnapshot:{},asset:{visualAssetId:"existing",url:"url"}});
     expect(await visual().generate(visualInput)).toEqual({visualAssetId:"existing",url:"url",reused:true});
     expect(generate).not.toHaveBeenCalled();
+    expect(compressListeningImage).not.toHaveBeenCalled();
+  });
+  it("stores compressed listening choices and their actual metadata", async () => {
+    await visual().generate(visualInput);
+    expect(compressListeningImage).toHaveBeenCalledWith(Buffer.from("image"));
+    expect(uploadMedia).toHaveBeenCalledWith(expect.stringMatching(/\.webp$/),Buffer.from("compressed"),"image/webp");
+    expect(bindVisualAsset).toHaveBeenCalledWith(expect.objectContaining({mimeType:"image/webp",byteSize:10}),expect.any(AbortSignal),expect.any(Function));
+  });
+  it("preserves reading material without compression", async () => {
+    await visual().generate({...visualInput,visualRole:"material"});
+    expect(compressListeningImage).not.toHaveBeenCalled();
+    expect(uploadMedia).toHaveBeenCalledWith(expect.stringMatching(/\.png$/),Buffer.from("image"),"image/png");
+  });
+  it("does not store or bind a generated image when compression fails", async () => {
+    vi.mocked(compressListeningImage).mockRejectedValue(new Error("invalid image"));
+    await expect(visual().generate(visualInput)).rejects.toMatchObject({statusCode:502,code:"IMAGE_PROCESSING_FAILED"});
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(bindVisualAsset).not.toHaveBeenCalled();
+  });
+  it("does not upload after generation times out during compression", async () => {
+    vi.mocked(compressListeningImage).mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve,80));
+      return {data:Buffer.from("compressed"),mimeType:"image/webp",extension:"webp"};
+    });
+    await expect(visual().generate(visualInput)).rejects.toMatchObject({code:"GENERATION_TIMEOUT"});
+    expect(uploadMedia).not.toHaveBeenCalled();
+    expect(bindVisualAsset).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("pg_advisory_unlock"),["media-generation:visual"]);
   });
   it("renders chart choices without an external image call", async () => {
     visualGenerationTarget.mockResolvedValue({promptSnapshot:{itemType:"visual_chart",chartSpec:{title:"test",labels:["A"],values:[10]}},asset:null});
     expect(await visual().generate(visualInput)).toMatchObject({reused:false});
     expect(generate).not.toHaveBeenCalled();
     expect(uploadMedia).toHaveBeenCalledWith(expect.stringContaining(".svg"),expect.any(Buffer),"image/svg+xml");
+    expect(compressListeningImage).not.toHaveBeenCalled();
   });
   it("cleans up image uploads when binding fails without retrying generation", async () => {
     bindVisualAsset.mockRejectedValue(new Error("changed"));

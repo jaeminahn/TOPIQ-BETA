@@ -38,6 +38,8 @@ PostgreSQL은 두 스키마를 사용합니다.
 
 ## 요구사항과 pnpm 설치
 
+운영 환경의 기존 듣기 이미지 미리보기·일괄 압축·복구는 [운영 이미지 압축 사용법](backend/scripts/COMPRESS_LISTENING_IMAGES.md)을 참고하세요. 일회성 작업 코드는 `backend/scripts/`에 있습니다.
+
 - Node.js 22 이상
 - PostgreSQL과 기존 `topik_bank` 문제은행
 - Supabase 프로젝트

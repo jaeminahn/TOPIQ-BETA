@@ -10,7 +10,7 @@ vi.mock("../../../api/adminApi",()=>({adminApi:{
   uploadVisual:vi.fn(),
 }}));
 vi.mock("../common/AdminImageCropDialog",()=>({
-  AdminImageCropDialog:({title,onCancel,onConfirm}:{title:string;onCancel:()=>void;onConfirm:(file:File)=>void})=><div role="dialog"><h2>{title}</h2><button onClick={onCancel}>크롭 취소</button><button onClick={()=>onConfirm(new File(["cropped"],"cropped.webp",{type:"image/webp"}))}>크롭 후 업로드</button></div>,
+  AdminImageCropDialog:({title,output,onCancel,onConfirm}:{title:string;output?:string;onCancel:()=>void;onConfirm:(file:File)=>void})=><div role="dialog" data-output={output}><h2>{title}</h2><button onClick={onCancel}>크롭 취소</button><button onClick={()=>onConfirm(new File(["cropped"],"cropped.png",{type:"image/png"}))}>크롭 후 업로드</button></div>,
 }));
 
 const linked:AdminListeningSet={setId:"10000000-0000-4000-8000-000000000001",setSequence:1,createdAt:"2026-08-10T00:00:00Z",reviewStatus:"reviewed",publishedAt:"2026-08-10T00:00:00Z",itemCount:50,validItemCount:50,audioReady:50,visualRequired:12,visualReady:12,mockTestId:"20000000-0000-4000-8000-000000000001",slug:"topik-ii-listening-1",titleKo:"TOPIK II 듣기 모의고사 1회",mockTestPublished:true,round:1,readyToRegister:false,readyToPublish:true,blockingReasons:[]};
@@ -218,8 +218,9 @@ describe("ListeningAdminPanel",()=>{
     await userEvent.upload(input,new File(["image"],"choice.png",{type:"image/png"}));
 
     expect(screen.getByRole("heading",{name:"1번 1번 보기 크롭"})).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toHaveAttribute("data-output","listening");
     expect(adminApi.uploadVisual).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button",{name:"크롭 후 업로드"}));
-    await waitFor(()=>expect(adminApi.uploadVisual).toHaveBeenCalledWith("token","item-1",1,1,expect.objectContaining({type:"image/webp"})));
+    await waitFor(()=>expect(adminApi.uploadVisual).toHaveBeenCalledWith("token","item-1",1,1,expect.objectContaining({type:"image/png"})));
   });
 });

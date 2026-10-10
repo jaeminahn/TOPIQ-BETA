@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAdmin } from "../../admin/auth.js";
 import type { AdminRepository } from "../../admin/repository.js";
 import { visualService } from "../../media/visual-service.js";
+import { compressListeningImage } from "../../media/listening-image.js";
 import { AppError, MediaCommitUncertainError } from "../../core/errors.js";
 import { ttsService } from "../../listening/tts-service.js";
 import { SupabaseStorage } from "../../media/storage.js";
@@ -73,9 +74,15 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
       throw new AppError(400, "IMAGE_REQUIRED", "A PNG, JPEG or WebP image is required");
     }
     const data = await file.toBuffer();
-    const path = `listening/${itemId}/v${itemVersion}/option-${optionNumber}-${randomUUID()}.${imageExtension(file.mimetype)}`;
+    let image: Awaited<ReturnType<typeof compressListeningImage>>;
+    try {
+      image = await compressListeningImage(data);
+    } catch {
+      throw new AppError(400, "INVALID_IMAGE", "이미지 파일을 처리할 수 없습니다. PNG, JPEG 또는 WebP 파일을 확인해 주세요.");
+    }
+    const path = `listening/${itemId}/v${itemVersion}/option-${optionNumber}-${randomUUID()}.${image.extension}`;
     const storage = new SupabaseStorage();
-    const uploaded = await storage.uploadMedia(path, data, file.mimetype);
+    const uploaded = await storage.uploadMedia(path, image.data, image.mimeType);
     let result: Awaited<ReturnType<typeof repository.bindVisualAsset>>;
     try {
       result = await repository.bindVisualAsset({
@@ -87,8 +94,8 @@ export function registerAdminMediaRoutes(app: FastifyInstance, repository: Admin
         bucket: uploaded.bucket,
         path: uploaded.path,
         url: uploaded.url,
-        mimeType: file.mimetype,
-        byteSize: data.length,
+        mimeType: image.mimeType,
+        byteSize: image.data.length,
       });
     } catch (error) {
       if (!(error instanceof MediaCommitUncertainError)) await storage.removeObject(uploaded.bucket,uploaded.path).catch(() => undefined);

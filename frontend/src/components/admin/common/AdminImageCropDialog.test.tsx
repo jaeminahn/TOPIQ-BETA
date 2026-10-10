@@ -32,15 +32,17 @@ describe("AdminImageCropDialog", () => {
     previous.remove();
   });
 
-  it("creates a 4:3 WebP only after confirmation", async () => {
+  it.each([undefined,"listening"] as const)("creates a 4:3 image only after confirmation (%s)", async (output) => {
+    const mimeType = output === "listening" ? "image/png" : "image/webp";
+    const extension = output === "listening" ? "png" : "webp";
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
       fillStyle: "", fillRect: vi.fn(), drawImage: vi.fn(),
     } as unknown as CanvasRenderingContext2D);
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback) => {
-      callback(new Blob(["cropped"], { type: "image/webp" }));
+      callback(new Blob(["cropped"], { type: mimeType }));
     });
     const onConfirm = vi.fn();
-    render(<AdminImageCropDialog file={new File(["image"], "choice.jpg", { type: "image/jpeg" })} title="1번 보기 크롭" onCancel={vi.fn()} onConfirm={onConfirm} />);
+    render(<AdminImageCropDialog output={output} file={new File(["image"], "choice.jpg", { type: "image/jpeg" })} title="1번 보기 크롭" onCancel={vi.fn()} onConfirm={onConfirm} />);
     const preview = document.querySelector<HTMLImageElement>('img[alt="크롭할 이미지 미리보기"]')!;
     Object.defineProperties(preview, {
       naturalWidth: { configurable: true, value: 2_400 },
@@ -53,6 +55,6 @@ describe("AdminImageCropDialog", () => {
     await userEvent.click(confirm);
 
     await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce());
-    expect(onConfirm.mock.calls[0]?.[0]).toMatchObject({ name: "choice-cropped.webp", type: "image/webp" });
+    expect(onConfirm.mock.calls[0]?.[0]).toMatchObject({ name: `choice-cropped.${extension}`, type: mimeType });
   });
 });

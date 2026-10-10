@@ -5,6 +5,7 @@ import { AppError, MediaCommitUncertainError } from "../core/errors.js";
 import { GoogleImageClient, renderChartSvg, type ChartSpec } from "./google-image.js";
 import { withGeneration } from "./generation.js";
 import { SupabaseStorage } from "./storage.js";
+import { compressListeningImage } from "./listening-image.js";
 
 export class VisualService {
   constructor(
@@ -35,6 +36,15 @@ export class VisualService {
         throw new AppError(502,"IMAGE_PROVIDER_FAILED",error instanceof Error ? error.message : "Image generation failed");
       }
       signal.throwIfAborted();
+      if (input.visualRole === "choice" && generated.mimeType !== "image/svg+xml") {
+        try {
+          generated = await compressListeningImage(generated.data);
+        } catch {
+          if (signal.aborted) throw signal.reason;
+          throw new AppError(502, "IMAGE_PROCESSING_FAILED", "생성된 이미지를 처리할 수 없습니다. 다시 시도해 주세요.");
+        }
+        signal.throwIfAborted();
+      }
       const path = input.visualRole === "material"
         ? `reading/${input.itemId}/v${input.itemVersion}/material-${randomUUID()}.${generated.extension}`
         : `listening/${input.itemId}/v${input.itemVersion}/option-${input.optionNumber}-${randomUUID()}.${generated.extension}`;

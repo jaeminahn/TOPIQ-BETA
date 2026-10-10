@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../src/core/db.js", async () => {
@@ -208,7 +209,8 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
     const synthesizeLiteral = vi.fn(async()=>Buffer.from("speech"));
     const tts = new TtsService({synthesize:vi.fn(),synthesizeLiteral} as never,()=>storage as never,admin,
       async()=>({audio:Buffer.from("mp3"),durationMs:2000}));
-    const images = new VisualService({generate:vi.fn(async()=>({data:Buffer.from("image"),mimeType:"image/png",extension:"png"}))} as never,()=>storage as never,admin);
+    const imageData = await sharp({create:{width:8,height:6,channels:3,background:"white"}}).png().toBuffer();
+    const images = new VisualService({generate:vi.fn(async()=>({data:imageData,mimeType:"image/png",extension:"png"}))} as never,()=>storage as never,admin);
     const style = {speakingRate:1,stylePrompt:""};
     const input = {adminUserId:adminId,itemId:listeningItem,itemVersion:1,optionNumber:1,visualRole:"choice" as const,forceRegenerate:false};
     const audio = await tts.generateGroup(adminId,listeningSetId,listeningItem,false,style);
@@ -262,7 +264,7 @@ describe.skipIf(!process.env.IRT_TEST_DATABASE_URL)("IRT removal in disposable P
         stem:"new question",choices:["a","b","c","d"],correctAnswer:2,explanation:"updated",
         contentJson:{question_prompt:"새 질문",dialogue_turns:[{speaker:"남자",text:"새 대본입니다."}],visual_options:[{description:"test",image_prompt:"new tree"}]},
       }]);
-      return {data:Buffer.from("stale image"),mimeType:"image/png",extension:"png"};
+      return {data:await sharp({create:{width:8,height:6,channels:3,background:"white"}}).png().toBuffer(),mimeType:"image/png",extension:"png"};
     }} as never,()=>storage as never,admin);
     await expect(staleImages.generate(input)).rejects.toMatchObject({code:"NOT_FOUND"});
     expect(objects.size).toBe(0);

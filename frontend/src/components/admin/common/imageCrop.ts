@@ -1,6 +1,7 @@
 export const ADMIN_CROP_ASPECT = 4 / 3;
 export const ADMIN_CROP_MAX_WIDTH = 1_600;
 export const ADMIN_CROP_MAX_HEIGHT = 1_200;
+export type CropOutput = "reading" | "listening";
 
 export type CropSize = { width: number; height: number };
 export type CropOffset = { x: number; y: number };
@@ -20,6 +21,7 @@ export function cropGeometry(
   viewport: CropSize,
   zoom: number,
   requestedOffset: CropOffset,
+  output: CropOutput = "reading",
 ): CropGeometry {
   if (![image.width, image.height, viewport.width, viewport.height].every(finitePositive)) {
     throw new Error("Image and crop viewport dimensions must be positive");
@@ -45,41 +47,43 @@ export function cropGeometry(
   };
 
   const uncappedWidth = Math.floor(Math.min(
-    ADMIN_CROP_MAX_WIDTH,
-    ADMIN_CROP_MAX_HEIGHT * ADMIN_CROP_ASPECT,
+    output === "listening" ? 440 : ADMIN_CROP_MAX_WIDTH,
+    (output === "listening" ? 330 : ADMIN_CROP_MAX_HEIGHT) * ADMIN_CROP_ASPECT,
     sourceWidth,
   ));
   const outputWidth = Math.floor(uncappedWidth / 4) * 4;
   if (outputWidth < 4) throw new Error("Image is too small to crop");
-  const output = { width: outputWidth, height: outputWidth / ADMIN_CROP_ASPECT };
+  const outputSize = { width: outputWidth, height: outputWidth / ADMIN_CROP_ASPECT };
 
-  return { offset, source, output, rendered, scale };
+  return { offset, source, output: outputSize, rendered, scale };
 }
 
-function canvasBlob(canvas: HTMLCanvasElement) {
+function canvasBlob(canvas: HTMLCanvasElement, mimeType: "image/png" | "image/webp") {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (blob) => blob?.type === "image/webp"
+      (blob) => blob?.type === mimeType
         ? resolve(blob)
-        : reject(new Error("이 브라우저에서는 WebP 크롭을 지원하지 않습니다.")),
-      "image/webp",
-      0.92,
+        : reject(new Error("이 브라우저에서는 이미지 크롭 파일을 생성할 수 없습니다.")),
+      mimeType,
+      mimeType === "image/webp" ? 0.92 : undefined,
     );
   });
 }
 
-export async function cropImageToWebp(
+export async function cropImage(
   sourceFile: File,
   imageElement: HTMLImageElement,
   viewport: CropSize,
   zoom: number,
   offset: CropOffset,
+  output: CropOutput = "reading",
 ) {
   const geometry = cropGeometry(
     { width: imageElement.naturalWidth, height: imageElement.naturalHeight },
     viewport,
     zoom,
     offset,
+    output,
   );
   const canvas = document.createElement("canvas");
   canvas.width = geometry.output.width;
@@ -99,7 +103,10 @@ export async function cropImageToWebp(
     canvas.width,
     canvas.height,
   );
-  const blob = await canvasBlob(canvas);
+  // Listening is encoded losslessly in transit; the server performs final WebP compression.
+  const extension = output === "listening" ? "png" : "webp";
+  const mimeType = output === "listening" ? "image/png" : "image/webp";
+  const blob = await canvasBlob(canvas, mimeType);
   const baseName = sourceFile.name.replace(/\.[^.]+$/, "") || "image";
-  return new File([blob], `${baseName}-cropped.webp`, { type: "image/webp", lastModified: Date.now() });
+  return new File([blob], `${baseName}-cropped.${extension}`, { type: mimeType, lastModified: Date.now() });
 }
