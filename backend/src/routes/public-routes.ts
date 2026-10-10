@@ -33,30 +33,12 @@ export function registerPublicRoutes(
     return repository.getSession(sessionId, requireSessionToken(request.headers.authorization));
   });
 
-  app.post("/v1/sessions/:sessionId/items/:itemOrder/events", async (request) => {
-    const { sessionId, itemOrder } = itemParams.parse(request.params);
-    const body = z
-      .object({
-        clientEventId: z.string().uuid(),
-        eventType: z.enum(["presented", "hidden", "heartbeat"]),
-        durationMs: z.number().finite().min(0),
-      })
-      .parse(request.body);
-    return repository.recordEvent({
-      sessionId,
-      itemOrder,
-      token: requireSessionToken(request.headers.authorization),
-      ...body,
-    });
-  });
-
   app.put("/v1/sessions/:sessionId/items/:itemOrder/answer", async (request) => {
     const { sessionId, itemOrder } = itemParams.parse(request.params);
     const body = z
       .object({
         clientEventId: z.string().uuid(),
         selectedOption: z.number().int().min(1).max(4),
-        durationMs: z.number().finite().min(0),
       })
       .parse(request.body);
     return repository.saveAnswer({

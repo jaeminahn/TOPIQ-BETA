@@ -11,12 +11,9 @@ vi.mock("../api", () => ({
     session: vi.fn(),
     answer: vi.fn(),
     submit: vi.fn(),
-    event: vi.fn(),
   },
   getSessionToken: vi.fn(),
 }));
-
-vi.mock("../hooks/useActiveTime", () => ({ useActiveTime: vi.fn() }));
 
 const timedSession: TestSession = {
   sessionId: "timed-session",
@@ -78,6 +75,7 @@ const timedListeningSession: TestSession = {
 
 describe("TestPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     localStorage.clear();
     localStorage.setItem("unigate.topik.locale", "ko");
     vi.useFakeTimers();
@@ -89,7 +87,45 @@ describe("TestPage", () => {
   });
 
   afterEach(() => {
+    delete window.gtag;
+    vi.restoreAllMocks();
     vi.useRealTimers();
+  });
+
+  it("saves answers and navigates without collecting time, then submits at the deadline", async () => {
+    vi.mocked(api.session).mockResolvedValue(timedListeningSession);
+    vi.mocked(api.submit).mockResolvedValue({ status: "submitted", resultEmailRequired: true });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const analytics = vi.fn();
+    window.gtag = analytics;
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={["/session/timed-session"]}>
+          <Routes>
+            <Route path="/session/:sessionId" element={<TestPage />} />
+            <Route path="/session/:sessionId/feedback" element={<p>Feedback page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    );
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { vi.advanceTimersByTime(15_000); });
+    fireEvent(document, new Event("visibilitychange"));
+    fireEvent(window, new Event("pagehide"));
+    await act(async () => { fireEvent.click(screen.getAllByRole("radio")[0]); });
+    expect(api.answer).toHaveBeenLastCalledWith("timed-session", "session-token", 1, 1);
+    await act(async () => { fireEvent.click(screen.getAllByRole("radio")[1]); });
+    expect(api.answer).toHaveBeenLastCalledWith("timed-session", "session-token", 1, 2);
+    expect(analytics).toHaveBeenCalledWith("event", "question_answer", expect.objectContaining({ answer_changed: true }));
+    for (const [, eventName, parameters] of analytics.mock.calls) {
+      if (eventName === "question_answer") expect(parameters).not.toHaveProperty("response_time_ms");
+    }
+    fireEvent.click(screen.getByRole("button", { name: "다음" }));
+    expect(screen.getByText("문제 2 / 2")).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(285_000); });
+    expect(api.submit).toHaveBeenCalledExactlyOnceWith("timed-session", "session-token");
+    expect(screen.getByText("Feedback page")).toBeInTheDocument();
   });
 
   it("keeps the original deadline when an answer updates the session", async () => {

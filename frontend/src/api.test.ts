@@ -6,8 +6,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("telemetry delivery", () => {
-  it("reuses the deduplication key when an event request is retried", async () => {
+describe("answer delivery", () => {
+  it("reuses the deduplication key on retry without sending timing data", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
@@ -18,12 +18,11 @@ describe("telemetry delivery", () => {
         json: vi.fn().mockResolvedValue({ accepted: false, submitted: false }),
       } as unknown as Response);
 
-    const request = api.event(
+    const request = api.answer(
       "10000000-0000-4000-8000-000000000001",
       "session-token",
       1,
-      "heartbeat",
-      15_000,
+      2,
     );
     await vi.advanceTimersByTimeAsync(250);
     await request;
@@ -31,6 +30,10 @@ describe("telemetry delivery", () => {
     const firstBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     const secondBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
     expect(secondBody.clientEventId).toBe(firstBody.clientEventId);
+    expect(firstBody).toEqual({ clientEventId: expect.any(String), selectedOption: 2 });
+    expect(secondBody).toEqual(firstBody);
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("PUT");
+    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/items\/1\/answer$/);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

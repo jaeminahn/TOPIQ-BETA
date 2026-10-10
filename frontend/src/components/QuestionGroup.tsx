@@ -4,12 +4,10 @@ import { QuestionCard, SharedQuestionMaterial, type TranscriptMode } from "./Que
 export function QuestionGroup({
   questions,
   onAnswer,
-  onActivate,
   transcriptMode,
 }: {
   questions: Question[];
   onAnswer: (itemOrder: number, option: number) => void;
-  onActivate?: (itemOrder: number) => void;
   transcriptMode: TranscriptMode;
 }) {
   const first = questions[0];
@@ -37,8 +35,6 @@ export function QuestionGroup({
         {questions.map((question) => (
           <div
             key={question.itemOrder}
-            onFocus={() => onActivate?.(question.itemOrder)}
-            onPointerDown={() => onActivate?.(question.itemOrder)}
           >
             <QuestionCard
               question={question}

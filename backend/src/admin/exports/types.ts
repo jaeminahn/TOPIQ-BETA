@@ -29,7 +29,7 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "assigned_count", "answered_count", "unanswered_count", "correct_count", "incorrect_count",
     "answered_accuracy_pct", "overall_accuracy_pct", "option_1_count", "option_2_count",
     "option_3_count", "option_4_count", "option_1_pct", "option_2_pct", "option_3_pct",
-    "option_4_pct", "avg_answered_response_time_ms", "median_answered_response_time_ms",
+    "option_4_pct",
     "answer_changed_count", "answer_changed_rate_pct",
   ].map((key) => ({ key, header: key })),
   responses: [
@@ -38,7 +38,7 @@ export const columns: Record<AdminExportDataset, CsvColumn[]> = {
     "timed_out_submission", "session_score", "max_score", "score_pct", "rating",
     "feedback_locale", "section", "set_id", "item_order", "test_position",
     "item_id", "item_version", "item_type", "selected_option", "correct_answer",
-    "response_outcome", "is_correct", "response_time_ms", "skipped", "timed_out",
+    "response_outcome", "is_correct", "skipped", "timed_out",
     "answer_changed", "selection_count", "first_selected_at", "final_selected_at", "policy_version",
   ].map((key) => ({ key, header: key })),
   sessions: [

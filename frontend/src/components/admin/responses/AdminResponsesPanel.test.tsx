@@ -21,7 +21,7 @@ const response: AdminResponseObservation = {
   observationId: "observation-1", userId: "user-1", sessionId: "session-1",
   itemId: "item-1", itemVersion: 2, itemOrder: 7, section: "listening", testPosition: 7,
   mockTestTitle: session.mockTestTitle, itemType: "listen_and_choose", selectedOption: 2,
-  correctAnswer: 3, isCorrect: false, responseTimeMs: 4500, skipped: false, timedOut: false,
+  correctAnswer: 3, isCorrect: false, skipped: false, timedOut: false,
   answerChanged: true, policyVersion: "STATIC_MOCK_V1", createdAt: "2026-08-19T11:00:00Z",
   mode: "timed", score: 80, rating: 4, explanation: "정답은 셋입니다.",
   question: {
@@ -63,7 +63,8 @@ describe("AdminResponsesPanel", () => {
     expect(screen.getByText(/여자/)).toBeInTheDocument();
     expect(screen.getByText("정답은 셋입니다.")).toBeInTheDocument();
     expect(screen.getByText("선택 2 · 정답 3")).toBeInTheDocument();
-    expect(screen.getByText("답안 변경")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("답안 변경")).toBeInTheDocument();
+    expect(screen.queryByText(/응답 시간/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "음원 재생" }));
     await waitFor(() => expect(adminApi.audioUrl).toHaveBeenCalledWith("admin-token", "audio-1"));

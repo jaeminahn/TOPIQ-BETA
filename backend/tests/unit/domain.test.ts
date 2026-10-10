@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bearerToken, clampActiveDuration, normalizeEmail, sanitizeQuestion } from "../../src/exam/domain.js";
+import { bearerToken, normalizeEmail, sanitizeQuestion } from "../../src/exam/domain.js";
 
 describe("response analytics helpers", () => {
-  it("caps active time deltas to one minute", () => {
-    expect(clampActiveDuration(-5)).toBe(0);
-    expect(clampActiveDuration(10_250.4)).toBe(10_250);
-    expect(clampActiveDuration(90_000)).toBe(60_000);
-    expect(clampActiveDuration(Number.NaN)).toBe(0);
-  });
-
   it("normalizes subscription emails", () => {
     expect(normalizeEmail("  Student@Example.COM ")).toBe("student@example.com");
   });

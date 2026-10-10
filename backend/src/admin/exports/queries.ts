@@ -83,10 +83,6 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
       SELECT fs.mock_test_id,si.section,si.set_id,si.test_position,si.item_id,si.item_version,
              COALESCE(ro.selected_option,a.selected_option) AS selected_option,
              iv.correct_answer,
-             CASE WHEN ro.observation_id IS NOT NULL THEN ro.response_time_ms ELSE COALESCE((
-               SELECT SUM(e.active_duration_delta_ms)::int FROM topik_app.response_events e
-                WHERE e.session_id=fs.session_id AND e.item_order=si.item_order
-             ),0) END AS response_time_ms,
              COALESCE(ro.answer_changed,a.selection_count>1,FALSE) AS answer_changed
         FROM filtered_sessions fs
         JOIN topik_app.session_items si ON si.session_id=fs.session_id
@@ -105,9 +101,6 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
              COUNT(*) FILTER (WHERE selected_option=2)::int AS option_2_count,
              COUNT(*) FILTER (WHERE selected_option=3)::int AS option_3_count,
              COUNT(*) FILTER (WHERE selected_option=4)::int AS option_4_count,
-             ROUND(AVG(response_time_ms) FILTER (WHERE selected_option IS NOT NULL),2) AS avg_answered_response_time_ms,
-             ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY response_time_ms)
-               FILTER (WHERE selected_option IS NOT NULL))::numeric,2) AS median_answered_response_time_ms,
              COUNT(*) FILTER (WHERE selected_option IS NOT NULL AND answer_changed)::int AS answer_changed_count
         FROM response_rows
        GROUP BY mock_test_id,section,set_id,test_position,item_id,item_version
@@ -134,7 +127,6 @@ function questionQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_2_count*100.0/st.answered_count,2) END AS option_2_pct,
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_3_count*100.0/st.answered_count,2) END AS option_3_pct,
            CASE WHEN st.answered_count>0 THEN ROUND(st.option_4_count*100.0/st.answered_count,2) END AS option_4_pct,
-           st.avg_answered_response_time_ms,st.median_answered_response_time_ms,
            COALESCE(st.answer_changed_count,0) AS answer_changed_count,
            CASE WHEN st.answered_count>0 THEN ROUND(st.answer_changed_count*100.0/st.answered_count,2) END AS answer_changed_rate_pct
       FROM question_inventory qi
@@ -186,10 +178,6 @@ function responseQuery(filters: AdminExportFilters, ordered: boolean): SqlQuery 
                   ELSE 'incorrect' END AS response_outcome,
              CASE WHEN COALESCE(ro.selected_option,a.selected_option) IS NULL THEN NULL
                   ELSE COALESCE(ro.selected_option,a.selected_option)=iv.correct_answer END AS is_correct,
-             CASE WHEN ro.observation_id IS NOT NULL THEN ro.response_time_ms ELSE COALESCE((
-               SELECT SUM(e.active_duration_delta_ms)::int FROM topik_app.response_events e
-                WHERE e.session_id=fs.session_id AND e.item_order=si.item_order
-             ),0) END AS response_time_ms,
              CASE WHEN fs.status='submitted' THEN ro.skipped END AS skipped,
              CASE WHEN fs.status='submitted' THEN ro.timed_out END AS timed_out,
              COALESCE(ro.answer_changed,a.selection_count>1,FALSE) AS answer_changed,

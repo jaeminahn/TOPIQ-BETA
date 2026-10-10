@@ -32,26 +32,7 @@ export const api = {
     return request(`/v1/sessions/${sessionId}`, { headers: auth(token) });
   },
 
-  event(
-    sessionId: string,
-    token: string,
-    itemOrder: number,
-    eventType: "presented" | "hidden" | "heartbeat",
-    durationMs: number,
-  ) {
-    const clientEventId = crypto.randomUUID();
-    return requestWithRetry(() => request<{ accepted: boolean; submitted: boolean }>(
-      `/v1/sessions/${sessionId}/items/${itemOrder}/events`,
-      {
-        method: "POST",
-        headers: auth(token),
-        keepalive: true,
-        body: JSON.stringify({ clientEventId, eventType, durationMs }),
-      },
-    ));
-  },
-
-  answer(sessionId: string, token: string, itemOrder: number, selectedOption: number, durationMs: number) {
+  answer(sessionId: string, token: string, itemOrder: number, selectedOption: number) {
     const clientEventId = crypto.randomUUID();
     return requestWithRetry(() => request<{ accepted: boolean; submitted: boolean }>(
       `/v1/sessions/${sessionId}/items/${itemOrder}/answer`,
@@ -59,7 +40,7 @@ export const api = {
         method: "PUT",
         headers: auth(token),
         keepalive: true,
-        body: JSON.stringify({ clientEventId, selectedOption, durationMs }),
+        body: JSON.stringify({ clientEventId, selectedOption }),
       },
     ));
   },

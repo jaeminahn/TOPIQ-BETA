@@ -1,5 +1,5 @@
 import {
-  Activity, Clock3, Database, Headphones, KeyRound, MailCheck,
+  Activity, Database, Headphones, KeyRound, MailCheck,
   MessageSquareText, ShieldCheck, Star, Trash2,
 } from "lucide-react";
 
@@ -20,13 +20,13 @@ const groups = [
     icon: MessageSquareText,
     title: "답안과 최종 응답",
     description: "현재 선택과 제출 시점의 최종 결과를 문항별로 기록합니다.",
-    fields: ["선택 번호와 최초·최종 선택 시각", "선택 횟수와 답안 변경 여부", "정답 여부와 응답 시간", "건너뜀·시간 초과 미응답 여부"],
+    fields: ["선택 번호와 최초·최종 선택 시각", "선택 횟수와 답안 변경 여부", "정답 여부", "건너뜀·시간 초과 미응답 여부"],
   },
   {
     icon: Activity,
-    title: "문항 행동 이벤트",
-    description: "문항에 실제로 머문 시간을 계산하고 중복 전송을 막기 위한 이벤트를 저장합니다.",
-    fields: ["문항 표시·숨김·heartbeat", "답안 선택·변경", "이벤트별 활성 시간", "중복 방지용 클라이언트 이벤트 ID와 생성 시각"],
+    title: "답안 이벤트",
+    description: "답안 선택·변경 이력을 기록하고 재시도 요청의 중복 저장을 막습니다.",
+    fields: ["답안 선택·변경", "중복 방지용 클라이언트 이벤트 ID와 생성 시각"],
   },
   {
     icon: Headphones,
@@ -84,7 +84,7 @@ export function ResponseDataGuide() {
         </article>
       </div>
 
-      <p className="mt-5 flex items-center gap-2 text-xs font-medium text-gray-400"><Clock3 className="size-4" />문항 응답 시간은 문항별 활성 시간 이벤트를 합산해 제출 시 최종 확정합니다.</p>
+      <p className="mt-5 text-xs font-medium text-gray-400">문항별 풀이 시간은 수집하지 않습니다. 과거 시간 기록은 보존되지만 관리자 화면과 CSV에는 제공되지 않습니다.</p>
       <p className="mt-2 text-xs font-medium text-gray-400">다시하기로 폐기된 세션은 이어하기와 채점 대상에서 제외되지만, 진행 당시 답안 상태와 행동 이벤트는 운영 분석을 위해 보존됩니다.</p>
     </section>
   );

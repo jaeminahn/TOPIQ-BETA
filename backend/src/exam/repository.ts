@@ -2,13 +2,11 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type { PoolClient } from "pg";
 import { pool } from "../core/db.js";
 import {
-  clampActiveDuration,
   maskEmail,
   normalizeEmail,
   sanitizeQuestion,
   type ExamMode,
   type Locale,
-  type ResponseEventType,
 } from "./domain.js";
 import { AppError, invalidResultToken, notFound, resultLinkExpired, sessionClosed, unauthorized } from "../core/errors.js";
 import { emailUsageRepository } from "../email/usage-repository.js";
@@ -99,7 +97,6 @@ async function finalizeInTransaction(
     item_order: number;
     selected_option: number | null;
     correct_answer: number | null;
-    response_time_ms: string;
     answer_changed: boolean;
     theta_before: number | null;
     theta_after: number | null;
@@ -113,11 +110,6 @@ async function finalizeInTransaction(
             si.item_order,
             a.selected_option,
             iv.correct_answer,
-            COALESCE((
-              SELECT SUM(e.active_duration_delta_ms)
-              FROM topik_app.response_events e
-              WHERE e.session_id = si.session_id AND e.item_order = si.item_order
-            ), 0)::text AS response_time_ms,
             COALESCE((
               SELECT COUNT(DISTINCT e.selected_option) > 1
               FROM topik_app.response_events e
@@ -147,9 +139,9 @@ async function finalizeInTransaction(
     await client.query(
       `INSERT INTO topik_app.response_observations(
           observation_id, user_id, session_id, item_id, item_version, item_order,
-          selected_option, is_correct, response_time_ms, skipped, timed_out,
+          selected_option, is_correct, skipped, timed_out,
           answer_changed, theta_before, theta_after, policy_version
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (session_id, item_order) DO NOTHING`,
       [
         randomUUID(),
@@ -160,7 +152,6 @@ async function finalizeInTransaction(
         row.item_order,
         row.selected_option,
         correct,
-        Number(row.response_time_ms),
         unanswered && !timedOutSubmission,
         unanswered && timedOutSubmission,
         row.answer_changed,
@@ -392,56 +383,12 @@ export class TopikRepository {
     };
   }
 
-  async recordEvent(input: {
-    sessionId: string;
-    token: string;
-    itemOrder: number;
-    clientEventId: string;
-    eventType: Exclude<ResponseEventType, "answer_selected" | "answer_changed">;
-    durationMs: number;
-  }) {
-    const client = await begin();
-    try {
-      const session = await loadSession(client, input.sessionId, true);
-      assertToken(session, input.token);
-      if (isExpired(session)) {
-        await finalizeInTransaction(client, session, true);
-        await client.query("COMMIT");
-        return { accepted: false, submitted: true };
-      }
-      if (session.status !== "in_progress") throw sessionClosed();
-      const result = await client.query(
-        `INSERT INTO topik_app.response_events(
-           event_id, client_event_id, session_id, item_order, event_type,
-           active_duration_delta_ms
-         ) VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (client_event_id) DO NOTHING`,
-        [
-          randomUUID(),
-          input.clientEventId,
-          input.sessionId,
-          input.itemOrder,
-          input.eventType,
-          clampActiveDuration(input.durationMs),
-        ],
-      );
-      await client.query("COMMIT");
-      return { accepted: result.rowCount === 1, submitted: false };
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
   async saveAnswer(input: {
     sessionId: string;
     token: string;
     itemOrder: number;
     clientEventId: string;
     selectedOption: number;
-    durationMs: number;
   }) {
     const client = await begin();
     try {
@@ -466,8 +413,8 @@ export class TopikRepository {
       const event = await client.query(
         `INSERT INTO topik_app.response_events(
            event_id, client_event_id, session_id, item_order, event_type,
-           selected_option, active_duration_delta_ms
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+           selected_option
+         ) VALUES ($1,$2,$3,$4,$5,$6)
          ON CONFLICT (client_event_id) DO NOTHING`,
         [
           randomUUID(),
@@ -476,7 +423,6 @@ export class TopikRepository {
           input.itemOrder,
           eventType,
           input.selectedOption,
-          clampActiveDuration(input.durationMs),
         ],
       );
       if (event.rowCount === 1) {

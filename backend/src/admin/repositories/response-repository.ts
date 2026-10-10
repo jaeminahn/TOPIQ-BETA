@@ -70,7 +70,7 @@ export class AdminResponseRepository extends AdminReadingRepository {
               si.section, si.test_position AS "testPosition", mt.title_ko AS "mockTestTitle",
               iv.item_type AS "itemType", ro.selected_option AS "selectedOption",
               iv.correct_answer AS "correctAnswer", ro.is_correct AS "isCorrect",
-              ro.response_time_ms AS "responseTimeMs", ro.skipped, ro.timed_out AS "timedOut",
+              ro.skipped, ro.timed_out AS "timedOut",
               ro.answer_changed AS "answerChanged", ro.policy_version AS "policyVersion",
               ro.created_at AS "createdAt", s.mode, s.score, af.rating,
               iv.stem AS "questionStem", iv.choices AS "questionChoices",

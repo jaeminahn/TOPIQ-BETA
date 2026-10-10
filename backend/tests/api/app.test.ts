@@ -9,6 +9,33 @@ afterEach(async () => {
 });
 
 describe("public API", () => {
+  it.each([{}, { durationMs: 15_000 }])("saves answers while ignoring legacy timing fields %j", async (legacyFields) => {
+    const saveAnswer = vi.fn().mockResolvedValue({ accepted: true, submitted: false });
+    const app = await buildApp({ saveAnswer } as unknown as TopikRepository);
+    repositories.push(app);
+    const sessionId = "10000000-0000-4000-8000-000000000001";
+    const clientEventId = "20000000-0000-4000-8000-000000000001";
+    const response = await app.inject({
+      method: "PUT", url: `/v1/sessions/${sessionId}/items/1/answer`,
+      headers: { authorization: "Bearer session-token" },
+      payload: { clientEventId, selectedOption: 2, ...legacyFields },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ accepted: true, submitted: false });
+    expect(saveAnswer).toHaveBeenCalledWith({ sessionId, itemOrder: 1, token: "session-token", clientEventId, selectedOption: 2 });
+  });
+
+  it("returns 404 for the removed timing event endpoint", async () => {
+    const app = await buildApp({} as TopikRepository);
+    repositories.push(app);
+    const response = await app.inject({
+      method: "POST", url: "/v1/sessions/10000000-0000-4000-8000-000000000001/items/1/events",
+      headers: { authorization: "Bearer session-token" },
+      payload: { clientEventId: "20000000-0000-4000-8000-000000000001", eventType: "heartbeat", durationMs: 15_000 },
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
   it("accepts fine-grained speaking rates only within the admin range", () => {
     expect(ttsStyleSchema.safeParse({ speakingRate: 0.8, stylePrompt: "" }).success).toBe(true);
     expect(ttsStyleSchema.safeParse({ speakingRate: 1.025, stylePrompt: "" }).success).toBe(true);

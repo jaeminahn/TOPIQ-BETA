@@ -8,6 +8,67 @@ import { TopikRepository } from "../../src/exam/repository.js";
 
 const poolMock = pool as unknown as { query: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> };
 
+describe("TopikRepository answers without timing", () => {
+  const token = "session-token";
+  const session = {
+    session_id: "session-1", user_id: "user-1", mode: "timed", status: "in_progress",
+    access_token_hash: createHash("sha256").update(token).digest("hex"),
+    expires_at: new Date("2099-01-01T00:00:00Z"),
+  };
+  const input = { sessionId: session.session_id, token, itemOrder: 1, clientEventId: "event-1", selectedOption: 2 };
+
+  beforeEach(() => poolMock.connect.mockReset());
+
+  it("saves answer changes and deduplicates retries without writing durations", async () => {
+    let recorded = false;
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [session] };
+      if (sql.includes("SELECT selected_option")) return { rowCount: 1, rows: [{ selected_option: recorded ? 2 : 1 }] };
+      if (sql.includes("INSERT INTO topik_app.response_events")) {
+        const rowCount = recorded ? 0 : 1;
+        recorded = true;
+        return { rowCount, rows: [] };
+      }
+      return { rowCount: 1, rows: [] };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+    const repository = new TopikRepository();
+    await expect(repository.saveAnswer(input)).resolves.toEqual({ accepted: true, submitted: false });
+    await expect(repository.saveAnswer(input)).resolves.toEqual({ accepted: false, submitted: false });
+    const events = query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.response_events"));
+    expect(events[0]?.[0]).not.toContain("active_duration_delta_ms");
+    expect(events[0]?.[1]).toEqual([expect.any(String), "event-1", "session-1", 1, "answer_changed", 2]);
+    expect(query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.answer_states"))).toHaveLength(1);
+    expect(query).toHaveBeenCalledWith("COMMIT");
+  });
+
+  it.each([false, true])("preserves scoring and unanswered flags when expired=%s", async (expired) => {
+    const item = {
+      user_id: "user-1", session_id: "session-1", item_id: "item-1", item_version: 1,
+      item_order: 1, selected_option: 2, correct_answer: 2, answer_changed: true,
+      theta_before: null, theta_after: null, policy_version: "STATIC_MOCK_V1", score_weight: 2,
+    };
+    const query = vi.fn(async (sql: string, _params?: unknown[]) => {
+      if (sql.includes("SELECT * FROM topik_app.sessions")) return { rowCount: 1, rows: [{
+        ...session, expires_at: expired ? new Date(0) : session.expires_at,
+      }] };
+      if (sql.includes("SELECT s.user_id")) return { rowCount: 2, rows: [item, { ...item, item_id: "item-2", item_order: 2, selected_option: null, answer_changed: false }] };
+      return { rowCount: 1, rows: [] };
+    });
+    poolMock.connect.mockResolvedValue({ query, release: vi.fn() });
+    const repository = new TopikRepository();
+    if (expired) await expect(repository.saveAnswer(input)).resolves.toEqual({ accepted: false, submitted: true });
+    else await repository.submitSession("session-1", token);
+    const observations = query.mock.calls.filter(([sql]) => sql.includes("INSERT INTO topik_app.response_observations"));
+    expect(observations).toHaveLength(2);
+    expect(observations[0]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-1", 1, 1, 2, true, false, false, true, null, null, "STATIC_MOCK_V1"]);
+    expect(observations[1]?.[1]).toEqual([expect.any(String), "user-1", "session-1", "item-2", 1, 2, null, false, !expired, expired, false, null, null, "STATIC_MOCK_V1"]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("score = $2"), ["session-1", 2, expired]);
+    expect(query.mock.calls.some(([sql]) => /response_time_ms|active_duration_delta_ms/.test(sql))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => sql.includes("INSERT INTO topik_app.answer_states"))).toBe(false);
+  });
+});
+
 describe("TopikRepository session snapshots", () => {
   beforeEach(() => poolMock.connect.mockReset());
 

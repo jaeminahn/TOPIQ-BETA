@@ -20,10 +20,10 @@ export const exportDatasets: Array<{
   {
     id: "questions",
     title: "문항 분석 CSV",
-    description: "문제 내용과 난이도 정보에 정답률·선택지 분포·응답 시간을 결합합니다.",
+    description: "문제 내용과 난이도 정보에 정답률·선택지 분포·답안 변경 정보를 결합합니다.",
     rowUnit: "한 행 = 시험에 배치된 문항 버전 1개",
     icon: FileQuestion,
-    highlights: ["문제 본문·선지·정답·해설", "응답자/전체 기준 정답률", "선택지별 선택률과 응답 시간"],
+    highlights: ["문제 본문·선지·정답·해설", "응답자/전체 기준 정답률", "선택지별 선택률과 답안 변경률"],
   },
   {
     id: "responses",
@@ -31,7 +31,7 @@ export const exportDatasets: Array<{
     description: "익명 응시자가 각 문항에서 남긴 답과 행동을 분석합니다.",
     rowUnit: "한 행 = 응시 세션의 출제 문항 1개",
     icon: Rows3,
-    highlights: ["정답·오답·미응답 구분", "답안 변경과 문항 응답 시간", "세션·문항 버전 연결 키"],
+    highlights: ["정답·오답·미응답 구분", "답안 변경과 선택 횟수", "세션·문항 버전 연결 키"],
   },
   {
     id: "sessions",
@@ -47,12 +47,12 @@ export const exportFieldGuides: Record<AdminExportDataset, Array<{ title: string
   questions: [
     { title: "문항 식별", fields: "시험·세트 ID, 문항 ID와 문항 버전, 영역, 문항 위치와 유형" },
     { title: "문항 내용", fields: "질문, 지문, 선택지 1~4(그림 선택지는 이미지 URL), 정답, 해설, 듣기 대본과 시각 자료 JSON" },
-    { title: "성과 지표", fields: "출제·응답·미응답·정답·오답 수, 두 정답률, 선택지 분포, 응답 시간" },
+    { title: "성과 지표", fields: "출제·응답·미응답·정답·오답 수, 두 정답률, 선택지 분포, 답안 변경률" },
   ],
   responses: [
     { title: "익명 세션", fields: "session_id와 user_id, 시험, 모드, 상태, 완료 시각과 점수" },
     { title: "문항 연결", fields: "세트 ID, 문항 ID와 문항 버전, 시험 내 위치, 문항 유형" },
-    { title: "최종 응답", fields: "선택 답, 정답, 응답 결과, 시간, 변경·건너뜀·시간 초과 여부" },
+    { title: "최종 응답", fields: "선택 답, 정답, 응답 결과, 선택 횟수, 변경·건너뜀·시간 초과 여부" },
   ],
   sessions: [
     { title: "응시 흐름", fields: "시험, 실전/연습, 제출/폐기, 시작·완료·소요 시각" },

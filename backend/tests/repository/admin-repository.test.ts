@@ -57,7 +57,6 @@ describe("AdminRepository response details", () => {
         selectedOption: 2,
         correctAnswer: 3,
         isCorrect: false,
-        responseTimeMs: 4500,
         skipped: false,
         timedOut: false,
         answerChanged: true,
@@ -83,6 +82,8 @@ describe("AdminRepository response details", () => {
     const result = await new AdminRepository().getResponseSession("session-1");
 
     expect(poolMock.query).toHaveBeenCalledWith(expect.stringContaining("iv.content_json"), ["session-1"]);
+    expect(String(poolMock.query.mock.calls[0]?.[0])).not.toContain("response_time_ms");
+    expect(result.responses[0]).not.toHaveProperty("responseTimeMs");
     expect(result.responses[0]).toMatchObject({
       observationId: "observation-1",
       explanation: "정답은 셋입니다.",

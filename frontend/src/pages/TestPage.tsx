@@ -13,7 +13,6 @@ import { ErrorState, LoadingState } from "../components/States";
 import { ExamTimerBar } from "../components/test/ExamTimerBar";
 import { QuestionProgress } from "../components/test/QuestionProgress";
 import { TestNavigation } from "../components/test/TestNavigation";
-import { useActiveTime } from "../hooks/useActiveTime";
 import { useExamCountdown } from "../hooks/useExamCountdown";
 import { useExitGuard } from "../hooks/useExitGuard";
 import { useSession } from "../hooks/useSession";
@@ -29,7 +28,6 @@ export function TestPage() {
   const [currentOrder, setCurrentOrder] = useState(() => Number(localStorage.getItem(positionStorageKey(sessionId ?? ""))) || 1);
   const [saveError, setSaveError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [activeOrder, setActiveOrder] = useState(currentOrder);
   const [navigatorOpen, setNavigatorOpen] = useState(false);
   const navigatorButtonRef = useRef<HTMLButtonElement>(null);
   const closeNavigator = useCallback(() => setNavigatorOpen(false), []);
@@ -43,13 +41,11 @@ export function TestPage() {
   const lastDisplayOrder = displayQuestions.at(-1)?.itemOrder ?? currentOrder;
   const audioQuestion = displayQuestions.find((question) => question.audioAssetId) ?? current;
   const remaining = useExamCountdown(session);
-  const activeTime = useActiveTime(sessionId ?? "", token ?? "", activeOrder, Boolean(session && token && current && session.status === "in_progress"));
   const allowedPath = useCallback((pathname: string) => pathname === `/session/${sessionId}/review`, [sessionId]);
   const exitGuard = useExitGuard(Boolean(session && session.status === "in_progress" && !submitting), allowedPath);
 
   const displayStartOrder = displayQuestions[0]?.itemOrder ?? currentOrder;
   const showQuestionNavigator = session?.mode !== "timed" || current?.section !== "listening";
-  useEffect(() => { setActiveOrder(displayStartOrder); }, [currentOrder, displayStartOrder]);
 
   useEffect(() => {
     if (!session) return;
@@ -88,21 +84,18 @@ export function TestPage() {
   const answer = async (itemOrder: number, selectedOption: number) => {
     const answeredQuestion = session.questions.find((question) => question.itemOrder === itemOrder);
     const answerChanged = answeredQuestion?.selectedOption !== null;
-    const responseTimeMs = Math.round(activeTime?.takeDuration() ?? 0);
     setSaveError(false);
     setSession({
       ...session,
       questions: session.questions.map((question) => question.itemOrder === itemOrder ? { ...question, selectedOption } : question),
     });
-    setActiveOrder(itemOrder);
     try {
-      const result = await api.answer(sessionId, token, itemOrder, selectedOption, responseTimeMs);
+      const result = await api.answer(sessionId, token, itemOrder, selectedOption);
       if (answeredQuestion) trackEvent("question_answer", {
         ...questionParameters(answeredQuestion),
         ...sessionParameters(session),
         app_locale: locale,
         selected_option: selectedOption,
-        response_time_ms: responseTimeMs,
         answer_changed: answerChanged,
       });
       if (result.submitted) {
@@ -133,11 +126,10 @@ export function TestPage() {
             <QuestionGroup
               questions={displayQuestions}
               transcriptMode={session.mode === "timed" ? "hidden" : "collapsible"}
-              onActivate={setActiveOrder}
               onAnswer={(itemOrder, option) => void answer(itemOrder, option)}
             />
           ) : (
-            <div onFocus={() => setActiveOrder(current.itemOrder)} onPointerDown={() => setActiveOrder(current.itemOrder)}>
+            <div>
               <QuestionCard question={current} transcriptMode={current.section === "listening" ? session.mode === "timed" ? "hidden" : "collapsible" : "hidden"} onAnswer={(option) => void answer(current.itemOrder, option)} />
             </div>
           )}
@@ -155,7 +147,7 @@ export function TestPage() {
           onClose={closeNavigator}
           onSelect={go}
         />}
-      <ExitConfirmationDialog open={exitGuard.blocked} variant="test" answered={answered} total={session.questions.length} onStay={exitGuard.stay} onLeave={() => { activeTime?.flush("hidden"); exitGuard.leave(); }} />
+      <ExitConfirmationDialog open={exitGuard.blocked} variant="test" answered={answered} total={session.questions.length} onStay={exitGuard.stay} onLeave={exitGuard.leave} />
     </div>
   );
 }

@@ -1,11 +1,5 @@
 export type Locale = "ko" | "en";
 export type ExamMode = "timed" | "practice";
-export type ResponseEventType =
-  | "presented"
-  | "hidden"
-  | "heartbeat"
-  | "answer_selected"
-  | "answer_changed";
 
 export type QuestionContent = Record<string, unknown>;
 
@@ -101,11 +95,6 @@ export function sanitizeQuestion(row: {
     ...(options.includeTranscript && transcript.length ? { transcript } : {}),
     selectedOption: row.selected_option,
   };
-}
-
-export function clampActiveDuration(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(60_000, Math.max(0, Math.round(value)));
 }
 
 export function normalizeEmail(value: string): string {
